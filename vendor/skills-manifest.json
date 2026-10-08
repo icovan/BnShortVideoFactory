@@ -1,0 +1,43 @@
+{
+  "version": "1",
+  "note": "Public manifest only — skill bodies live in a private pack, not in the open-source repo.",
+  "required": [
+    "creative-brief",
+    "motion-art-direction",
+    "remotion-video",
+    "kinetic-typography",
+    "diagram-animation",
+    "explainer-video"
+  ],
+  "optional": [
+    "manim",
+    "shot-composition",
+    "short-form-video",
+    "caption-animation",
+    "chart-animation",
+    "launch-video",
+    "presentation-video",
+    "stickman-animation",
+    "isometric-animation",
+    "text-message-animation",
+    "promo-video",
+    "product-demo-video",
+    "photo-slideshow",
+    "ad-creative-video",
+    "testimonial-video",
+    "countdown-video",
+    "lower-thirds",
+    "animated-infographic",
+    "map-animation",
+    "logo-animation",
+    "motion-background",
+    "color-motion",
+    "animation-principles",
+    "beat-sync-editing",
+    "audiogram",
+    "youtube-intro-outro",
+    "whiteboard-animation",
+    "wrapped-video",
+    "footage-remix"
+  ]
+}

@@ -1,0 +1,30 @@
+/**
+ * BiunowFactory design tokens
+ * 主色 #000000 · 点缀 #D4F07A · 圆润纤细 Lucide
+ */
+:root {
+  --ink: #000000;
+  --ink-soft: #1a1a1a;
+  --accent: #d4f07a;
+  --accent-soft: #eef8c4;
+  --accent-deep: #b8d94a;
+  --paper: #f3f3f1;
+  --paper-2: #e9e9e6;
+  --surface: #ffffff;
+  --muted: #6b6b6b;
+  --muted-2: #9a9a9a;
+  --line: #e2e2df;
+  --line-strong: #d0d0cc;
+  --sidebar: #fafaf8;
+  --danger: #c23b2e;
+  --success: #2f6b4f;
+  --player-bg: #0e1016;
+  --radius: 18px;
+  --radius-sm: 12px;
+  --radius-pill: 999px;
+  --shadow: 0 1px 2px rgb(0 0 0 / 4%), 0 12px 36px rgb(0 0 0 / 6%);
+  --shadow-pop: 0 16px 40px rgb(0 0 0 / 12%);
+  --font: 'Plus Jakarta Sans', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  --display: 'Fraunces', 'Songti SC', 'SimSun', serif;
+  --title-bar-height: 40px;
+}

@@ -1,0 +1,608 @@
+{
+  "app": {
+    "name": "BiunowFactory"
+  },
+  "menu": {
+    "app": {
+      "about": "About",
+      "services": "Services",
+      "hide": "Hide",
+      "hideOthers": "Hide Others",
+      "unhide": "Unhide",
+      "quit": "Quit"
+    },
+    "language": "Language",
+    "edit": {
+      "root": "Edit",
+      "undo": "Undo",
+      "redo": "Redo",
+      "cut": "Cut",
+      "copy": "Copy",
+      "paste": "Paste",
+      "selectAll": "Select All"
+    },
+    "view": {
+      "root": "View",
+      "resetZoom": "Reset Zoom",
+      "zoomIn": "Zoom In",
+      "zoomOut": "Zoom Out",
+      "toggleFullscreen": "Toggle Full Screen"
+    },
+    "window": {
+      "root": "Window",
+      "minimize": "Minimize",
+      "close": "Close"
+    },
+    "help": {
+      "root": "Help",
+      "learnMore": "Learn More"
+    }
+  },
+  "common": {
+    "buttons": {
+      "generate": "Generate",
+      "stop": "Stop",
+      "config": "Configure",
+      "save": "Save",
+      "select": "Select",
+      "selectFolder": "Select Folder",
+      "test": "Test",
+      "close": "Close",
+      "refreshAssets": "Refresh Assets",
+      "copyErrorDetail": "Copy error details",
+      "add": "Add",
+      "remove": "Remove"
+    },
+    "states": {
+      "noData": "No data"
+    },
+    "messages": {
+      "success": {
+        "copySuccess": "Copied to clipboard"
+      },
+      "error": {
+        "copyFailed": "Failed to copy"
+      }
+    }
+  },
+  "emptyStates": {
+    "noContent": "No content yet",
+    "hintSelectFolder": "Please choose a folder above with enough storyboard assets",
+    "assetsFolderEmpty": "The selected folder is empty"
+  },
+  "dialogs": {
+    "selectAssetsFolder": "Select storyboard assets folder",
+    "selectOutputFolder": "Select video export folder",
+    "selectBgmFolder": "Select background music folder",
+    "renderConfig": "Configure render options"
+  },
+  "footer": {
+    "poweredBy": "Powered by YILS (Blog: https://yils.blog)"
+  },
+  "topBar": {
+    "poweredByHint": "Developed by YILS. Visit the author's blog",
+    "documentation": "Documentation",
+    "exportDiagnostics": "Export diagnostics",
+    "diagnosticsExported": "Diagnostics exported",
+    "diagnosticsExportFailed": "Failed to export diagnostics",
+    "diagnosticsCollecting": "Collecting diagnostics...",
+    "diagnosticsArchiving": "Preparing log archive...",
+    "workflow": {
+      "text": "Script",
+      "voice": "Voice",
+      "assets": "Assets",
+      "render": "Render"
+    }
+  },
+  "version": {
+    "copy": "Copy version",
+    "checkUpdate": "Check for updates"
+  },
+  "update": {
+    "title": "Update available",
+    "currentVersion": "Current version",
+    "latestVersion": "Latest version",
+    "releaseDate": "Release date",
+    "releaseNotes": "What's new",
+    "checking": "Checking for updates",
+    "upToDate": "You're up to date",
+    "updateError": "Failed to check for updates",
+    "unknownError": "Unknown error. Please try again later.",
+    "updateLater": "Later",
+    "visitWebsite": "Visit website"
+  },
+  "setup": {
+    "title": "Set up runtime",
+    "lead": "The installer ships without engine node_modules or private skills. Install the runtime first; OSS builds also need a skills pack import.",
+    "runtime": "Render runtime",
+    "skills": "Creation skills",
+    "ready": "Ready",
+    "needInstall": "Not installed",
+    "skillsMissing": "Missing (not in open-source tree)",
+    "needNode": "Node.js 22+ with npm is required on this machine.",
+    "installRuntime": "Install runtime",
+    "installing": "Installing…",
+    "importSkills": "Import skills pack",
+    "refresh": "Recheck",
+    "continue": "Start creating",
+    "installFailed": "Runtime install failed",
+    "skillsStillMissing": "Skills still incomplete; missing: {{list}}"
+  },
+  "features": {
+    "llm": {
+      "config": {
+        "promptLabel": "Prompt",
+        "outputLabel": "Output Text (editable)",
+        "configTitle": "Configure LLM API",
+        "modelName": "Model Name",
+        "apiUrl": "API URL",
+        "apiKey": "API Key",
+        "compatibleNote": "Compatible with any OpenAI-compatible API",
+        "protocol": "Protocol",
+        "connectionTab": "Connection",
+        "copywritingTab": "Copywriting",
+        "advancedTab": "Advanced",
+        "protocolCompatible": "OpenAI-compatible API",
+        "protocolChat": "OpenAI Chat Completions",
+        "protocolResponses": "OpenAI Responses",
+        "protocolAnthropic": "Anthropic Messages/compatible API",
+        "requestUrl": "Final request URL",
+        "apiUrlRequired": "Enter an API base URL",
+        "modelNameRequired": "Enter a model name",
+        "invalidApiUrl": "Invalid API base URL. Use http:// or https:// and remove query strings, fragments, and embedded credentials.",
+        "fullEndpointApiUrl": "Enter the API base URL without the complete API endpoint path.",
+        "invalidProtocol": "Select a supported API protocol.",
+        "invalidTimeoutSeconds": "Timeout must be a positive whole number of seconds.",
+        "invalidMaxOutputTokens": "Maximum output tokens must be a positive whole number or left empty.",
+        "anthropicAuthMode": "Authentication",
+        "copywritingRules": "Copywriting rules",
+        "systemPromptMode": "System prompt",
+        "builtin": "Built-in (recommended)",
+        "custom": "Custom",
+        "off": "Off",
+        "builtinDescription": "Use built-in voiceover rules to generate text ready for speech synthesis.",
+        "customDescription": "Use your complete custom prompt instead of the built-in rules.",
+        "offDescription": "Do not add a system prompt; send only the creative request.",
+        "customPrompt": "Custom prompt",
+        "customPromptHint": "The custom content completely replaces the built-in prompt.",
+        "fillBuiltin": "Use built-in content",
+        "diversityEnabled": "Enhance copy diversity",
+        "diversityDescription": "Rotate creative angles and refer to recent scripts to vary openings and structure. Explicit user requirements remain authoritative. Limited history stays on this device; a few text excerpts are sent to the selected provider during generation.",
+        "rewriteOnSimilarity": "Rewrite once when highly similar copy is detected",
+        "rewriteDescription": "A rewrite usually adds one generation call; network retries may make the actual request count higher, increasing cost and latency.",
+        "historyCount": "Recent task records: {{count}}",
+        "clearHistory": "Clear recent records",
+        "clearHistoryConfirm": "Clear locally stored recent scripts and strategy rotation history?",
+        "advanced": "Advanced connection settings",
+        "instructionDelivery": "Instruction delivery",
+        "standardDelivery": "Standard (recommended)",
+        "userMessageDelivery": "Merge into user message",
+        "timeoutSeconds": "Request timeout (seconds)",
+        "maxOutputTokens": "Maximum output tokens",
+        "sampling": "Sampling parameters (optional)",
+        "temperature": "Temperature (0–2)",
+        "topP": "Top P (0–1)",
+        "samplingDescription": "Leave empty to use model defaults. Usually adjust either Temperature or Top P, not both. Supported ranges vary by model.",
+        "samplingCompatibilityUnknown": "Compatibility cannot be inferred from protocol alone. Check the provider and model documentation; unsupported parameters may cause request failures.",
+        "restoreSamplingDefaults": "Restore model sampling defaults",
+        "invalidTemperature": "Temperature must be a finite number from 0 to 2, or empty. A specific model may support a narrower range.",
+        "invalidTopP": "Top P must be a finite number from 0 to 1, or empty.",
+        "replacePromptConfirm": "This will replace the current custom prompt. Continue?",
+        "customHeaders": "Custom headers",
+        "headerName": "Name",
+        "headerValue": "Value",
+        "invalidHeaderName": "Invalid header name. Use a standard HTTP header name.",
+        "invalidHeaderValue": "Header values cannot contain control characters or line breaks.",
+        "protectedHeaderName": "This header is managed by the protocol or authentication and cannot be customized.",
+        "duplicateHeaderName": "Header names must be unique."
+      },
+      "errors": {
+        "promptRequired": "Prompt cannot be empty",
+        "connectionFailed": "LLM connection failed, please check your configuration",
+        "generateFailed": "Generation failed, please check LLM configuration",
+        "customPromptRequired": "Enter a custom prompt or choose Off",
+        "cancelled": "Generation was cancelled",
+        "failed": "No valid text was received",
+        "truncated": "Generation is incomplete",
+        "textNotReady": "The current script is not ready for speech synthesis",
+        "historyClearFailed": "Could not clear recent records. Check local storage availability."
+      },
+      "success": {
+        "connectionSucceeded": "LLM connected successfully",
+        "historyCleared": "Recent copy history cleared"
+      },
+      "info": {
+        "checkingSimilarity": "Checking similarity with recent copy…",
+        "rewritingSimilarCopy": "This script is similar to recent copy. Trying a different angle…",
+        "similarityRemains": "The script is still similar to recent copy. Consider changing the prompt or editing it.",
+        "similarityRewriteFailed": "The diversity rewrite did not finish; the first draft was kept."
+      },
+      "status": {
+        "idle": "Ready",
+        "generating": "Generating",
+        "completed": "Completed",
+        "cancelled": "Cancelled",
+        "failed": "Failed",
+        "truncated": "Incomplete",
+        "edited": "Edited"
+      }
+    },
+    "tts": {
+      "config": {
+        "language": "Language",
+        "gender": "Gender",
+        "voice": "Voice",
+        "speed": "Speed",
+        "tryText": "Try-listen text",
+        "tryListen": "Try listen",
+        "selectLanguageGenderFirst": "Please select language and gender first",
+        "selectVoiceWarning": "Please select a voice",
+        "tryTextEmptyWarning": "Try-listen text cannot be empty",
+        "genderMale": "Male",
+        "genderFemale": "Female",
+        "speedSlow": "Slow",
+        "speedMedium": "Medium",
+        "speedFast": "Fast"
+      },
+      "errors": {
+        "fetchVoicesFailed": "Failed to fetch Edge TTS voice list. Please check your network",
+        "synthesisFailed": "TTS synthesis failed",
+        "fileCorrupt": "TTS failed: audio file is corrupted",
+        "zeroDuration": "TTS duration is 0s. Check TTS config and network connectivity",
+        "configInvalid": "TTS configuration is invalid",
+        "trySynthesisNetwork": "Failed to synthesize try-listen audio. Please check network"
+      },
+      "info": {
+        "playTryAudio": "Playing try-listen audio"
+      }
+    },
+    "assets": {
+      "config": {
+        "folderLabel": "Storyboard assets folder"
+      },
+      "errors": {
+        "loadFailed": "Failed to read assets. Please check if the folder exists",
+        "noMp4InFolder": "No MP4 video files found in the selected folder",
+        "audioDurationInvalid": "Audio duration is invalid. Please check the speech synthesis result or audio file",
+        "noVideoAssets": "No available video assets. Please select an assets folder containing MP4 videos",
+        "noUsableVideoAssets": "No readable video assets. Check whether the files are corrupted or use a supported codec",
+        "durationInsufficient": "Total available video assets duration is insufficient"
+      },
+      "success": {
+        "loadSucceeded": "Assets loaded successfully"
+      }
+    },
+    "render": {
+      "config": {
+        "startLabel": "Start Rendering",
+        "stopLabel": "Stop Rendering",
+        "autoBatch": "Auto batch render",
+        "autoBatchOff": "Batch render is off",
+        "autoBatchOn": "Batch render is on",
+        "bgmFolderLabel": "Background music folder (.mp3, pick randomly)",
+        "output": {
+          "width": "Output width",
+          "height": "Output height",
+          "fileName": "Output file name",
+          "format": "Output format",
+          "folder": "Output folder"
+        }
+      },
+      "status": {
+        "idle": "Idle, ready to render",
+        "generatingText": "Generating script with AI LLM",
+        "synthesizingSpeech": "Synthesizing speech with TTS",
+        "segmentingVideo": "Processing video segments",
+        "rendering": "Rendering video",
+        "success": "Rendered successfully, you can start the next one",
+        "failed": "Render failed, please try again"
+      },
+      "statusShort": {
+        "idle": "Ready",
+        "generatingText": "Generating script",
+        "synthesizingSpeech": "Synthesizing speech",
+        "segmentingVideo": "Segmenting assets",
+        "rendering": "Rendering video",
+        "success": "Render done",
+        "failed": "Render failed"
+      },
+      "statusMini": {
+        "idle": "Idle",
+        "generatingText": "Text",
+        "synthesizingSpeech": "TTS",
+        "segmentingVideo": "Seg",
+        "rendering": "Render",
+        "success": "Done",
+        "failed": "Fail"
+      },
+      "errors": {
+        "failed": "Video rendering failed. Please check all configurations",
+        "bgmListFailed": "Failed to load BGM list. Please check the folder exists",
+        "outputFileNameRequired": "Please set an output file name first",
+        "outputPathRequired": "Please set an export folder first",
+        "outputSizeRequired": "Please set output resolution (width x height) first"
+      },
+      "success": {
+        "succeeded": "Video rendered successfully"
+      },
+      "info": {
+        "batchNext": "Start next render",
+        "canceled": "Video rendering canceled"
+      }
+    }
+  },
+  "studio": {
+    "create": {
+      "title": "Turn ideas into films",
+      "subtitle": "All-in-one AI animation: low-cost, no-fuss — built for every creative need!",
+      "workflows": "Workflows",
+      "workflowsHint": "Locks animation pipeline · edit prompt freely · ✕ to clear",
+      "engineReady": "Engine ready",
+      "engineStarting": "Starting engine…",
+      "attachTitle": "Add assets & options",
+      "attachHint": "Upload assets, style refs, voice and SFX options.",
+      "animation": "Animation",
+      "aiVideo": "AI Video",
+      "aiVideoSoon": "Phase 2",
+      "optimize": "Optimize prompt",
+      "optimizing": "Optimizing…",
+      "submit": "Create",
+      "submitting": "Submitting…",
+      "densifying": "Queued — jobs run one at a time; you can submit another…",
+      "queuedStay": "Queued at #{{n}}. Submit another, or open it from History.",
+      "needLlm": "Set your LLM API in Config first",
+      "fileTooLarge": "{{name}} exceeds 12MB and was skipped",
+      "briefLang": "Audience lang",
+      "briefMachine": "Machine brief stays English · VO/captions follow audience lang",
+      "briefDual": "Dual-track: edit audience copy above; machine brief is factory-only",
+      "estimate": "Est. film ~{{sec}}s · render ~{{low}}–{{high}} min",
+      "myVoices": "My voices",
+      "plus": {
+        "upload": "Upload assets",
+        "music": "Music bed",
+        "musicDisabled": "Music bed temporarily disabled",
+        "voice": "Voice",
+        "styleRef": "Style reference",
+        "webSearch": "Web search",
+        "webSearchSoon": "Fetches live web snippets into the brief",
+        "urlExtract": "Read URL",
+        "urlExtractHint": "Links detected — page body will be fetched automatically (no LLM)",
+        "unwired": "Unwired",
+        "autoSfx": "Auto SFX",
+        "vo": "Voice-over",
+        "scriptDrive": "Script drive",
+        "back": "Back",
+        "on": "On",
+        "off": "Off",
+        "auto": "Auto",
+        "polish": "Polish",
+        "verbatim": "Verbatim",
+        "voLocked": "On · locked",
+        "preview": "Preview",
+        "previewing": "Playing…",
+        "previewText": "Hello, this is a voice preview.",
+        "uploadStyle": "Upload reference",
+        "styleHint": "Pick a still to lock look — palette and materials guide the film. Or upload your own.",
+        "styleBusy": "Extracting look…",
+        "noStyleRefs": "No bundled refs — upload an image"
+      },
+      "modes": {
+        "prompt": "Free create",
+        "narrate": "Explain",
+        "short": "Shorts",
+        "stickman": "Brand",
+        "launch": "Source story"
+      },
+      "placeholders": {
+        "prompt": "Freely describe the animation — topic, pacing, visuals, and VO…",
+        "narrate": "Describe an explainer — idea, pacing, story… or tap a topic below",
+        "short": "Describe a vertical short — hook, rhythm, CTA… or tap a topic below",
+        "stickman": "Describe a logo film — upload SVG/PNG and how it should reveal… or tap a topic below",
+        "launch": "Describe a source-driven story — paste article URL / topic / assets… or tap a topic below"
+      },
+      "quickbook": {
+        "tips": {
+          "narrate": "Supports script / doc drive",
+          "short": "Vertical 9:16 · Douyin / TikTok ready",
+          "stickman": "Supports SVG / PNG drive",
+          "launch": "Supports article link / topic / attachment; paste body or upload if the site blocks fetch"
+        },
+        "topics": {
+          "narrate": {
+            "ramen": {
+              "title": "Food story",
+              "fill": "Tell the story of how ramen went from cheap late-night street food to a global obsession — a little history, a lot of steaming, mouth-watering bowls. A 60-second Douyin video. Land it: it's comfort in a bowl, and the whole world is hooked."
+            },
+            "honey": {
+              "title": "Did you know",
+              "fill": "How is honey actually made? Follow it from flower to jar — bees gathering nectar, the buzzing hive, honeycomb dripping gold. A satisfying, surprising 45-second Douyin. Land it: it takes a whole hive to make one spoonful."
+            },
+            "cats": {
+              "title": "Animal facts",
+              "fill": "Why do cats purr? It's weirder than you think — cats also purr when they're scared or hurt, and the low vibration may help heal their bones. A fun, surprising 40-second TikTok. Land it: your cat is a tiny self-repair machine."
+            },
+            "beijing": {
+              "title": "Travel guide",
+              "fill": "5 underrated things to do in Beijing that most tourists skip — hidden viewpoints, tiny family-run food spots, a sunset tram ride. Make it a dreamy but fast-paced 45-second TikTok. The one thing to land: save this for your trip."
+            }
+          },
+          "short": {
+            "hook": {
+              "title": "3-second hook",
+              "fill": "Open with a 3-second pattern interrupt: one counter-intuitive claim slammed in kinetic type, then one instantly usable tip. Vertical 9:16, ~20s Douyin, kinetic typography, hard CTA at the end: like & save."
+            },
+            "list": {
+              "title": "List punch",
+              "fill": "A vertical checklist: 3 phone settings to turn off tonight — each line gets a crisp check-off beat. ~28s Douyin. Land it: do these three before bed."
+            },
+            "loop": {
+              "title": "Loop quote",
+              "fill": "A loopable vertical quote film: slam one punchy line word-by-word with kinetic type and a gentle camera push. ~12–15s TikTok loop. Land it: the line itself is the product."
+            }
+          },
+          "stickman": {
+            "draw": {
+              "title": "Draw on my line mark",
+              "fill": "I have a line-art or monoline SVG logo. Reveal it by drawing the strokes on, as if being written by hand, then a single confident settle. Around 5-6 seconds, refined and minimal, on a soft neutral background. The mark itself is the hero, with no added text."
+            },
+            "icon": {
+              "title": "Drop in my icon mark",
+              "fill": "I have a compact icon or badge SVG logo. Bring it in with a lively scale-up and a touch of overshoot, plus a small secondary bounce as it settles. Around 4 seconds, bold and energetic, with punchy colors on a vibrant background. Just the mark, no text."
+            },
+            "build": {
+              "title": "Build my mark piece by piece",
+              "fill": "I have a multi-part or wordmark SVG logo. Reveal it part by part in a tight, deliberate sequence, letter by letter or shape by shape, in a sensible build order, snapping cleanly into the final lockup. Around 5 seconds, precise and confident, on a clean solid background. Logo only, no tagline."
+            }
+          },
+          "launch": {
+            "three": {
+              "title": "3 takeaways from an article",
+              "fill": "Read this article and produce a short, brand-style video that distills its three biggest takeaways. Carry each point with an animated diagram, keep a confident and steady voice-over rhythm, use clean typography with a single accent color, and end on one summary card. Use this source: https://www.xxx.com/..."
+            },
+            "chapters": {
+              "title": "Chaptered deep dive",
+              "fill": "Turn this article into a 75-second chaptered explainer in a 16:9 frame. Open with a one-line thesis, then walk each section as its own chapter with a small progress indicator, schematic diagrams that build step by step, and smooth transitions between chapters. Measured, documentary-style pacing suited to a voice-over. Use this source: https://www.xxx.com/..."
+            }
+          }
+        }
+      }
+    },
+    "player": {
+      "empty": "No video yet — create one on the left",
+      "generating": "Generating — it will appear here when ready",
+      "waiting": "Waiting for final video…",
+      "failed": "Generation failed"
+    },
+    "history": {
+      "title": "History",
+      "empty": "No tasks yet. New creations will show up here.",
+      "openWorkbench": "Workbench",
+      "queuePos": "Queue #{{n}}",
+      "cancelQueue": "Dequeue",
+      "delete": "Delete",
+      "deleteTitle": "Delete “{{title}}”?",
+      "deleteHint": "Removes it from the list and deletes the local output folder. This cannot be undone.",
+      "deleteConfirm": "Delete",
+      "deleting": "Deleting…",
+      "cancel": "Cancel"
+    },
+    "status": {
+      "queued": "Queued",
+      "running": "In progress",
+      "ready": "Done",
+      "error": "Failed",
+      "pending": "Waiting",
+      "done": "Done",
+      "waitingStart": "Waiting to start",
+      "noTask": "No task"
+    },
+    "workbench": {
+      "title": "Workbench",
+      "back": "Back",
+      "storyboard": "Storyboard",
+      "storyboardHint": "Select beats after the film is ready",
+      "files": "Files",
+      "filesHint": "Project output files",
+      "filesEmpty": "No files yet",
+      "untitled": "Untitled task",
+      "waitingVideo": "Waiting for final video…",
+      "stepsOf": "{{done}}/{{total}} steps",
+      "etaReady": "Ready to export / remake",
+      "etaError": "See error on the right",
+      "etaIdle": "—",
+      "etaEstimating": "Estimating…",
+      "queuePos": "Queue #{{n}} — starts after earlier jobs finish",
+      "etaRemain": "~{{eta}} left",
+      "etaElapsed": "Elapsed {{eta}}",
+      "refine": "Refine",
+      "refineMotion": "Polish motion",
+      "refineIntent": "Sharpen intent",
+      "refineSimple": "Simplify",
+      "refineNoteMotion": "Increase motion overshoot and rhythm; avoid flat timing.",
+      "refineNoteIntent": "Make visual intent clearer and more cinematic; stress the key message.",
+      "refineNoteSimple": "Simplify layers and reduce clutter.",
+      "modify": "Edit",
+      "modifyBoth": "Visual + captions",
+      "modifyVisual": "Visual only",
+      "modifyVoice": "Narration only",
+      "composerPlaceholder": "Select a beat on the left, then describe the change…",
+      "selectAll": "Select all",
+      "clearSelect": "Clear",
+      "loopBeat": "Loop beat",
+      "export": "Export",
+      "versions": "Versions",
+      "versionInitial": "Initial",
+      "versionRemake": "Edit {{n}}",
+      "versionCurrent": "Current",
+      "versionInitialHint": "First render",
+      "versionRemakeHint": "After remake",
+      "versionBeats": "Edited {{n}} beats",
+      "versionArchive": "Archive",
+      "remake": "Refine",
+      "remakeModeBoth": "Visual + VO",
+      "remakeModeVisual": "Visual only",
+      "remakeModeVoice": "VO only",
+      "remakeNeedSelect": "Select beats first",
+      "remakeNeedNote": "Describe the change",
+      "remakeFailed": "Remake failed — check the error and retry",
+      "remakeBusy": "Refining…",
+      "noBeats": "Select beats after the film is ready"
+    },
+    "steps": {
+      "scene": "Write script",
+      "stills": "Check frames",
+      "encode": "Export film",
+      "plan": "Organize brief",
+      "brief": "Decide style",
+      "voice": "Generate VO",
+      "build": "Generate visuals",
+      "inspect": "QA"
+    },
+    "config": {
+      "title": "Settings",
+      "tabLlm": "LLM",
+      "tabSpeech": "Voice",
+      "apiUrl": "API URL",
+      "apiUrlPh": "Auto-filled by vendor; editable",
+      "apiKey": "API Key",
+      "model": "Model",
+      "modelPick": "Select a model",
+      "modelCustomPh": "Custom model name",
+      "vendor": "Provider",
+      "llmHint": "Default DeepSeek in CN; OpenAI recommended abroad (compatible API for bilingual planning).",
+      "vendors": {
+        "deepseek": "DeepSeek (CN)",
+        "openai": "OpenAI (global)",
+        "qwen": "Qwen (DashScope)",
+        "moonshot": "Moonshot Kimi",
+        "custom": "Custom"
+      },
+      "speechProvider": "Voice mode",
+      "speechSystem": "System voices",
+      "speechMine": "My voices",
+      "speechSystemHint": "Free Edge TTS. Pick in Create → Plus → Voice; used for VO.",
+      "speechMineHint": "Preferred: Alibaba CosyVoice. Clone in console → paste Voice ID → use in Create.",
+      "providerAuto": "Default (edge-tts)",
+      "providerWindows": "Windows TTS (fallback)",
+      "edgeTts": "edge-tts only",
+      "myVoice": "My voice",
+      "voiceId": "Default voice",
+      "cloneProvider": "Clone provider",
+      "cloneNone": "Off",
+      "cloneDashscope": "Alibaba CosyVoice (recommended)",
+      "cloneMinimax": "MiniMax",
+      "cloneFish": "Fish Audio",
+      "cloneApiKey": "Clone API Key",
+      "cloneApiKeyPh": "Provider API Key",
+      "cloneBaseUrl": "Compatible Base URL",
+      "speechModel": "Speech model",
+      "myVoiceName": "Display name",
+      "myVoiceVoiceId": "Voice ID",
+      "addMyVoice": "Add my voice",
+      "myVoicesEmpty": "No custom voices yet.",
+      "close": "Close",
+      "save": "Save",
+      "menuTitle": "Settings"
+    }
+  }
+}

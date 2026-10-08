@@ -1,0 +1,864 @@
+import { createRequire } from 'node:module';
+import { chatJson, chatText, readSkill } from '../llm.ts';
+import type { Settings } from '../../../shared/src/index.ts';
+import {
+  collectBeatKinds,
+  extractConstArray,
+  jsonToTsObjectLiteral,
+  spliceConstArrayItems,
+  surgicalDriftTooHigh,
+  syncBeatsCopyFromScenes,
+} from './surgicalBeats.ts';
+
+const requireTs = createRequire(import.meta.url);
+
+/** esbuild/TS 语法门禁：软接受风格问题可以，语法错误绝不能放行 */
+export function parseTsxSyntaxIssues(src: string, fileName = 'Active.tsx'): string[] {
+  try {
+    // typescript 为 create-core 的本地依赖（devDependency，安装后可用）
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ts = requireTs('typescript') as typeof import('typescript');
+    const result = ts.transpileModule(src, {
+      compilerOptions: {
+        jsx: ts.JsxEmit.ReactJSX,
+        target: ts.ScriptTarget.ES2020,
+        module: ts.ModuleKind.ESNext,
+        esModuleInterop: true,
+        skipLibCheck: true,
+        noLib: true,
+      },
+      reportDiagnostics: true,
+      fileName,
+    });
+    const diags = (result.diagnostics || []).filter(
+      (d) => d.category === ts.DiagnosticCategory.Error,
+    );
+    return diags.slice(0, 6).map((d) => {
+      const msg = ts.flattenDiagnosticMessageText(d.messageText, ' ');
+      let loc = '';
+      if (d.file && typeof d.start === 'number') {
+        const { line } = d.file.getLineAndCharacterOfPosition(d.start);
+        loc = `L${line + 1}: `;
+      }
+      return `syntax ${loc}${msg}`;
+    });
+  } catch (e) {
+    return [`syntax check failed: ${e instanceof Error ? e.message : String(e)}`];
+  }
+}
+
+export function extractTsx(text: string): string {
+  const m = text.match(/```(?:tsx|typescript|ts|jsx)?\s*([\s\S]*?)```/i);
+  return (m ? m[1] : text).trim();
+}
+
+export function validateNarratedTsx(src: string): string[] {
+  const issues: string[] = [];
+  if (!/export\s+(const|function)\s+ActiveNarrated/.test(src)) {
+    issues.push('must export ActiveNarrated');
+  }
+  if (!/from\s+['"]remotion['"]/.test(src)) issues.push('must import from remotion');
+  if (!/NarratedProps/.test(src)) issues.push('must use NarratedProps');
+  if (/from\s+['"]\.\.\/NarratedExplainer['"]/.test(src)) {
+    issues.push('must NOT re-export stock NarratedExplainer — invent new scenes');
+  }
+  if (/fetch\s*\(/.test(src) || /setInterval|setTimeout|requestAnimationFrame/.test(src)) {
+    issues.push('no fetch / timers — frame-driven only');
+  }
+  if (src.length < 800) issues.push('source too short — likely incomplete');
+  // Boldness gates (PageOn energy) — reject timid slide decks
+  if (!/spring\s*\(/.test(src)) issues.push('must use spring() for kinetic motion');
+  if (!/fontSize:\s*(?:7[2-9]|[89]\d|1\d{2}|2\d{2})/.test(src)) {
+    issues.push('hero type must hit ≥72px somewhere (PageOn-scale kinetic)');
+  }
+  if (!/(rotate|scale)\s*[`(]/.test(src) && !/transform:.*(?:rotate|scale)/.test(src)) {
+    issues.push('must use scale/rotate transforms for depth (tilted UI / slam)');
+  }
+  return issues;
+}
+
+export function validateLaunchTsx(src: string): string[] {
+  const issues: string[] = [];
+  if (!/export\s+(const|function)\s+ActiveLaunch/.test(src)) {
+    issues.push('must export ActiveLaunch');
+  }
+  if (!/from\s+['"]remotion['"]/.test(src)) issues.push('must import from remotion');
+  if (!/LaunchProps/.test(src)) issues.push('must use LaunchProps');
+  if (/from\s+['"]\.\.\/LaunchShowreel['"]/.test(src)) {
+    issues.push('must NOT re-export stock LaunchShowreel — invent new scenes');
+  }
+  if (!/musicFile|dropSec/.test(src)) {
+    issues.push('must reference props.musicFile and props.dropSec (sound leads picture)');
+  }
+  if (/fetch\s*\(/.test(src) || /setInterval|setTimeout|requestAnimationFrame/.test(src)) {
+    issues.push('no fetch / timers — frame-driven only');
+  }
+  if (src.length < 800) issues.push('source too short — likely incomplete');
+  if (!/spring\s*\(/.test(src)) issues.push('must use spring() for kinetic motion');
+  if (!/fontSize:\s*(?:7[2-9]|[89]\d|1\d{2}|2\d{2})/.test(src)) {
+    issues.push('hero type must hit ≥72px somewhere (portfolio-scale kinetic)');
+  }
+  if (!/(rotate|scale)\s*[`(]/.test(src) && !/transform:.*(?:rotate|scale)/.test(src)) {
+    issues.push('must use scale/rotate transforms for depth (tilted UI / slam)');
+  }
+  return issues;
+}
+
+/**
+ * 自由模式通用「画布/动效」地板：字体、弹簧动画、景深、构图、绘图表达、配色。
+ * 不含片型弧、口播、引擎切换等硬管线语义。
+ */
+export const CINEMATIC_MOTION_FLOOR = `- Type: hero kinetic type 88–140px (floor ≥72); prefer KineticWords / KineticLines from '../ui'; weight contrast, tracking snap.
+- Motion: spring({ damping: ~12 }) slam — translateY 28–48px + scale 1.12→1 (or 0.88→1 overshoot); stagger 0.08–0.15s; interpolate/camera push; no frozen static AbsoluteFill >0.4s.
+- Depth: perspective / rotateX|Y / parallax / stacked AbsoluteFills with opacity — never a flat single-layer slide.
+- Frame: ≥1 full-bleed / edge-to-edge beat; subject or chrome fills ≥55% of frame; forbid timid centered micro-UI / inset mockups < half the shorter edge.
+- Draw: diagrams/charts via strokeDash, progressive reveal, count-up, shape morph — intentional graphic change in the first 8 frames of each Sequence.
+- Palette: invent canvas/ink/accent from THIS topic; do NOT default Linear purple-black / PageOn purple-white / sandwich orange unless named.`;
+
+/** One-liner：仅画布/动效 */
+export const CINEMATIC_FLOOR_LINE =
+  'CRAFT FLOOR (canvas/motion only): hero type ≥72–140px; spring slam; perspective/depth layers; full-bleed or oversized subject; diagram/stroke draw when relevant; palette from THIS brief — forbid tiny centered micro-UI. (Not about VO/SKU arcs.)';
+
+const NARRATED_SKELETON = `import React from 'react';
+import {
+  AbsoluteFill, Audio, Series, interpolate, spring, staticFile,
+  useCurrentFrame, useVideoConfig,
+} from 'remotion';
+import { loadFont } from '@remotion/google-fonts/Inter';
+import type { NarratedProps, NarratedScene } from '../narratedSchema';
+// Optional helpers (prefer inventing your own layouts):
+// import { KineticWords, KineticLines, SlideCard, ChatPane, CountUp, CaptionChip } from '../ui';
+
+const { fontFamily: FONT } = loadFont('normal', {
+  weights: ['400', '500', '600', '700', '800'],
+  subsets: ['latin'],
+});
+
+export const ActiveNarrated: React.FC<NarratedProps> = (props) => {
+  const { fps } = useVideoConfig();
+  return (
+    <AbsoluteFill style={{ background: props.canvas, fontFamily: FONT }}>
+      <Series>
+        {props.scenes.map((scene, i) => {
+          const dur = Math.max(1, Math.round(scene.durationSec * fps));
+          return (
+            <Series.Sequence key={i} durationInFrames={dur}>
+              {scene.narrationFile ? <Audio src={staticFile(scene.narrationFile)} /> : null}
+              {/* TODO: render UNIQUE visuals for scene.stage / scene.visualIntent */}
+              <AbsoluteFill />
+            </Series.Sequence>
+          );
+        })}
+      </Series>
+    </AbsoluteFill>
+  );
+};
+`;
+
+const LAUNCH_SKELETON = `import React from 'react';
+import {
+  AbsoluteFill, Audio, Series, interpolate, spring, staticFile,
+  useCurrentFrame, useVideoConfig,
+} from 'remotion';
+import { loadFont } from '@remotion/google-fonts/Inter';
+import type { LaunchProps } from '../launchSchema';
+
+const { fontFamily: FONT } = loadFont('normal', {
+  weights: ['400', '500', '600', '700', '800'],
+  subsets: ['latin'],
+});
+
+export const ActiveLaunch: React.FC<LaunchProps> = (props) => {
+  const { fps } = useVideoConfig();
+  const dropSec = props.dropSec ?? 9;
+  return (
+    <AbsoluteFill style={{ background: props.canvas, fontFamily: FONT }}>
+      {props.musicFile ? <Audio src={staticFile(props.musicFile)} /> : null}
+      <Series>
+        {props.scenes.map((scene, i) => {
+          const dur = Math.max(1, Math.round(scene.durationSec * fps));
+          return (
+            <Series.Sequence key={i} durationInFrames={dur}>
+              {scene.narrationFile ? <Audio src={staticFile(scene.narrationFile)} /> : null}
+              {/* hook | tease | reveal@dropSec | feature | end — UNIQUE UI */}
+              <AbsoluteFill />
+            </Series.Sequence>
+          );
+        })}
+      </Series>
+    </AbsoluteFill>
+  );
+};
+`;
+
+export async function generateNarratedTsx(
+  settings: Settings,
+  opts: { prompt: string; propsJson: string; storyboardJson: string; lookLine?: string },
+): Promise<string> {
+  // Full skill packs — hard pipeline budget (no soft-flavor truncation to 14k)
+  const skill = readSkill([
+    'explainer-video',
+    'remotion-video',
+    'kinetic-typography',
+    'diagram-animation',
+    'presentation-video',
+  ], 48000);
+
+  const raw = await chatText(
+    settings,
+    `You are a Remotion AUTHOR under a HARD skill pipeline (code-enforced later).
+Skills are LAW — implement their techniques, not decorate.
+
+=== SKILLS (verbatim) ===
+${skill}
+
+=== HARD RULES (will be statically validated) ===
+1. Export: export const ActiveNarrated: React.FC<NarratedProps>
+2. Import from 'remotion' + '../narratedSchema'. Font: @remotion/google-fonts/Inter. Optional '../ui'.
+3. FORBIDDEN: re-export NarratedExplainer; empty AbsoluteFill placeholders; timid micro-motion.
+4. Series over props.scenes; durationInFrames = round(durationSec * fps); Audio via staticFile(narrationFile).
+5. REALIZE every scene.visualIntent + keyMotion with on-screen copy that matches the spoken line language (do not translate away from props).
+6. Technique cores REQUIRED in code:
+   - diagram/research: progressive disclosure nodes → edges → labels (SVG path strokeDash / stagger springs)
+   - kinetic/problem|brand: word or line stagger (translateY + spring)
+   - stat/proof: numeric count-up driven by interpolate/spring
+   - chat_edit/design: chat bubble + slide update
+7. Style lock from THIS job's props.canvas / ink / accent / brandBg — one grammar, prompt-owned skin.
+8. No fetch/timers/setState animation.
+
+=== MOTION LANGUAGE (quality floor, NOT official PageOn skin) ===
+${opts.lookLine || 'Use props.canvas/ink/accent. Invent material from the brief.'}
+${CINEMATIC_MOTION_FLOOR}
+- At least ONE full-bleed accent beat using props.accent (not a hardcoded indigo).
+- HOLD kinetic settles for VO when narrationFile is present.
+
+Skeleton:
+\`\`\`tsx
+${NARRATED_SKELETON}
+\`\`\``,
+    `User brief:
+${opts.prompt}
+
+Storyboard (MUST realize visualIntent):
+${opts.storyboardJson.slice(0, 14000)}
+
+Locked props (timing + VO + styleLock):
+${opts.propsJson.slice(0, 16000)}
+
+Return complete ActiveNarrated.tsx.`,
+    0.75,
+  );
+
+  let src = extractTsx(raw);
+  // Ensure export name
+  if (!/ActiveNarrated/.test(src) && /export\s+const\s+\w+/.test(src)) {
+    src = src.replace(/export\s+const\s+\w+/, 'export const ActiveNarrated');
+  }
+  return src;
+}
+
+export async function fixNarratedTsx(
+  settings: Settings,
+  opts: { source: string; error: string; propsJson: string },
+): Promise<string> {
+  const raw = await chatText(
+    settings,
+    `You fix Remotion TSX for GeneratedNarrated. Keep export const ActiveNarrated.
+Obey remotion frame-driven rules. Output complete TSX only.`,
+    `Error:
+${opts.error.slice(0, 2500)}
+
+Current source:
+\`\`\`tsx
+${opts.source.slice(0, 16000)}
+\`\`\`
+
+Props reminder (durations/VO):
+${opts.propsJson.slice(0, 4000)}`,
+    0.4,
+  );
+  return extractTsx(raw);
+}
+
+export async function generateLaunchTsx(
+  settings: Settings,
+  opts: { prompt: string; propsJson: string; lookLine?: string },
+): Promise<string> {
+  const skill = readSkill([
+    'launch-video',
+    'remotion-video',
+    'shot-composition',
+    'kinetic-typography',
+  ], 42000);
+
+  const raw = await chatText(
+    settings,
+    `You are a Remotion AUTHOR under HARD launch-video pipeline.
+SOUND LEADS PICTURE. Reveal MUST snap on props.dropSec.
+
+=== SKILLS ===
+${skill}
+
+=== HARD RULES (validated in gates) ===
+1. Export: export const ActiveLaunch: React.FC<LaunchProps> from '../launchSchema'
+2. Props include dropSec, musicFile, beats[], scenes[] — EACH scene has narrationFile (continuous VO in props language).
+3. Root play music: <Audio src={staticFile(props.musicFile!)} /> PLUS per-scene <Audio src={staticFile(scene.narrationFile)} /> at Series.Sequence start.
+4. VO SYNC: key visual change lands in the first ~40% of each scene while that scene's VO speaks — do not leave long silent holds with static frames.
+5. Arc: hook → tease → reveal → feature×N → end. Reveal brand mark hits FULL at props.dropSec (scale overshoot then settle).
+6. Feature montage: one benefit + one keyword per shot, hard cuts, kinetic pop.
+7. End card logo+CTA hold ≥2s. FORBIDDEN: re-export LaunchShowreel; ignore dropSec; mute feature scenes.
+
+=== MOTION LANGUAGE (quality floor, NOT official Linear skin) ===
+${opts.lookLine || 'Use props.canvas/ink/accent. Invent chrome from the brief.'}
+${CINEMATIC_MOTION_FLOOR}
+- Hook/tease: dense floating chips with depth, slow camera push.
+- Reveal: mark SNAP on dropSec with 1.18→1.0 overshoot.
+- Product chrome oversized and tilted — not tiny centered icons.
+- Forbidden: copying Linear ENG-2481 / #5E6AD2 unless the brief is Linear.
+
+Skeleton:
+\`\`\`tsx
+${LAUNCH_SKELETON}
+\`\`\``,
+    `User brief:
+${opts.prompt}
+
+Locked props (dropSec/musicFile/beats/scenes — obey):
+${opts.propsJson.slice(0, 18000)}
+
+Return complete ActiveLaunch.tsx.`,
+    0.72,
+  );
+
+  let src = extractTsx(raw);
+  if (!/ActiveLaunch/.test(src) && /export\s+const\s+\w+/.test(src)) {
+    src = src.replace(/export\s+const\s+\w+/, 'export const ActiveLaunch');
+  }
+  return src;
+}
+
+export async function fixLaunchTsx(
+  settings: Settings,
+  opts: { source: string; error: string; propsJson: string },
+): Promise<string> {
+  const raw = await chatText(
+    settings,
+    `Fix Remotion TSX for GeneratedLaunch. Keep export const ActiveLaunch. Complete file only.`,
+    `Error:
+${opts.error.slice(0, 2500)}
+
+Source:
+\`\`\`tsx
+${opts.source.slice(0, 16000)}
+\`\`\`
+
+Props:
+${opts.propsJson.slice(0, 4000)}`,
+    0.4,
+  );
+  return extractTsx(raw);
+}
+
+export function validateNextWordTsx(src: string): string[] {
+  const issues: string[] = [];
+  if (!/export\s+(const|function)\s+ActiveNextWord/.test(src)) issues.push('must export ActiveNextWord');
+  if (!/from\s+['"]remotion['"]/.test(src)) issues.push('must import from remotion');
+  if (!/NextWordProps/.test(src)) issues.push('must use NextWordProps');
+  if (/from\s+['"]\.\.\/NextWordLoop['"]/.test(src)) {
+    issues.push('must NOT re-export stock NextWordLoop — invent layouts from props.scenes');
+  }
+  if (/fetch\s*\(/.test(src) || /setInterval|setTimeout|requestAnimationFrame/.test(src)) {
+    issues.push('no fetch / timers — frame-driven only');
+  }
+  if (src.length < 900) issues.push('source too short');
+  if (!/spring\s*\(/.test(src)) issues.push('must use spring()');
+  if (!/READ/.test(src) || !/ODDS/.test(src) || !/SPIN/.test(src) || !/ADD/.test(src)) {
+    issues.push('must render persistent 1 READ / 2 ODDS / 3 SPIN / 4 ADD chrome');
+  }
+  if (!/durationSec/.test(src) || !/useCurrentFrame/.test(src)) {
+    issues.push('pills must be driven off composition frame + scene durations (never remount inside Series)');
+  }
+  return issues;
+}
+
+const NEXTWORD_SKELETON = `import React from 'react';
+import {
+  AbsoluteFill, Audio, Series, interpolate, spring, staticFile,
+  useCurrentFrame, useVideoConfig,
+} from 'remotion';
+import { loadFont } from '@remotion/google-fonts/Inter';
+import type { NextWordProps } from '../nextWordSchema';
+
+const { fontFamily: FONT } = loadFont('normal', {
+  weights: ['400', '500', '600', '700', '800'],
+  subsets: ['latin'],
+});
+
+export const ActiveNextWord: React.FC<NextWordProps> = (props) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  return (
+    <AbsoluteFill style={{ background: props.canvas, fontFamily: FONT }}>
+      {/* overlay 1 READ 2 ODDS 3 SPIN 4 ADD — hide hook+type, then NEVER unmount */}
+      <Series>
+        {props.scenes.map((scene, i) => {
+          const dur = Math.max(1, Math.round(scene.durationSec * fps));
+          return (
+            <Series.Sequence key={i} durationInFrames={dur}>
+              {scene.narrationFile ? <Audio src={staticFile(scene.narrationFile)} /> : null}
+              <AbsoluteFill />
+            </Series.Sequence>
+          );
+        })}
+      </Series>
+    </AbsoluteFill>
+  );
+};
+`;
+
+export async function generateNextWordTsx(
+  settings: Settings,
+  opts: { prompt: string; propsJson: string; lookLine?: string },
+): Promise<string> {
+  const skill = readSkill([
+    'short-form-video',
+    'caption-animation',
+    'chart-animation',
+    'kinetic-typography',
+    'diagram-animation',
+    'remotion-video',
+  ], 42000);
+
+  const raw = await chatText(
+    settings,
+    `You are a Remotion AUTHOR for a 9:16 (1080×1920) LLM next-word explainer.
+Follow skills. Invent UNIQUE layouts from props — do NOT re-export NextWordLoop.
+
+=== SKILLS ===
+${skill}
+
+=== HARD RULES ===
+1. Export: export const ActiveNextWord: React.FC<NextWordProps> from '../nextWordSchema'
+2. 1080×1920. Safe: top 120, bottom 300, left 90, right 120.
+3. STEP BAR is a ROOT overlay (sibling of Series). Labels 1 READ / 2 ODDS / 3 SPIN / 4 ADD.
+   Hide only on hook+type. After READ, NEVER unmount — only active color changes.
+   Drive from useCurrentFrame() + cumulative scene.durationSec.
+4. Series over props.scenes; Audio via staticFile(scene.narrationFile) only when set — skip Audio if missing.
+5. Invent layouts from THIS job's props (question, writingText, tokens, candidates, winner).
+6. Kinetic stagger headlines. Odds: bars grow + count-up. Spin: unequal wheel + labels. Add: compact writing + wheel, winner accent. Loop: nodes then edges.
+7. FORBIDDEN: re-export NextWordLoop; remounting pills per scene; giant empty WRITING box; landscape layout.
+8. No fetch/timers/setState.
+
+=== LOOK + LAYOUT ===
+${opts.lookLine || 'Use props.canvas/ink/accent. Invent from the brief — not a sandwich SKU.'}
+- Hook: 3-line hero, last phrase in props.accent; YOU = small right pill; WRITING = short rounded bar.
+- Type: typewriter in that compact box.
+- READ: scanning token chips.
+- ODDS: context + dashed ? + bars in the middle of the 9:16 frame.
+- SPIN: large unequal wheel, biggest slice = winner, fat pointer.
+- ADD: compact phrase with winner in accent AND wheel with winner slice painted.
+- Grammar (READ→ODDS→SPIN→ADD) is locked. Demo topic, copy, and palette come from THIS job's props.
+
+Skeleton:
+\`\`\`tsx
+${NEXTWORD_SKELETON}
+\`\`\``,
+    `User brief:
+${opts.prompt}
+
+Locked props:
+${opts.propsJson.slice(0, 18000)}
+
+Return complete ActiveNextWord.tsx.`,
+    0.72,
+  );
+
+  let src = extractTsx(raw);
+  if (!/ActiveNextWord/.test(src) && /export\s+const\s+\w+/.test(src)) {
+    src = src.replace(/export\s+const\s+\w+/, 'export const ActiveNextWord');
+  }
+  return src;
+}
+
+export async function fixNextWordTsx(
+  settings: Settings,
+  opts: { source: string; error: string; propsJson: string },
+): Promise<string> {
+  const raw = await chatText(
+    settings,
+    `Fix Remotion TSX for GeneratedNextWord. Keep export const ActiveNextWord. 1080×1920. Step pills persistent overlay outside Series. Complete file only.`,
+    `Error:
+${opts.error.slice(0, 2500)}
+
+Source:
+\`\`\`tsx
+${opts.source.slice(0, 16000)}
+\`\`\`
+
+Props:
+${opts.propsJson.slice(0, 4000)}`,
+    0.4,
+  );
+  return extractTsx(raw);
+}
+
+const DIRECTED_SKELETON = `import React from 'react';
+import {
+  AbsoluteFill, Audio, Sequence, Series, interpolate, spring, staticFile,
+  useCurrentFrame, useVideoConfig,
+} from 'remotion';
+import { loadFont } from '@remotion/google-fonts/Inter';
+import type { DirectedProps } from '../directedSchema';
+
+const { fontFamily: FONT } = loadFont('normal', {
+  weights: ['400', '500', '600', '700', '800'],
+  subsets: ['latin'],
+});
+
+export const ActiveDirected: React.FC<DirectedProps> = (props) => {
+  const { fps } = useVideoConfig();
+  return (
+    <AbsoluteFill style={{ background: props.canvas, fontFamily: FONT }}>
+      {props.musicFile ? <Audio src={staticFile(props.musicFile)} volume={0.35} /> : null}
+      <Series>
+        {props.scenes.map((scene, i) => {
+          const dur = Math.max(1, Math.round(scene.durationSec * fps));
+          const cues = props.autoSfx === false
+            ? []
+            : (scene.sfxCues?.length
+              ? scene.sfxCues
+              : scene.sfxFile
+                ? [{ file: scene.sfxFile, volume: scene.sfxVolume ?? 0.2, atSec: 0 }]
+                : []);
+          return (
+            <Series.Sequence key={i} durationInFrames={dur}>
+              {scene.narrationFile ? <Audio src={staticFile(scene.narrationFile)} /> : null}
+              {cues.map((cue, j) => (
+                <Sequence key={j} from={Math.max(0, Math.round((cue.atSec || 0) * fps))} layout="none">
+                  <Audio src={staticFile(cue.file)} volume={cue.volume ?? 0.18} />
+                </Sequence>
+              ))}
+              <AbsoluteFill />
+            </Series.Sequence>
+          );
+        })}
+      </Series>
+    </AbsoluteFill>
+  );
+};
+`;
+
+function stickmanDirectedHint(contentLang: 'zh' | 'en' | 'bilingual' = 'zh'): string {
+  const titleRule = contentLang === 'bilingual'
+    ? '· When titles are needed: <BilingualTitle zh="…" en="…" y={…} /> — invent copy from THIS brief (never default to MOTIVATION/DISCIPLINE).'
+    : contentLang === 'en'
+      ? '· When titles are needed: English CaptionPill / KineticLine only (NO BilingualTitle, NO Chinese).'
+      : '· When titles are needed: Simplified Chinese CaptionPill / KineticLine (NO default BilingualTitle).';
+  return `
+STICKMAN HARD LOCK (when stickman-animation is in the plan):
+- MUST: import {
+    Stickman, POSES, lerpPose, idleBob, walkPose, runPose, jumpPose, jumpHipY,
+    wavePose, climbPose, pushupPose, mirrorPose,
+    resolveStickInk,
+    // optional: Platform, typeScale, BilingualTitle, CaptionPill, … ONLY when the beat needs them
+  } from '../stickman';
+- MUST: render <Stickman x={…} y={…} pose={…} ink={…} /> on every stickman-animation character beat.
+- MUST: drive poses via POSES.* / lerpPose / idleBob / walkPose / runPose / jumpPose / wavePose / climbPose / pushupPose — never invent thin SVG stick figures; never pose={undefined} or hand-built partial pose objects.
+- STRUCTURE: root = AbsoluteFill → <Series> → map scenes to <Series.Sequence durationInFrames={…}>. Put beat visuals INSIDE Series.Sequence. Nested <Sequence> only for timed Audio/SFX (layout="none"). NEVER render Series.Sequence outside <Series>, and NEVER use bare Sequence as the scene wrapper.
+- LOOK: AbsoluteFill background = props.canvas (NOT a hardcoded #000). Figure ink = props.ink || resolveStickInk(props.canvas) — white capsules on dark, dark capsules on light.
+- FIGURE: capsule RIG only (face/variant/ink/accent); matte glow=0. Chaplin/tramp markers = hat/cane/shoes as small props ON the capsule — do not switch to thin polylines.
+- POSES include: walk/run/jump/land/crouch/kneel/wave/think/phone/shrug/bow/present/lean/kick/fall/lie/…
+- Scene / titles / platforms are OPTIONAL per brief — invent staging from the ask; do NOT force split-compare, motivation ladders, or ProgressTicks.
+  ${titleRule}
+  · If using titles: prefer typeScale(width).title (NOT fixed 40–44px on 1080-wide).
+  · Ground: thin line OR Platform — whichever the brief asks; hairline is fine for skill demos.
+- FORBIDDEN: local Stickman / LimbChain / RIG reimplementation; ignoring props.canvas/ink.
+- Support skills may decorate; they must not replace stickmen on character beats.
+- Obey props.contentLang for all on-screen strings (already locked in lookLine).
+`;
+}
+
+export function validateDirectedTsx(
+  src: string,
+  skillIds?: string[],
+  contentLang: 'zh' | 'en' | 'bilingual' = 'zh',
+): string[] {
+  const issues: string[] = [];
+  const stickmanOn = skillIds?.includes('stickman-animation') === true;
+  if (!/export\s+(const|function)\s+ActiveDirected/.test(src)) issues.push('must export ActiveDirected');
+  if (!/from\s+['"]remotion['"]/.test(src)) issues.push('must import from remotion');
+  if (!/DirectedProps/.test(src)) issues.push('must use DirectedProps');
+  if (/from\s+['"]\.\.\/(NarratedExplainer|LaunchShowreel|NextWordLoop)['"]/.test(src)) {
+    issues.push('must NOT re-export a locked SKU');
+  }
+  if (src.length < 800) issues.push('source too short');
+  if (!/spring\s*\(/.test(src)) issues.push('must use spring()');
+  // Portfolio cinematic floor — same energy as narrated/launch hard paths (skip stickman slapstick)
+  if (!stickmanOn) {
+    if (!/fontSize:\s*(?:7[2-9]|[89]\d|1\d{2}|2\d{2})/.test(src)) {
+      issues.push('hero type must hit ≥72px somewhere (portfolio-scale kinetic)');
+    }
+    if (!/(rotate|scale)\s*[`(]/.test(src) && !/transform:.*(?:rotate|scale)/.test(src)) {
+      issues.push('must use scale/rotate transforms for depth (tilted UI / slam)');
+    }
+    // 景深/透视：至少一种（软约束，可 soft-accept，但仍进 repair）
+    if (!/(rotateX|rotateY|perspective|translateZ|parallax)/i.test(src)
+      && (src.match(/AbsoluteFill/g) || []).length < 4) {
+      issues.push('add depth: perspective/rotateX|Y or ≥4 layered AbsoluteFills');
+    }
+    if (/<AbsoluteFill\s*\/>\s*<\/Series\.Sequence>/.test(src)
+      || /Series\.Sequence[^>]*>\s*<AbsoluteFill\s*\/>\s*<\/Series\.Sequence>/.test(src)) {
+      issues.push('empty AbsoluteFill placeholder sequences forbidden');
+    }
+  }
+  if (stickmanOn) {
+    if (!/from\s+['"]\.\.\/stickman['"]/.test(src)) {
+      issues.push('stickman: must import from ../stickman');
+    }
+    if (!/<Stickman\b/.test(src)) {
+      issues.push('stickman: must render <Stickman />');
+    }
+    if (/const\s+Stickman\s*[:=]|function\s+Stickman\b/.test(src)) {
+      issues.push('stickman: do not redefine Stickman locally — import from ../stickman');
+    }
+    if (!/<Series[\s>]/.test(src) || !/Series\.Sequence/.test(src)) {
+      issues.push('stickman: wrap scenes in <Series> + <Series.Sequence>');
+    }
+    // Titles / Platform / typeScale are OPTIONAL — requiring them forced motivation shells and wiped slapstick briefs.
+    void contentLang;
+  }
+  // 语法错误优先：esbuild 会在 still 阶段炸，必须在 soft-accept 前拦住
+  issues.push(...parseTsxSyntaxIssues(src, 'ActiveDirected.tsx'));
+  return issues;
+}
+
+export async function generateDirectedTsx(
+  settings: Settings,
+  opts: {
+    prompt: string;
+    propsJson: string;
+    skillIds: string[];
+    lookLine?: string;
+    contentLang?: 'zh' | 'en' | 'bilingual';
+  },
+): Promise<string> {
+  const skill = readSkill(opts.skillIds as Parameters<typeof readSkill>[0], 42000);
+  const stickmanOn = opts.skillIds.includes('stickman-animation');
+  const contentLang = opts.contentLang || 'zh';
+  const raw = await chatText(
+    settings,
+    `You are a Remotion AUTHOR under a HARD skill pipeline (portfolio craft floor). Skills in the plan are LAW — implement their cores in THIS file.
+Export: export const ActiveDirected: React.FC<DirectedProps> from '../directedSchema'
+Canvas size comes from props.aspect (16:9 1920×1080, 9:16 1080×1920, 1:1 1080×1080). Safe areas required.
+Series over props.scenes; Audio via staticFile(scene.narrationFile) ONLY when narrationFile is set — omit Audio when missing (music/SFX-led). Optional props.musicFile + props.dropSec for launch-video.
+When props.autoSfx is on, play scene.sfxCues (preferred) as timed hits:
+  cues.map(cue => <Sequence from={Math.round(cue.atSec*fps)} layout="none"><Audio src={staticFile(cue.file)} volume={cue.volume} /></Sequence>)
+Fallback: single scene.sfxFile. Never invent audio filenames — only use files listed in props.
+If props.assets exist, render them with <Img src={staticFile(asset.file)} /> — logo on logo/end beats, product/shot in device or Ken Burns frames. Never invent image URLs.
+If props.musicFile exists, play it under VO at volume ~0.22.
+Invent UNIQUE layouts from THIS brief and props colors. Do not clone Linear / PageOn / sandwich SKUs.
+Brand-faithful colors/materials YES — timid inset micro-UI NO. Product UI may be rebuilt oversized/tilted/full-bleed as cinematic chrome.
+For each skill in the plan, SHOW its core on screen (not a comment): chat bubbles, strokeDash whiteboard, Ken Burns scale, isometric rotateX, countdown remaining, cursor/device, CTA, quote/stars, map marker, logo sting, audiogram bars, promo % off, wrapped recap stats, lowerThird, motionBg gradient, dropSec reveal.
+Use scene.headline / scene.vo / scene.line EXACTLY as given in props for on-screen text — do not translate or invent another language.
+Fill each Sequence duration with on-screen motion/graphics — no dead empty frames.
+${stickmanOn ? stickmanDirectedHint(contentLang) : ''}
+${opts.lookLine || ''}
+${!stickmanOn ? `\n=== CRAFT FLOOR (canvas / type / motion / draw — validated) ===\n${CINEMATIC_MOTION_FLOOR}\n` : ''}
+${!stickmanOn ? '\nHARD: fontSize ≥72; spring; scale/rotate + perspective or layered depth; drawn graphics when the beat needs diagrams; no empty AbsoluteFill sequences.\n' : ''}
+FORBIDDEN: re-export stock components; fetch/timers; empty AbsoluteFill placeholders; tiny centered cards in void; default purple/Linear/PageOn skins.
+
+=== SKILLS ===
+${skill}
+
+Skeleton:
+\`\`\`tsx
+${DIRECTED_SKELETON}
+\`\`\``,
+    `User brief:
+${opts.prompt}
+
+Locked props:
+${opts.propsJson.slice(0, 18000)}
+
+Return complete ActiveDirected.tsx.`,
+    0.7,
+  );
+  let src = extractTsx(raw);
+  if (!/ActiveDirected/.test(src) && /export\s+const\s+\w+/.test(src)) {
+    src = src.replace(/export\s+const\s+\w+/, 'export const ActiveDirected');
+  }
+  return src;
+}
+
+export async function fixDirectedTsx(
+  settings: Settings,
+  opts: { source: string; error: string; propsJson: string },
+): Promise<string> {
+  const raw = await chatText(
+    settings,
+    `Fix Remotion TSX for GeneratedDirected. Keep export const ActiveDirected. Frame-driven. Complete file only.
+Preserve the brief's staging / props / look (props.canvas, props.ink) — do NOT replace the film with a generic pose demo.
+If error mentions hero type / scale / rotate / timid: enlarge type to ≥72–140px, add spring scale/rotate depth, make chrome oversized or full-bleed — do NOT keep tiny centered cards.
+If stickman / Series / pose errors:
+- import { Stickman, POSES, lerpPose, idleBob, walkPose, resolveStickInk, ensurePose } from '../stickman' — never redefine Stickman locally.
+- Structure MUST be AbsoluteFill → <Series> → <Series.Sequence> per scene. Series.Sequence ONLY inside Series. Use nested <Sequence layout="none"> only for timed Audio.
+- Every <Stickman pose={…} /> must get a real StickPose (POSES.* / lerpPose / idleBob / ensurePose(…)). Never undefined pose.
+- Background = props.canvas; body ink = props.ink || resolveStickInk(props.canvas).`,
+    `Error:
+${opts.error.slice(0, 2500)}
+
+Source:
+\`\`\`tsx
+${opts.source.slice(0, 16000)}
+\`\`\`
+
+Props:
+${opts.propsJson.slice(0, 4000)}`,
+    0.35,
+  );
+  return extractTsx(raw);
+}
+
+/**
+ * 分镜二次创作（外科手术）：
+ * 1) 有 `const BEATS = [...]` → 只让模型改选中项并拼回原文件（推荐，不会整片重写）
+ * 2) 文案模式 → 只同步 BEATS 文本 / 或原样返回（props 已在管线更新）
+ * 3) 无 BEATS 的旧片 → 全文件外科编辑 + 漂移检测；漂移过大则拒绝整片结果
+ */
+export async function remakeSelectedDirectedTsx(
+  settings: Settings,
+  opts: {
+    source: string;
+    propsJson: string;
+    skillIds: string[];
+    contentLang?: 'zh' | 'en' | 'bilingual';
+    lookLine?: string;
+    note: string;
+    beatIndexes: number[];
+    selectedScenesJson: string;
+    mode?: 'both' | 'visual' | 'copy';
+    scenes?: { headline?: string; vo?: string; line?: string }[];
+  },
+): Promise<string> {
+  const contentLang = opts.contentLang || 'zh';
+  const indexes = opts.beatIndexes;
+  const mode = opts.mode || 'both';
+  const prior = opts.source || '';
+
+  if (!prior || prior.length < 400) {
+    return generateDirectedTsx(settings, {
+      prompt: `Remake beats [${indexes.join(', ')}]: ${opts.note}`,
+      propsJson: opts.propsJson,
+      skillIds: opts.skillIds,
+      contentLang,
+      lookLine: opts.lookLine,
+    });
+  }
+
+  const beatsArr = extractConstArray(prior, 'BEATS');
+
+  // ——— 文案向：不重画，只改选中镜文案数据 ———
+  if (mode === 'copy') {
+    if (beatsArr && opts.scenes?.length) {
+      return syncBeatsCopyFromScenes(prior, opts.scenes, indexes) || prior;
+    }
+    return prior;
+  }
+
+  // ——— 有 BEATS 表：只补丁选中 index（真正的分镜级二次创作）———
+  if (beatsArr && beatsArr.items.length > 0) {
+    const kinds = collectBeatKinds(prior);
+    const selected = indexes
+      .filter((i) => i >= 0 && i < beatsArr.items.length)
+      .map((i) => ({ index: i, current: beatsArr.items[i].text }));
+    if (!selected.length) return prior;
+
+    const patched = await chatJson<{
+      beats?: { index?: number; beat?: Record<string, unknown> }[];
+    }>(
+      settings,
+      `You revise ONLY selected storyboard BEATS entries for an existing Remotion film.
+Return JSON only: { "beats": [ { "index": number, "beat": { ...fields } } ] }.
+HARD RULES:
+- Only include indexes: [${indexes.join(', ')}].
+- Each "beat" must be a plain object (kind/tag/sub/chips/items/…).
+- Prefer kinds already used in this film: ${kinds.slice(0, 40).join(', ') || '(any existing)'}.
+- Do NOT invent a new film structure. Do NOT return TSX.
+- Obey contentLang=${contentLang}. User note is LAW for these beats only.
+- Keep fields you do not need to change.`,
+      `User note:
+${opts.note}
+
+Selected scene props:
+${opts.selectedScenesJson.slice(0, 8000)}
+
+Current BEATS entries (TypeScript object literals — revise these):
+${selected.map((s) => `--- index ${s.index} ---\n${s.current}`).join('\n\n')}
+${opts.lookLine ? `\n${opts.lookLine}` : ''}`,
+      0.35,
+    );
+
+    const map = new Map<number, string>();
+    for (const row of patched?.beats || []) {
+      const idx = Number(row?.index);
+      if (!Number.isInteger(idx) || !indexes.includes(idx)) continue;
+      if (!row.beat || typeof row.beat !== 'object') continue;
+      if (kinds.length && typeof row.beat.kind === 'string' && !kinds.includes(row.beat.kind)) {
+        // 未知 kind → 保留原 kind，避免 SceneView switch 落空
+        const prev = beatsArr.items[idx]?.text || '';
+        const km = prev.match(/\bkind\s*:\s*['"]([^'"]+)['"]/);
+        if (km) row.beat.kind = km[1];
+      }
+      map.set(idx, jsonToTsObjectLiteral(row.beat));
+    }
+    if (!map.size) {
+      throw new Error('分镜补丁为空：模型未返回可应用的 BEATS 改动，请把修改写得更具体后重试');
+    }
+    const merged = spliceConstArrayItems(prior, 'BEATS', map);
+    if (!merged) throw new Error('无法把分镜补丁写回 ActiveDirected（BEATS 解析失败）');
+    return merged;
+  }
+
+  // ——— 无 BEATS：全文件外科编辑，但拒绝「整片重写」结果 ———
+  const raw = await chatText(
+    settings,
+    `You surgically edit an EXISTING Remotion ActiveDirected.tsx.
+Return the COMPLETE file only. export const ActiveDirected.
+
+SURGICAL HARD LOCK (fatal if broken):
+1. CHANGE ONLY scene indexes [${indexes.join(', ')}] (0-based).
+2. Every OTHER scene must stay character-equivalent (same helpers, layout, motion).
+3. Do NOT replace the design system. Do NOT rewrite unselected beats "for quality".
+4. Keep Series/Sequence/Audio wiring. Canvas uses props.canvas.
+5. User note applies ONLY to selected beats. contentLang=${contentLang}.
+${opts.lookLine || ''}
+${opts.skillIds.includes('stickman-animation') ? stickmanDirectedHint(contentLang) : ''}`,
+    `User note (selected beats only):
+${opts.note}
+
+Selected scene props:
+${opts.selectedScenesJson.slice(0, 6000)}
+
+Existing ActiveDirected.tsx (EDIT — do not invent a new film). If the file is long, preserve ALL unselected logic verbatim:
+\`\`\`tsx
+${prior.length > 28000 ? `${prior.slice(0, 14000)}\n\n/* … middle omitted for size — DO NOT delete middle; keep structure … */\n\n${prior.slice(-14000)}` : prior}
+\`\`\`
+
+Props (context only):
+${opts.propsJson.slice(0, 8000)}`,
+    0.2,
+  );
+  let src = extractTsx(raw);
+  if (!/ActiveDirected/.test(src) && /export\s+const\s+\w+/.test(src)) {
+    src = src.replace(/export\s+const\s+\w+/, 'export const ActiveDirected');
+  }
+
+  const sceneCount = Math.max(indexes.length + 1, (opts.scenes?.length || 0), 1);
+  const selectedRatio = indexes.length / sceneCount;
+  if (surgicalDriftTooHigh(prior, src, selectedRatio)) {
+    throw new Error(
+      '模型把未选中的分镜也整片重写了。请缩小修改范围或写得更具体后重试（系统已拦截整片重做）。',
+    );
+  }
+  return src;
+}

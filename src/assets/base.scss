@@ -1,0 +1,72 @@
+@import './tokens.css';
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  overflow-y: hidden;
+  overflow-x: hidden;
+  font-family: var(--font);
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgb(212 240 122 / 22%), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, rgb(0 0 0 / 4%), transparent 50%),
+    linear-gradient(180deg, var(--paper) 0%, #fafaf8 48%, #ffffff 100%);
+}
+
+#app {
+  color: var(--ink);
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+
+  &-track {
+    background: transparent;
+  }
+
+  &-thumb {
+    background: var(--line-strong);
+    border-radius: 99px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+
+    &:hover {
+      background: var(--muted-2);
+      background-clip: padding-box;
+    }
+  }
+}
+
+/* Vuetify 轻覆写：贴合主色/点缀 */
+.v-theme--light {
+  --v-theme-primary: 0, 0, 0;
+  --v-theme-on-primary: 212, 240, 122;
+}
+
+.v-btn--variant-flat.bg-primary,
+.v-btn.bg-primary {
+  background: var(--ink) !important;
+  color: var(--accent) !important;
+}
+
+.v-tab--selected {
+  color: var(--ink) !important;
+}
+
+.v-tabs .v-tab__slider {
+  background: var(--accent) !important;
+  color: var(--accent) !important;
+}

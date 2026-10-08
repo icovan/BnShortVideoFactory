@@ -1,0 +1,608 @@
+{
+  "app": {
+    "name": "BiunowFactory"
+  },
+  "menu": {
+    "app": {
+      "about": "关于",
+      "services": "服务",
+      "hide": "隐藏",
+      "hideOthers": "隐藏其他",
+      "unhide": "取消隐藏",
+      "quit": "退出"
+    },
+    "language": "语言",
+    "edit": {
+      "root": "编辑",
+      "undo": "撤销",
+      "redo": "重做",
+      "cut": "剪切",
+      "copy": "复制",
+      "paste": "粘贴",
+      "selectAll": "全选"
+    },
+    "view": {
+      "root": "视图",
+      "resetZoom": "重置缩放",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "toggleFullscreen": "切换全屏"
+    },
+    "window": {
+      "root": "窗口",
+      "minimize": "最小化",
+      "close": "关闭"
+    },
+    "help": {
+      "root": "帮助",
+      "learnMore": "了解更多"
+    }
+  },
+  "common": {
+    "buttons": {
+      "generate": "生成",
+      "stop": "停止",
+      "config": "配置",
+      "save": "保存",
+      "select": "选择",
+      "selectFolder": "选择文件夹",
+      "test": "测试",
+      "close": "关闭",
+      "refreshAssets": "刷新素材库",
+      "copyErrorDetail": "复制报错详细信息",
+      "add": "添加",
+      "remove": "移除"
+    },
+    "states": {
+      "noData": "无数据"
+    },
+    "messages": {
+      "success": {
+        "copySuccess": "已复制到剪贴板"
+      },
+      "error": {
+        "copyFailed": "复制失败"
+      }
+    }
+  },
+  "emptyStates": {
+    "noContent": "暂无内容",
+    "hintSelectFolder": "从上面选择一个包含足够分镜素材的文件夹",
+    "assetsFolderEmpty": "选择的文件夹为空"
+  },
+  "dialogs": {
+    "selectAssetsFolder": "选择分镜素材文件夹",
+    "selectOutputFolder": "选择视频导出文件夹",
+    "selectBgmFolder": "选择背景音乐文件夹",
+    "renderConfig": "配置合成选项"
+  },
+  "footer": {
+    "poweredBy": "Powered by YILS（博客地址：https://yils.blog）"
+  },
+  "topBar": {
+    "poweredByHint": "由 YILS 开发，访问作者博客",
+    "documentation": "使用手册",
+    "exportDiagnostics": "导出诊断信息",
+    "diagnosticsExported": "诊断信息已导出",
+    "diagnosticsExportFailed": "导出诊断信息失败",
+    "diagnosticsCollecting": "正在收集诊断信息...",
+    "diagnosticsArchiving": "正在整理日志文件...",
+    "workflow": {
+      "text": "文案",
+      "voice": "配音",
+      "assets": "素材",
+      "render": "合成"
+    }
+  },
+  "version": {
+    "copy": "复制版本号",
+    "checkUpdate": "检查更新"
+  },
+  "update": {
+    "title": "发现新版本",
+    "currentVersion": "当前版本",
+    "latestVersion": "最新版本",
+    "releaseDate": "发布日期",
+    "releaseNotes": "更新内容",
+    "checking": "正在检查更新",
+    "upToDate": "当前已是最新版本",
+    "updateError": "检查更新失败",
+    "unknownError": "未知错误，请稍后重试",
+    "updateLater": "稍后更新",
+    "visitWebsite": "前往官网下载"
+  },
+  "setup": {
+    "title": "首次准备运行环境",
+    "lead": "安装包不含引擎依赖与私有 Skills。请先安装运行环境；开源版还需导入 Skills 包。",
+    "runtime": "成片运行环境",
+    "skills": "创作 Skills",
+    "ready": "已就绪",
+    "needInstall": "待安装",
+    "skillsMissing": "未检测到（开源仓不含）",
+    "needNode": "需要本机已安装 Node.js 22+，并确保 npm 可用。",
+    "installRuntime": "一键安装运行环境",
+    "installing": "正在安装…",
+    "importSkills": "导入 Skills 包",
+    "refresh": "重新检测",
+    "continue": "开始创作",
+    "installFailed": "运行环境安装失败",
+    "skillsStillMissing": "Skills 仍不完整，缺少：{{list}}"
+  },
+  "features": {
+    "llm": {
+      "config": {
+        "promptLabel": "提示词",
+        "outputLabel": "输出文案（可编辑）",
+        "configTitle": "配置大语言模型接口",
+        "modelName": "模型名称",
+        "apiUrl": "API 地址",
+        "apiKey": "API Key",
+        "compatibleNote": "兼容任意 OpenAI 标准接口",
+        "protocol": "接口类型",
+        "connectionTab": "模型连接",
+        "copywritingTab": "文案规则",
+        "advancedTab": "高级设置",
+        "protocolCompatible": "通用 OpenAI 兼容接口",
+        "protocolChat": "OpenAI Chat Completions",
+        "protocolResponses": "OpenAI Responses",
+        "protocolAnthropic": "Anthropic Messages/兼容接口",
+        "requestUrl": "最终请求地址",
+        "apiUrlRequired": "请输入 API 基础地址",
+        "modelNameRequired": "请输入模型名称",
+        "invalidApiUrl": "API 基础地址无效。请使用 http:// 或 https://，并移除查询参数、片段和嵌入式凭据。",
+        "fullEndpointApiUrl": "请填写 API 基础地址，不要包含完整的 API 端点路径。",
+        "invalidProtocol": "请选择受支持的 API 协议。",
+        "invalidTimeoutSeconds": "超时时间必须为正整数秒。",
+        "invalidMaxOutputTokens": "最大输出 Token 必须为正整数，也可以留空。",
+        "anthropicAuthMode": "认证方式",
+        "copywritingRules": "文案规则",
+        "systemPromptMode": "系统提示词",
+        "builtin": "内置（推荐）",
+        "custom": "自定义",
+        "off": "关闭",
+        "builtinDescription": "使用内置口播规则，生成可直接用于语音合成的正文。",
+        "customDescription": "使用你填写的完整提示词替换内置规则。",
+        "offDescription": "不附加系统提示词，仅发送创作需求。",
+        "customPrompt": "自定义提示词",
+        "customPromptHint": "自定义内容将完整替换内置提示词。",
+        "fillBuiltin": "填入内置内容",
+        "diversityEnabled": "增强文案多样性",
+        "diversityDescription": "轮换创作角度，并参考近期文案，尽量避免相同开头和结构；不改变用户明确要求。有限历史仅保存在本机，生成时会将少量文案片段发送给当前服务商。",
+        "rewriteOnSimilarity": "检测到高度相似时自动重写一次",
+        "rewriteDescription": "通常最多增加一次模型生成调用；网络重试可能让实际请求次数更多，并增加费用和等待时间。",
+        "historyCount": "近期创作任务记录：{{count}}",
+        "clearHistory": "清除近期记录",
+        "clearHistoryConfirm": "确定清除本机保存的近期文案及策略轮换记录吗？",
+        "advanced": "高级连接设置",
+        "instructionDelivery": "系统指令发送方式",
+        "standardDelivery": "标准方式（推荐）",
+        "userMessageDelivery": "合并到用户消息",
+        "timeoutSeconds": "请求超时（秒）",
+        "maxOutputTokens": "最大输出 Token",
+        "sampling": "采样参数（可选）",
+        "temperature": "Temperature（0–2）",
+        "topP": "Top P（0–1）",
+        "samplingDescription": "留空时使用模型默认值。通常只调整 Temperature 或 Top P 其中一项；不同模型支持范围可能不同。",
+        "samplingCompatibilityUnknown": "兼容性无法仅由接口类型判断，请确认具体服务商和模型文档；不支持的参数可能导致请求失败。",
+        "restoreSamplingDefaults": "恢复模型默认采样参数",
+        "invalidTemperature": "Temperature 必须是 0 到 2 之间的有限数值，或留空。具体模型可能支持更窄范围。",
+        "invalidTopP": "Top P 必须是 0 到 1 之间的有限数值，或留空。",
+        "replacePromptConfirm": "这会覆盖当前自定义提示词，是否继续？",
+        "customHeaders": "自定义请求头",
+        "headerName": "名称",
+        "headerValue": "值",
+        "invalidHeaderName": "请求头名称无效，请使用标准 HTTP 请求头名称。",
+        "invalidHeaderValue": "请求头值不能包含控制字符或换行符。",
+        "protectedHeaderName": "该请求头由协议或认证方式管理，不能作为自定义请求头。",
+        "duplicateHeaderName": "请求头名称不能重复。"
+      },
+      "errors": {
+        "promptRequired": "提示词不能为空",
+        "connectionFailed": "大模型连接失败，请检查配置是否正确",
+        "generateFailed": "生成失败，请检查大模型配置是否正确",
+        "customPromptRequired": "请填写自定义提示词，或选择关闭",
+        "cancelled": "文案生成已取消",
+        "failed": "未收到有效文案",
+        "truncated": "文案生成不完整",
+        "textNotReady": "当前文案未完成，无法用于语音合成",
+        "historyClearFailed": "清除近期记录失败，请检查本地存储是否可用"
+      },
+      "success": {
+        "connectionSucceeded": "大模型连接成功",
+        "historyCleared": "近期创作记录已清除"
+      },
+      "info": {
+        "checkingSimilarity": "正在检查文案与近期创作的相似度…",
+        "rewritingSimilarCopy": "文案与近期创作较相似，正在尝试不同角度重写…",
+        "similarityRemains": "文案仍与近期创作较相似，可调整提示词或手动修改。",
+        "similarityRewriteFailed": "差异化重写未能完成，已保留首稿。"
+      },
+      "status": {
+        "idle": "待生成",
+        "generating": "生成中",
+        "completed": "已完成",
+        "cancelled": "已取消",
+        "failed": "失败",
+        "truncated": "不完整",
+        "edited": "已编辑"
+      }
+    },
+    "tts": {
+      "config": {
+        "language": "语言",
+        "gender": "性别",
+        "voice": "声音",
+        "speed": "语速",
+        "tryText": "试听文本",
+        "tryListen": "试听",
+        "selectLanguageGenderFirst": "请先选择语言和性别",
+        "selectVoiceWarning": "请选择一个声音",
+        "tryTextEmptyWarning": "试听文本不能为空",
+        "genderMale": "男性",
+        "genderFemale": "女性",
+        "speedSlow": "慢",
+        "speedMedium": "中",
+        "speedFast": "快"
+      },
+      "errors": {
+        "fetchVoicesFailed": "获取EdgeTTS语音列表失败，请检查网络",
+        "synthesisFailed": "语音合成失败",
+        "fileCorrupt": "语音合成失败，音频文件损坏",
+        "zeroDuration": "语音时长为0秒，检查TTS语音合成配置及网络连接是否正常",
+        "configInvalid": "TTS语音合成配置无效",
+        "trySynthesisNetwork": "试听语音合成失败，请检查网络"
+      },
+      "info": {
+        "playTryAudio": "播放试听语音"
+      }
+    },
+    "assets": {
+      "config": {
+        "folderLabel": "分镜视频素材文件夹"
+      },
+      "errors": {
+        "loadFailed": "素材读取失败，请检查文件夹是否存在",
+        "noMp4InFolder": "选择的文件夹中不包含MP4视频文件",
+        "audioDurationInvalid": "音频时长无效，请检查语音合成结果或音频文件是否正常",
+        "noVideoAssets": "没有可用的视频素材，请先选择包含 MP4 视频的素材文件夹",
+        "noUsableVideoAssets": "没有可读取的视频素材，请检查视频文件是否损坏或编码是否受支持",
+        "durationInsufficient": "可用视频素材总时长不足"
+      },
+      "success": {
+        "loadSucceeded": "素材读取成功"
+      }
+    },
+    "render": {
+      "config": {
+        "startLabel": "开始合成",
+        "stopLabel": "停止合成",
+        "autoBatch": "自动批量合成",
+        "autoBatchOff": "批量合成已关闭",
+        "autoBatchOn": "批量合成已开启",
+        "bgmFolderLabel": "背景音乐文件夹（随机选取.mp3，为空则无背景音）",
+        "output": {
+          "width": "导出视频宽度",
+          "height": "导出视频高度",
+          "fileName": "导出文件名",
+          "format": "导出格式",
+          "folder": "导出文件夹"
+        }
+      },
+      "status": {
+        "idle": "空闲，可以开始合成",
+        "generatingText": "正在使用 AI 大模型生成文案",
+        "synthesizingSpeech": "正在使用 TTS 合成语音",
+        "segmentingVideo": "正在处理分镜素材",
+        "rendering": "正在渲染视频",
+        "success": "渲染成功，可以开始下一个",
+        "failed": "渲染失败，请重新尝试"
+      },
+      "statusShort": {
+        "idle": "待开始",
+        "generatingText": "生成文案中",
+        "synthesizingSpeech": "合成语音中",
+        "segmentingVideo": "分镜处理中",
+        "rendering": "视频渲染中",
+        "success": "渲染完成",
+        "failed": "渲染失败"
+      },
+      "statusMini": {
+        "idle": "就绪",
+        "generatingText": "文案",
+        "synthesizingSpeech": "语音",
+        "segmentingVideo": "分镜",
+        "rendering": "渲染",
+        "success": "完成",
+        "failed": "失败"
+      },
+      "errors": {
+        "failed": "视频合成失败，请检查各项配置是否正确",
+        "bgmListFailed": "获取背景音乐列表失败，请检查文件夹是否存在",
+        "outputFileNameRequired": "请先配置导出文件名",
+        "outputPathRequired": "请先配置导出文件夹",
+        "outputSizeRequired": "请先配置导出分辨率（宽高）"
+      },
+      "success": {
+        "succeeded": "视频合成成功"
+      },
+      "info": {
+        "batchNext": "开始合成下一个",
+        "canceled": "视频合成已终止"
+      }
+    }
+  },
+  "studio": {
+    "create": {
+      "title": "把想法做成片子",
+      "subtitle": "一站式AI动画创作工具：低成本、傻瓜式，满足您的多元化创作需求！",
+      "workflows": "默认工作流",
+      "workflowsHint": "点选锁动画管线；提示词可全改，点 ✕ 才取消",
+      "engineReady": "引擎已就绪",
+      "engineStarting": "引擎启动中…",
+      "attachTitle": "添加素材与选项",
+      "attachHint": "上传素材、设计参考、配音与音效选项。",
+      "animation": "动画",
+      "aiVideo": "AI视频",
+      "aiVideoSoon": "二期",
+      "optimize": "优化提示词",
+      "optimizing": "优化中…",
+      "submit": "开始创作",
+      "submitting": "提交中…",
+      "densifying": "已入队；多任务串行出片，可继续提交下一个…",
+      "queuedStay": "已排队第 {{n}} 位，可继续提交下一单；或在历史里进工作台查看",
+      "needLlm": "请先在顶部「配置」填写大模型 API",
+      "fileTooLarge": "{{name}} 超过 12MB，已跳过",
+      "briefLang": "观众语",
+      "briefMachine": "机读 brief 自动英文化 · 口播/字幕跟观众语",
+      "briefDual": "双轨：上方观众文案可改；机读 brief 仅供出片",
+      "estimate": "预计成片约 {{sec}}s · 生成约 {{low}}–{{high}} 分钟",
+      "myVoices": "我的声音",
+      "plus": {
+        "upload": "上传素材",
+        "music": "配乐",
+        "musicDisabled": "配乐已暂时关闭",
+        "voice": "配音",
+        "styleRef": "设计参考",
+        "webSearch": "网页检索",
+        "webSearchSoon": "开启后会真实抓取网页摘要并注入创作",
+        "urlExtract": "读网页",
+        "urlExtractHint": "检测到链接，将自动抓取正文（无需大模型）",
+        "unwired": "未接线",
+        "autoSfx": "自动音效",
+        "vo": "旁白",
+        "scriptDrive": "旁白驱动",
+        "back": "返回",
+        "on": "开",
+        "off": "关",
+        "auto": "自动",
+        "polish": "整理",
+        "verbatim": "原文",
+        "voLocked": "开·锁定",
+        "preview": "试听",
+        "previewing": "试听中…",
+        "previewText": "你好，这是当前配音试听。",
+        "uploadStyle": "上传参考图",
+        "styleHint": "选一张静帧锁皮：色板与材质会约束出片。也可上传自己的参考图。",
+        "styleBusy": "抽取 look…",
+        "noStyleRefs": "暂无内置参考，可上传图片"
+      },
+      "modes": {
+        "prompt": "自由创作",
+        "narrate": "讲解科普",
+        "short": "短视频",
+        "stickman": "产品品牌",
+        "launch": "素材叙事"
+      },
+      "placeholders": {
+        "prompt": "自由描述你想做的动画——主题、节奏、画面与旁白……",
+        "narrate": "描述讲解科普片——知识点、节奏、你想讲清的故事……或点下方话题快填",
+        "short": "描述竖屏短视频——钩子、节奏、行动点……或点下方话题快填",
+        "stickman": "描述品牌标志动画——上传 SVG/PNG，说明揭示方式……或点下方话题快填",
+        "launch": "描述素材叙事——贴文章链接/话题/附件，说明要提炼什么……或点下方话题快填"
+      },
+      "quickbook": {
+        "tips": {
+          "narrate": "支持文稿驱动",
+          "short": "竖屏 9:16 · 适合抖音/TikTok",
+          "stickman": "支持 SVG/PNG 驱动",
+          "launch": "支持文章链接 / 话题 / 附件驱动；反爬站点请粘贴正文或上传附件"
+        },
+        "topics": {
+          "narrate": {
+            "ramen": {
+              "title": "美食故事",
+              "fill": "讲清拉面如何从廉价深夜街边小吃变成全球狂热——一点历史、大量热气腾腾、令人馋到咽口水的碗面。做成约 60 秒抖音向视频。落点：一碗安慰，全世界都上头。"
+            },
+            "honey": {
+              "title": "你知道吗",
+              "fill": "蜂蜜到底怎么来的？从花到罐跟一遍——蜜蜂采蜜、嗡嗡蜂巢、金黄蜂巢滴落。做成约 45 秒、有满足感又意外的抖音。落点：一勺蜂蜜，需要整巢蜜蜂。"
+            },
+            "cats": {
+              "title": "动物知识",
+              "fill": "猫为什么会呼噜？比你想的更怪——害怕或疼痛时也会呼噜，低频振动还可能帮骨头修复。做成约 40 秒有趣意外的 TikTok。落点：你家猫是台小小自愈机器。"
+            },
+            "beijing": {
+              "title": "旅游指南",
+              "fill": "北京 5 件大多数游客会错过的宝藏体验——隐蔽观景点、小家庭餐馆、日落有轨电车。做成梦幻但快节奏的约 45 秒 TikTok。落点：存下来，下次旅行用。"
+            }
+          },
+          "short": {
+            "hook": {
+              "title": "三秒钩子",
+              "fill": "开场 3 秒必须抓住人：一句反常识断言 + 大字砸屏，再给出一个立刻能用的小技巧。竖屏 9:16，约 20 秒抖音，动能排版，结尾强 CTA：点赞收藏。"
+            },
+            "list": {
+              "title": "清单快打",
+              "fill": "用竖屏清单讲清「今晚关掉的 3 个手机设置」——每条勾选动效、节奏利落，约 28 秒抖音。落点：睡前改完这三项。"
+            },
+            "loop": {
+              "title": "循环金句",
+              "fill": "一条可循环的竖屏金句片：把一句扎心/鼓舞的话用动能字体逐词砸出，配轻微镜头推进，约 12–15 秒，适合 TikTok 循环刷。落点：金句本身就是产品。"
+            }
+          },
+          "stickman": {
+            "draw": {
+              "title": "在我的线条标志上画画",
+              "fill": "我有一个线条/单线 SVG Logo。请像手写一样描出笔触再干净落地。约 5–6 秒，精致极简，浅中性背景。标志本身是主角，不要加文案。"
+            },
+            "icon": {
+              "title": "插入我的图标标志",
+              "fill": "我有一个紧凑的图标/徽章 SVG Logo。用活泼的放大与轻微过冲入场，落地时再给一小下二次弹跳。约 4 秒，大胆有能量，鲜明配色与活泼背景。只要标志，不要文字。"
+            },
+            "build": {
+              "title": "一点点构建我的标志",
+              "fill": "我有一个多部件或字标 SVG Logo。按合理顺序逐部分揭示（逐字母或逐形状），干净扣进最终锁定构图。约 5 秒，精准自信，干净纯色背景。只要 Logo，不要标语。"
+            }
+          },
+          "launch": {
+            "three": {
+              "title": "总结文章三大要点",
+              "fill": "阅读这篇文章，做成一支品牌感短片，提炼三个最大要点。每个要点用动画图解支撑，旁白节奏自信稳，干净排版加单一强调色，结尾一张总结卡。来源：https://www.xxx.com/..."
+            },
+            "chapters": {
+              "title": "章节深度解析",
+              "fill": "把这篇文章做成约 75 秒、带章节的 16:9 讲解片。开场一句论点，每节自成一章并带小进度指示，示意图逐步搭建，章节转场顺滑。节奏克制纪录片感，适合旁白。来源：https://www.xxx.com/..."
+            }
+          }
+        }
+      }
+    },
+    "player": {
+      "empty": "暂无成片，先在左侧创作",
+      "generating": "生成中，完成后将显示在此",
+      "waiting": "等待成片…",
+      "failed": "生成失败"
+    },
+    "history": {
+      "title": "历史记录",
+      "empty": "还没有任务，创作后会出现在这里",
+      "openWorkbench": "进工作台",
+      "queuePos": "排队第 {{n}} 位",
+      "cancelQueue": "取消排队",
+      "delete": "删除",
+      "deleteTitle": "删除「{{title}}」？",
+      "deleteHint": "将从列表移除，并同步删除本机成片目录。此操作不可恢复。",
+      "deleteConfirm": "确认删除",
+      "deleting": "删除中…",
+      "cancel": "取消"
+    },
+    "status": {
+      "queued": "排队中",
+      "running": "进行中",
+      "ready": "已完成",
+      "error": "失败",
+      "pending": "等待",
+      "done": "完成",
+      "waitingStart": "等待开始",
+      "noTask": "无任务"
+    },
+    "workbench": {
+      "title": "工作台",
+      "back": "返回",
+      "storyboard": "分镜",
+      "storyboardHint": "成片后可点选分镜",
+      "files": "文件",
+      "filesHint": "项目输出文件",
+      "filesEmpty": "暂无文件",
+      "untitled": "未命名任务",
+      "waitingVideo": "等待成片…",
+      "stepsOf": "{{done}}/{{total}} 步",
+      "etaReady": "可以导出 / 改分镜",
+      "etaError": "请查看右侧错误",
+      "etaIdle": "—",
+      "etaEstimating": "正在估算…",
+      "queuePos": "排队第 {{n}} 位，前面任务完成后自动开始",
+      "etaRemain": "预计剩余 {{eta}}",
+      "etaElapsed": "已进行 {{eta}}",
+      "refine": "精修",
+      "refineMotion": "优化运动",
+      "refineIntent": "更有意图",
+      "refineSimple": "简化动画",
+      "refineNoteMotion": "加强运动过冲与节奏变化，避免呆板。",
+      "refineNoteIntent": "画面意图更清晰、更电影感，突出主信息。",
+      "refineNoteSimple": "简化动画层次，减少杂乱元素。",
+      "modify": "修改",
+      "modifyBoth": "画面+字幕",
+      "modifyVisual": "只改画面",
+      "modifyVoice": "只改旁白",
+      "composerPlaceholder": "先点左侧分镜，再写怎么改…",
+      "selectAll": "全选",
+      "clearSelect": "清空",
+      "loopBeat": "单镜循环",
+      "export": "导出",
+      "versions": "版本",
+      "versionInitial": "初始版本",
+      "versionRemake": "改过版本{{n}}",
+      "versionCurrent": "当前",
+      "versionInitialHint": "首次成片",
+      "versionRemakeHint": "二次创作结果",
+      "versionBeats": "改过 {{n}} 镜",
+      "versionArchive": "归档",
+      "remake": "二次精修",
+      "remakeModeBoth": "画面+旁白",
+      "remakeModeVisual": "只改画面",
+      "remakeModeVoice": "只改旁白",
+      "remakeNeedSelect": "请先点选分镜",
+      "remakeNeedNote": "请填写怎么改",
+      "remakeFailed": "改分镜失败，请查看错误后重试",
+      "remakeBusy": "精修中…",
+      "noBeats": "成片后可点选分镜"
+    },
+    "steps": {
+      "scene": "写脚本",
+      "stills": "检查画面",
+      "encode": "导出成片",
+      "plan": "整理需求",
+      "brief": "决定风格",
+      "voice": "生成旁白",
+      "build": "生成画面",
+      "inspect": "质量验收"
+    },
+    "config": {
+      "title": "全局配置",
+      "tabLlm": "大模型",
+      "tabSpeech": "语音",
+      "apiUrl": "API URL",
+      "apiUrlPh": "选择厂商后自动填充，也可手改",
+      "apiKey": "API Key",
+      "model": "模型",
+      "modelPick": "选择模型",
+      "modelCustomPh": "自定义模型名",
+      "vendor": "厂商",
+      "llmHint": "国内默认 DeepSeek；海外推荐 OpenAI（兼容通道，适合双语出片规划）。",
+      "vendors": {
+        "deepseek": "DeepSeek（国内推荐）",
+        "openai": "OpenAI（海外推荐）",
+        "qwen": "通义千问",
+        "moonshot": "月之暗面 Kimi",
+        "custom": "自定义"
+      },
+      "speechProvider": "配音方式",
+      "speechSystem": "系统配音",
+      "speechMine": "我的声音",
+      "speechSystemHint": "免费 Edge TTS。创作页 Plus → 配音可选用；出片按此合成旁白。",
+      "speechMineHint": "国内推荐阿里云 CosyVoice：控制台复刻拿到 Voice ID → 加入下方 → 创作页选用。",
+      "providerAuto": "默认（edge-tts）",
+      "providerWindows": "Windows 系统朗读（兜底）",
+      "edgeTts": "仅 edge-tts",
+      "myVoice": "我的声音",
+      "voiceId": "默认音色",
+      "cloneProvider": "复刻服务商",
+      "cloneNone": "未启用",
+      "cloneDashscope": "阿里云 CosyVoice（推荐）",
+      "cloneMinimax": "MiniMax 海螺",
+      "cloneFish": "Fish Audio",
+      "cloneApiKey": "复刻 API Key",
+      "cloneApiKeyPh": "服务商 API Key",
+      "cloneBaseUrl": "兼容 Base URL",
+      "speechModel": "合成模型名",
+      "myVoiceName": "显示名",
+      "myVoiceVoiceId": "Voice ID",
+      "addMyVoice": "加入我的声音",
+      "myVoicesEmpty": "还没有我的声音。",
+      "close": "关闭",
+      "save": "保存",
+      "menuTitle": "全局配置"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@factory/remotion-explainer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render src/index.ts Explainer",
+    "still": "remotion still src/index.ts Explainer"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.314",
+    "@remotion/google-fonts": "4.0.314",
+    "@remotion/media-utils": "4.0.314",
+    "@remotion/sfx": "4.0.533",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "remotion": "4.0.314",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.16",
+    "typescript": "^5.9.3"
+  }
+}

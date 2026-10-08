@@ -1,0 +1,49 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+**/node_modules
+dist
+dist-ssr
+dist-electron
+dist-native
+release
+*.local
+*.db
+*.db-journal
+.env
+.env.*
+
+# 成片引擎运行产物
+outputs
+data
+engine/node_modules
+engine/outputs
+engine/data
+engine/release
+engine/.cache
+engine/dist
+engine/coverage
+build/engine-stage
+
+# 私有 skills（开源仓禁止提交正文；仅保留 README）
+vendor/skills/**
+!vendor/skills/README.md
+
+# Local agent instructions and documentation
+/AGENTS.md
+/docs/
+
+# Editor directories and files
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
