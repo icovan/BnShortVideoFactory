@@ -36,9 +36,10 @@ build/engine-stage
 vendor/skills/**
 !vendor/skills/README.md
 
-# Local agent instructions and documentation
+# Local agent instructions and documentation（不进公开仓）
 /AGENTS.md
 /docs/
+/README.md
 
 # Editor directories and files
 .DS_Store
