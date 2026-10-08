@@ -6,6 +6,7 @@
   asar: true,
   directories: {
     output: 'release/${version}',
+    buildResources: 'build/icons',
   },
   files: ['dist', 'dist-electron', 'dist-native', 'locales'],
   npmRebuild: false, // disable rebuild node_modules 使用包内自带预构建二进制，而不重新构建
@@ -35,7 +36,8 @@
       },
     ],
     artifactName: '${name}-${version}-win-${arch}-setup.${ext}',
-    icon: './public/icon.png',
+    // 必须用多尺寸 .ico；单张 png 缩放后任务栏/桌面快捷方式易发糊
+    icon: './build/icons/icon.ico',
   },
   nsis: {
     language: '0x0804',
@@ -43,6 +45,10 @@
     perMachine: false,
     allowToChangeInstallationDirectory: true,
     deleteAppDataOnUninstall: false,
+    // 安装器 / 卸载器 / 进度条头图都用同一套多尺寸 ico（360/火绒常读安装器或卸载注册表图标）
+    installerIcon: 'icon.ico',
+    uninstallerIcon: 'icon.ico',
+    installerHeaderIcon: 'icon.ico',
   },
   linux: {
     target: ['AppImage'],

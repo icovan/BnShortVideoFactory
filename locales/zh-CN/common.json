@@ -122,7 +122,7 @@
     "needNode": "需要本机已安装 Node.js 22+，并确保 npm 可用。",
     "installRuntime": "一键安装运行环境",
     "installing": "正在安装…",
-    "importSkills": "导入 Skills 包",
+    "importSkills": "导入 Skills 包（选 zip）",
     "refresh": "重新检测",
     "continue": "开始创作",
     "installFailed": "运行环境安装失败",

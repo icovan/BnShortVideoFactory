@@ -33,6 +33,18 @@ function stageEngine() {
   if (r.status !== 0) throw new Error('stage-engine.mjs failed')
 }
 
+function ensureWinIcon() {
+  const ico = path.join(__dirname, '../icons/icon.ico')
+  if (fs.existsSync(ico) && fs.statSync(ico).size > 1000) return
+  console.log('[beforePack] generating Windows icon.ico…')
+  const script = path.join(__dirname, 'gen-icons.mjs')
+  const r = spawnSync(process.execPath, [script], {
+    cwd: path.join(__dirname, '../..'),
+    stdio: 'inherit',
+  })
+  if (r.status !== 0) throw new Error('gen-icons.mjs failed')
+}
+
 module.exports = function beforePack(context) {
   const platform = context.packager.platform.nodeName
   const arch = Arch[context.arch]
@@ -42,5 +54,6 @@ module.exports = function beforePack(context) {
     `better-sqlite3.node`,
   )
 
+  if (platform === 'win32') ensureWinIcon()
   stageEngine()
 }

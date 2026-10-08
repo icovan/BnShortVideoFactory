@@ -1,6 +1,7 @@
 import { app, BrowserWindow, screen, Menu } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import { fileURLToPath } from 'node:url'
+import { existsSync } from 'node:fs'
 import { isDev } from './lib/is-dev'
 import path from 'node:path'
 import initIPC from './ipc'
@@ -80,8 +81,13 @@ function createWindow() {
   const windowSize = getMainWindowSize(screen.getPrimaryDisplay().workAreaSize)
   const isMac = process.platform === 'darwin'
 
+  // Windows 优先 .ico（多尺寸），避免高分屏任务栏/标题栏图标发糊
+  const iconFile =
+    process.platform === 'win32' && existsSync(path.join(process.env.VITE_PUBLIC!, 'icon.ico'))
+      ? 'icon.ico'
+      : 'icon.png'
   win = new BrowserWindow({
-    icon: path.join(process.env.VITE_PUBLIC, 'icon.png'),
+    icon: path.join(process.env.VITE_PUBLIC!, iconFile),
     ...windowSize,
     backgroundColor: '#F3F3F3',
     show: false,

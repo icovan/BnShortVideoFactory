@@ -122,7 +122,7 @@
     "needNode": "Node.js 22+ with npm is required on this machine.",
     "installRuntime": "Install runtime",
     "installing": "Installing…",
-    "importSkills": "Import skills pack",
+    "importSkills": "Import skills pack (.zip)",
     "refresh": "Recheck",
     "continue": "Start creating",
     "installFailed": "Runtime install failed",

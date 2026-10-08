@@ -107,15 +107,65 @@ function copySkillsTree(from: string, to: string) {
   }
 }
 
-/** 从文件夹或 zip 导入到 userData/skills */
+function findSkillsRoot(staging: string): string | null {
+  const queue = [staging]
+  const seen = new Set<string>()
+  while (queue.length) {
+    const dir = queue.shift()!
+    if (seen.has(dir)) continue
+    seen.add(dir)
+    if (listSkillIds(dir).length) return dir
+    let kids: string[] = []
+    try {
+      kids = readdirSync(dir)
+    } catch {
+      continue
+    }
+    for (const name of kids) {
+      if (name.startsWith('.') || name === '__MACOSX') continue
+      const p = path.join(dir, name)
+      if (existsSync(path.join(p, 'SKILL.md')) || name === 'skills') {
+        queue.unshift(p)
+      } else {
+        try {
+          // 只下钻一层目录，避免扫整盘
+          const st = readdirSync(p)
+          if (st.some((n) => existsSync(path.join(p, n, 'SKILL.md')))) queue.push(p)
+        } catch {
+          /* not a dir */
+        }
+      }
+    }
+    if (seen.size > 40) break
+  }
+  return null
+}
+
+/** 从 zip 或 skills 文件夹导入到 userData/skills */
 export async function importSkillsPack(productRoot: string): Promise<SkillsPackStatus> {
   const win = BrowserWindow.getFocusedWindow()
+  // Windows/Linux：openFile 与 openDirectory 不能同时设，否则只能选文件夹、看不到 zip
+  const isMac = process.platform === 'darwin'
+  const defaultPath = (() => {
+    const candidates = [
+      path.join(process.cwd(), 'release', 'skills'),
+      path.join(app.getAppPath(), '..', 'release', 'skills'),
+    ]
+    for (const p of candidates) {
+      if (existsSync(p)) return p
+    }
+    return undefined
+  })()
+
   const dialogOpts = {
-    title: '选择私有 Skills 包（文件夹或 zip）',
-    properties: ['openFile', 'openDirectory'] as Array<'openFile' | 'openDirectory'>,
+    title: isMac ? '选择 Skills 包（zip 或文件夹）' : '选择 Skills 包（zip）',
+    defaultPath,
+    properties: (isMac
+      ? ['openFile', 'openDirectory']
+      : ['openFile']) as Array<'openFile' | 'openDirectory'>,
     filters: [
-      { name: 'Skills pack', extensions: ['zip'] },
-      { name: 'All', extensions: ['*'] },
+      { name: 'Skills pack (zip)', extensions: ['zip'] },
+      { name: 'All files', extensions: ['*'] },
     ],
   }
   const picked = win
@@ -132,17 +182,19 @@ export async function importSkillsPack(productRoot: string): Promise<SkillsPackS
     rmSync(staging, { recursive: true, force: true })
     mkdirSync(staging, { recursive: true })
 
-    if (src.toLowerCase().endsWith('.zip')) {
+    const isZip = src.toLowerCase().endsWith('.zip')
+    if (isZip) {
       if (process.platform === 'win32') {
-        const r = spawnSync(
-          'powershell.exe',
-          [
-            '-NoProfile',
-            '-Command',
-            `Expand-Archive -LiteralPath '${src.replace(/'/g, "''")}' -DestinationPath '${staging.replace(/'/g, "''")}' -Force`,
-          ],
-          { encoding: 'utf8', windowsHide: true, timeout: 120_000 },
-        )
+        // 避免路径含空格/中文时 Expand-Archive 解析失败：用 -File 参数风格
+        const ps = [
+          `$ErrorActionPreference='Stop'`,
+          `Expand-Archive -LiteralPath ${JSON.stringify(src)} -DestinationPath ${JSON.stringify(staging)} -Force`,
+        ].join('; ')
+        const r = spawnSync('powershell.exe', ['-NoProfile', '-Command', ps], {
+          encoding: 'utf8',
+          windowsHide: true,
+          timeout: 120_000,
+        })
         if (r.status !== 0) {
           throw new Error((r.stderr || r.stdout || 'unzip failed').slice(0, 400))
         }
@@ -156,25 +208,20 @@ export async function importSkillsPack(productRoot: string): Promise<SkillsPackS
         }
       }
     } else {
-      copySkillsTree(src, staging)
-    }
-
-    // zip 可能多一层目录
-    let root = staging
-    const kids = readdirSync(staging)
-    if (kids.length === 1 && !existsSync(path.join(staging, kids[0], 'SKILL.md'))) {
-      const nested = path.join(staging, kids[0])
-      if (listSkillIds(nested).length || existsSync(path.join(nested, 'creative-brief'))) {
-        root = nested
+      // 选中单技能目录或其父目录
+      if (existsSync(path.join(src, 'SKILL.md'))) {
+        mkdirSync(path.join(staging, path.basename(src)), { recursive: true })
+        cpSync(src, path.join(staging, path.basename(src)), { recursive: true })
+      } else {
+        copySkillsTree(src, staging)
       }
     }
-    if (!listSkillIds(root).length) {
-      // 也可能 skills 在 root/skills
-      const alt = path.join(root, 'skills')
-      if (listSkillIds(alt).length) root = alt
-    }
-    if (!listSkillIds(root).length) {
-      throw new Error('未在所选内容中找到 SKILL.md')
+
+    const root = findSkillsRoot(staging)
+    if (!root) {
+      throw new Error(
+        '未在所选 zip/文件夹中找到 SKILL.md。请选择 pnpm pack:skills 生成的 biunow-skills-*.zip',
+      )
     }
 
     rmSync(dest, { recursive: true, force: true })
@@ -182,7 +229,7 @@ export async function importSkillsPack(productRoot: string): Promise<SkillsPackS
     copySkillsTree(root, dest)
     writeFileSync(
       path.join(dest, '.imported.json'),
-      JSON.stringify({ at: new Date().toISOString(), from: src }, null, 2),
+      JSON.stringify({ at: new Date().toISOString(), from: src, skillsRoot: root }, null, 2),
       'utf8',
     )
   } finally {
