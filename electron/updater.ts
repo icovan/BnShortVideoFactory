@@ -98,7 +98,7 @@ async function fetchLatest(url: string): Promise<GitHubLatestRelease> {
 export async function checkForUpdates(currentVersion: string): Promise<UpdateCheckResult> {
   if (checking) return checking
 
-  checking = (async () => {
+  const run: Promise<UpdateCheckResult> = (async (): Promise<UpdateCheckResult> => {
     const errors: string[] = []
     for (const url of [GITHUB_RELEASE_URL, GITEE_RELEASE_URL]) {
       try {
@@ -136,9 +136,11 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateChe
     const message = errors.join(' | ') || 'update check failed'
     console.error('[Updater] Failed to check for updates:', message)
     return { status: 'error', message }
-  })().finally(() => {
+  })()
+
+  checking = run.finally(() => {
     checking = null
   })
 
-  return checking
+  return run
 }

@@ -110,14 +110,17 @@ function copySkillsTree(from: string, to: string) {
 /** 从文件夹或 zip 导入到 userData/skills */
 export async function importSkillsPack(productRoot: string): Promise<SkillsPackStatus> {
   const win = BrowserWindow.getFocusedWindow()
-  const picked = await dialog.showOpenDialog(win || undefined, {
+  const dialogOpts = {
     title: '选择私有 Skills 包（文件夹或 zip）',
-    properties: ['openFile', 'openDirectory'],
+    properties: ['openFile', 'openDirectory'] as Array<'openFile' | 'openDirectory'>,
     filters: [
       { name: 'Skills pack', extensions: ['zip'] },
       { name: 'All', extensions: ['*'] },
     ],
-  })
+  }
+  const picked = win
+    ? await dialog.showOpenDialog(win, dialogOpts)
+    : await dialog.showOpenDialog(dialogOpts)
   if (picked.canceled || !picked.filePaths[0]) {
     return probeSkillsPack(productRoot)
   }
