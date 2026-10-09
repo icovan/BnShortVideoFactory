@@ -10,7 +10,26 @@ import {
 } from '@/lib/engine-api'
 
 export type Aspect = '16:9' | '9:16' | '1:1' | '3:4'
-export type FormMode = 'prompt' | 'narrate' | 'short' | 'stickman' | 'launch'
+export type FormMode = 'prompt' | 'narrate' | 'short' | 'logo' | 'showreel' | 'launch' | 'remix'
+
+/** 旧任务 formMode=stickman 曾表示品牌/Logo 片 */
+export function coerceFormMode(v: unknown): FormMode {
+  if (v === 'stickman') return 'logo'
+  if (v === 'footage-remix') return 'remix'
+  if (v === 'mg') return 'showreel'
+  if (
+    v === 'prompt'
+    || v === 'narrate'
+    || v === 'short'
+    || v === 'logo'
+    || v === 'showreel'
+    || v === 'launch'
+    || v === 'remix'
+  ) {
+    return v
+  }
+  return 'prompt'
+}
 export type TaskStatus = 'queued' | 'running' | 'ready' | 'error'
 
 export type PipelineStep = {
@@ -66,20 +85,24 @@ function titleFromPrompt(prompt: string, formMode: FormMode) {
     prompt: '自由创作',
     narrate: '讲解科普样片',
     short: '短视频样片',
-    stickman: '产品品牌样片',
+    logo: 'Logo片样片',
+    showreel: '动效展片样片',
     launch: '素材叙事样片',
+    remix: '素材混剪样片',
   }
   return map[formMode]
 }
 
 function voModeFor(formMode: FormMode): 'on' | 'off' | 'auto' {
-  if (formMode === 'narrate' || formMode === 'launch' || formMode === 'short') return 'on'
-  if (formMode === 'stickman') return 'off'
+  if (formMode === 'narrate' || formMode === 'launch' || formMode === 'short' || formMode === 'remix') {
+    return 'on'
+  }
+  if (formMode === 'logo' || formMode === 'showreel') return 'off'
   return 'auto'
 }
 
 function scriptDriveFor(formMode: FormMode): 'off' | 'auto' | 'polish' | 'verbatim' {
-  if (formMode === 'stickman') return 'off'
+  if (formMode === 'logo' || formMode === 'showreel') return 'off'
   return 'auto'
 }
 
@@ -134,7 +157,7 @@ export const useStudioStore = defineStore(
         engineProjectId: p.id,
         title: p.title || titleFromPrompt(p.prompt, localMeta.formMode),
         prompt: p.prompt,
-        formMode: localMeta.formMode,
+        formMode: coerceFormMode(localMeta.formMode),
         aspect: (p.aspect as Aspect) || localMeta.aspect,
         quality: localMeta.quality,
         mediaKind: localMeta.mediaKind,
@@ -172,6 +195,14 @@ export const useStudioStore = defineStore(
       userAssets?: UserAsset[]
       contentLang?: 'zh' | 'en' | 'bilingual'
       webSearch?: boolean
+      footageFolder?: string
+      footagePaths?: string[]
+      remixBrief?: {
+        topic?: 'promo' | 'story' | 'tips' | string
+        brand?: string
+        sellingPoints?: string
+        theme?: string
+      }
     }) {
       await ensureEngine()
       const createdAt = Date.now()
@@ -188,6 +219,9 @@ export const useStudioStore = defineStore(
         userAssets: input.userAssets,
         contentLang: input.contentLang,
         webSearch: input.webSearch === true,
+        footageFolder: input.footageFolder,
+        footagePaths: input.footagePaths,
+        remixBrief: input.remixBrief,
       })
       const task = upsertFromEngine(
         {
@@ -318,6 +352,13 @@ export const useStudioStore = defineStore(
   {
     persist: {
       pick: ['tasks', 'activeTaskId'],
+      afterHydrate: (ctx) => {
+        const store = ctx.store as { tasks: StudioTask[] }
+        store.tasks = (store.tasks || []).map((t) => ({
+          ...t,
+          formMode: coerceFormMode(t.formMode),
+        }))
+      },
     },
   },
 )

@@ -149,7 +149,7 @@ export const SKILL_CONTRACTS: Record<SkillName, SkillContract> = {
     id: 'stickman-animation',
     role: 'primary',
     engine: 'explainer-remotion',
-    when: 'Capsule stickman actor layer: jointed white figures + named poses. Any track; not a fixed scene genre. Not whiteboard ink.',
+    when: 'MIXABLE actor layer. Capsule rig + motion PHRASES (sampleClip) over raw pose spam. Staging/props/duo blocking for expression. Rides explainer/short/diagram beats; never exclusive. Not whiteboard ink.',
     gates: [
       {
         id: 'stickman-import',
@@ -165,6 +165,11 @@ export const SKILL_CONTRACTS: Record<SkillName, SkillContract> = {
         id: 'series',
         re: /Series|Sequence/,
         message: 'stickman-animation: must sequence beats with Series or Sequence',
+      },
+      {
+        id: 'stickman-motion',
+        re: /sampleClip(ForIntent)?\s*\(|walkPose\s*\(|lerpPose\s*\(|idleBob\s*\(/,
+        message: 'stickman-animation: drive motion with sampleClip / walkPose / lerpPose',
       },
     ],
   },
@@ -262,9 +267,9 @@ export const SKILL_CONTRACTS: Record<SkillName, SkillContract> = {
     id: 'logo-animation',
     role: 'primary',
     engine: 'explainer-remotion',
-    when: 'Brand mark sting. Logo is the hero, not a corner bug.',
+    when: 'Brand mark sting (mg-logo craft): geo tease → accent motion → assemble → overshoot → settle. Mark is hero, not a corner bug. Not a multi-chapter showreel.',
     gates: [
-      { id: 'logo', re: /logo/i, message: 'logo-animation: missing logo sting' },
+      { id: 'logo', re: /logo|Img|strokeDash|pathLength|assemble|wordmark/i, message: 'logo-animation: missing logo sting / mark assemble' },
     ],
   },
   audiogram: {
@@ -374,6 +379,7 @@ export const SUPPORT_SKILLS: SkillName[] = [
   'caption-animation',
   'diagram-animation',
   'chart-animation',
+  'stickman-animation',
   'lower-thirds',
   'color-motion',
   'beat-sync-editing',

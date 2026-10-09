@@ -26,10 +26,10 @@ export function initialPipeline(engine: Engine, stylePack?: StylePack): Pipeline
   }
   if (engine === 'footage-remix' || stylePack === 'footage-remix') {
     return [
-      { id: 'plan', label: '整理文案', status: 'pending', detail: '混剪口播文案' },
-      { id: 'brief', label: '选素材', status: 'pending', detail: '分镜素材文件夹' },
-      { id: 'voice', label: '配音', status: 'pending', detail: 'EdgeTTS' },
-      { id: 'encode', label: 'FFmpeg 合成', status: 'pending', detail: '本机混剪台导出' },
+      { id: 'plan', label: '整理文案', status: 'pending', detail: '口播硬锁 / 合成旁白' },
+      { id: 'brief', label: '选素材', status: 'pending', detail: '扫描分镜素材库' },
+      { id: 'voice', label: '配音', status: 'pending', detail: 'EdgeTTS 按句配音' },
+      { id: 'encode', label: 'FFmpeg 合成', status: 'pending', detail: '切素材 + 字幕成片' },
     ];
   }
   if (stylePack === 'skill-directed' || !stylePack) {
@@ -103,8 +103,13 @@ export function setPipelineStep(
   if (!cur?.pipeline?.length) return null;
   // 步骤 id 对不上（例如曾被模板写成 manim 管线）时，先按当前引擎重置
   if (!cur.pipeline.some((s) => s.id === stepId)) {
-    const engine = cur.engine === 'manim' ? 'manim' : 'explainer-remotion';
-    const stylePack = cur.stylePack || 'skill-directed';
+    const engine = cur.engine === 'manim'
+      ? 'manim'
+      : cur.engine === 'footage-remix'
+        ? 'footage-remix'
+        : 'explainer-remotion';
+    const stylePack = cur.stylePack
+      || (engine === 'footage-remix' ? 'footage-remix' : 'skill-directed');
     resetPipeline(projectId, engine, stylePack);
   }
   const fresh = store.getProject(projectId);

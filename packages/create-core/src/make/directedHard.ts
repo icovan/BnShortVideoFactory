@@ -36,7 +36,7 @@ import {
 import { contentLangLockLine } from './contentLang.ts';
 import type { SkillPlan } from './skillPlan.ts';
 import {
-  CINEMATIC_FLOOR_LINE,
+  cinematicFloorLine,
   fixDirectedTsx,
   generateDirectedTsx,
   parseTsxSyntaxIssues,
@@ -585,6 +585,7 @@ export async function prepareDirectedHard(
     prompt,
     propsJson: propsStr,
     skillIds: plan.skills,
+    aspect: plan.aspect,
     contentLang,
     lookLine: [
       lookLockLine(plan.look),
@@ -593,13 +594,22 @@ export async function prepareDirectedHard(
         ? styleLookLockLine(plan.look, meta.styleSource, { mono: monoLook })
         : '',
       assetsLockLine(screenAssets, musicFile),
-      !plan.skills.includes('stickman-animation') ? CINEMATIC_FLOOR_LINE : '',
+      !plan.skills.includes('stickman-animation')
+        ? cinematicFloorLine(
+          plan.aspect,
+          plan.primary === 'logo-animation'
+            ? 'logo'
+            : plan.beats.some((b) => /^ch-/.test(b.job || ''))
+              ? 'showreel'
+              : 'default',
+        )
+        : '',
       monoLook
         ? 'MONO HARD LOCK: black ink on paper only — no red/purple/neon accent fills, no collage color wipes.'
         : '',
     ].filter(Boolean).join('\n'),
   });
-  let codeIssues = validateDirectedTsx(tsx, plan.skills, contentLang);
+  let codeIssues = validateDirectedTsx(tsx, plan.skills, contentLang, plan.aspect);
   let skillGate = assertSkillsInTsx(plan.skills, tsx);
   if (codeIssues.length || !skillGate.ok) {
     tsx = await fixDirectedTsx(settings, {
@@ -607,7 +617,7 @@ export async function prepareDirectedHard(
       error: [...codeIssues, ...skillGate.issues].join('; '),
       propsJson: propsStr,
     });
-    codeIssues = validateDirectedTsx(tsx, plan.skills, contentLang);
+    codeIssues = validateDirectedTsx(tsx, plan.skills, contentLang, plan.aspect);
     skillGate = assertSkillsInTsx(plan.skills, tsx);
   }
   const stickmanJob = plan.skills.includes('stickman-animation') || plan.primary === 'stickman-animation';
@@ -629,7 +639,7 @@ export async function prepareDirectedHard(
         error: [...codeIssues, ...skillGate.issues, 'stickman: keep brief staging; use props.canvas/ink; optional titles only'].join('; '),
         propsJson: propsStr,
       });
-      codeIssues = validateDirectedTsx(tsx, plan.skills, contentLang);
+      codeIssues = validateDirectedTsx(tsx, plan.skills, contentLang, plan.aspect);
       skillGate = assertSkillsInTsx(plan.skills, tsx);
       usedCodegen = codeIssues.length === 0 && skillGate.ok;
       if (!usedCodegen && stickmanContractOk(tsx) && parseTsxSyntaxIssues(tsx).length === 0) {
@@ -652,7 +662,7 @@ export async function prepareDirectedHard(
         if (!usedCodegen) {
           tsx = STICKMAN_STOCK;
           usedStickmanPoseFloor = true;
-          codeIssues = validateDirectedTsx(tsx, plan.skills, contentLang);
+          codeIssues = validateDirectedTsx(tsx, plan.skills, contentLang, plan.aspect);
           skillGate = assertSkillsInTsx(plan.skills, tsx);
           usedCodegen = codeIssues.length === 0;
         }
@@ -668,7 +678,7 @@ export async function prepareDirectedHard(
         ].join('; '),
         propsJson: propsStr,
       });
-      codeIssues = validateDirectedTsx(tsx, plan.skills, contentLang);
+      codeIssues = validateDirectedTsx(tsx, plan.skills, contentLang, plan.aspect);
       skillGate = assertSkillsInTsx(plan.skills, tsx);
       usedCodegen = codeIssues.length === 0 && skillGate.ok;
       if (!usedCodegen && directedNarrativeContractOk(tsx)) {
@@ -680,7 +690,7 @@ export async function prepareDirectedHard(
             propsJson: propsStr,
           });
           syn = parseTsxSyntaxIssues(tsx);
-          codeIssues = validateDirectedTsx(tsx, plan.skills, contentLang);
+          codeIssues = validateDirectedTsx(tsx, plan.skills, contentLang, plan.aspect);
         }
         if (syn.length === 0 && directedNarrativeContractOk(tsx)) {
           usedCodegen = true;

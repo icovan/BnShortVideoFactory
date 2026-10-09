@@ -46,7 +46,13 @@ export type PoseName =
   | 'kick'
   | 'struggle'
   | 'fall'
-  | 'lie';
+  | 'lie'
+  /** Semantic gap fills — prefer composing via clips when possible */
+  | 'push'
+  | 'pull'
+  | 'carry'
+  | 'handoff'
+  | 'desk';
 
 /** Locked Simply Animated–style proportions (hip root at 0,0). */
 export const RIG = {

@@ -23,6 +23,14 @@ export {
   wavePose,
   climbPose,
 } from './poses';
+export type { StickClipId, ClipSample, ClipMeta } from './clips';
+export {
+  STICK_CLIPS,
+  INTENT_TO_CLIPS,
+  clipsForIntent,
+  sampleClip,
+  sampleClipForIntent,
+} from './clips';
 export { Stickman } from './Stickman';
 export type { StickmanProps } from './Stickman';
 export { typeScale, safePad } from './typeScale';
@@ -32,6 +40,8 @@ export {
   SplitRule,
   PanelLabel,
   PropBlock,
+  SignBoard,
+  PhoneSlab,
   ProgressTicks,
   BilingualTitle,
   CaptionPill,

@@ -6,6 +6,8 @@ import {
   resolveContentLang,
   type ContentLang,
 } from './contentLang.ts';
+import { craftFloorForOptimize } from './craftFloor.ts';
+import { asksForStickman, stickmanMachineLockBlock, withStickmanMachineLock } from './stickmanBrief.ts';
 
 export type FactoryBrief = {
   /**
@@ -35,15 +37,18 @@ function audienceLabel(lang: ContentLang): string {
 function densifyFallback(raw: string, aspect: Aspect): FactoryBrief {
   const t = raw.trim();
   const contentLang = detectContentLang(t);
-  const machinePrompt = [
+  const machinePrompt = withStickmanMachineLock(
+    [
+      t,
+      `Locked aspect ${aspect}. One idea, spoken then shown.`,
+      `Audience contentLang=${contentLang}. Machine brief is English; VO/on-screen must follow contentLang.`,
+      'If voiceover is implied, write VO in contentLang; if music-led / no VO, say so.',
+      craftFloorForOptimize(aspect),
+      'Name surface (dark/light), energy, 2–3 motion verbs (slam, count-up, stroke, parallax). Palette from THIS topic.',
+      'Do not average three messages. Keep brand colors if the ask named them.',
+    ].join(' '),
     t,
-    `Locked aspect ${aspect}. One idea, spoken then shown.`,
-    `Audience contentLang=${contentLang}. Machine brief is English; VO/on-screen must follow contentLang.`,
-    'If voiceover is implied, write VO in contentLang; if music-led / no VO, say so.',
-    'Craft (canvas/motion only): hero type 72–140px, spring slam, perspective/depth, full-bleed subject, stroke/draw when diagrams fit — NEVER tiny centered micro-UI.',
-    'Name surface (dark/light), energy, 2–3 motion verbs (slam, count-up, stroke, parallax). Palette from THIS topic.',
-    'Do not average three messages. Keep brand colors if the ask named them.',
-  ].join(' ');
+  );
   const audienceExtra = contentLang === 'en'
     ? 'Keep one core message. Name surface, type scale, depth, and 2–3 motion beats. Portfolio framing — not VO/SKU rules.'
     : '只保留一个核心观点。写清画面（深/浅）、字号动能、景深、2～3 个动作。作品集级构图与动效——不谈口播/片型管线。';
@@ -98,7 +103,13 @@ Rules:
 - Locked aspect is ${aspect}.
 - Name likely primary skill from: ${PRIMARY_SKILLS.filter((s) => s !== 'manim').join(', ')}.
 - contentLang is LOCKED to ${detected}. Echo it. Never flip language.
-- CRAFT FLOOR in machinePrompt (canvas/motion ONLY — not VO policy, not SKU arcs): full-bleed or oversized subject; hero type 72–140px; spring slam; perspective/parallax depth; stroke/diagram draw when relevant; palette from THIS topic (forbid default Linear/PageOn purple); timid inset micro-UI <half frame FORBIDDEN.
+- CRAFT FLOOR in machinePrompt (canvas/motion ONLY — not VO policy, not SKU arcs): ${craftFloorForOptimize(aspect)} Palette from THIS topic (forbid default Linear/PageOn purple).
+${asksForStickman(ask) ? `
+STICKMAN DETECTED in the ask — you MUST append this exact block at the end of machinePrompt (English ok inside the block):
+---
+${stickmanMachineLockBlock()}
+---
+In machinePrompt also name 2–4 stickman beats as clip:<id> phrases (explain-board / compare-sides / hesitate / agree-cheer…). Do NOT list raw POSES.* names.` : ''}
 
 DUAL TRACK (critical):
 1) audiencePrompt — write in ${audLang}. Expand shots, type, depth, motion, contrast, length — STAY in that language. 80–220 words / 120–400 Chinese chars. No markdown headings.
@@ -136,9 +147,10 @@ Return:
     }
 
     const contentLang = resolveContentLang({ ask, guessed: out.contentLang });
+    const lockedMachine = withStickmanMachineLock(machinePrompt, ask);
     return {
-      prompt: machinePrompt,
-      machinePrompt,
+      prompt: lockedMachine,
+      machinePrompt: lockedMachine,
       audiencePrompt,
       sourceAsk: ask,
       lookLock: (out.lookLock || '').toString().slice(0, 120),

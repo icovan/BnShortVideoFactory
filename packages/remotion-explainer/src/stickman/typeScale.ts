@@ -21,7 +21,7 @@ export function typeScale(W: number) {
 
 export function safePad(W: number, H: number, aspect?: string) {
   if (aspect === '9:16' || H > W) {
-    return { top: Math.round(H * 0.06), bottom: Math.round(H * 0.12), left: Math.round(W * 0.08), right: Math.round(W * 0.08) };
+    return { top: Math.round(H * 0.08), bottom: Math.round(H * 0.18), left: Math.round(W * 0.08), right: Math.round(W * 0.08) };
   }
   return { top: Math.round(H * 0.06), bottom: Math.round(H * 0.08), left: Math.round(W * 0.06), right: Math.round(W * 0.06) };
 }

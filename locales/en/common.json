@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "BiunowFactory"
+    "name": "BnShortVideoFactory"
   },
   "menu": {
     "app": {
@@ -390,22 +390,38 @@
         "prompt": "Free create",
         "narrate": "Explain",
         "short": "Shorts",
-        "stickman": "Brand",
-        "launch": "Source story"
+        "logo": "Logo film",
+        "showreel": "MG showreel",
+        "launch": "Source story",
+        "remix": "Remix"
+      },
+      "footage": {
+        "pick": "Pick a footage folder (mp4)",
+        "dialog": "Select remix footage folder",
+        "count": "{{n}} clips ready",
+        "empty": "No usable videos in folder",
+        "needFolder": "Pick a footage folder first",
+        "brand": "Brand name",
+        "sellingPoints": "Product selling points",
+        "theme": "Theme"
       },
       "placeholders": {
-        "prompt": "Freely describe the animation — topic, pacing, visuals, and VO…",
+        "prompt": "Freely describe the animation — topic, pacing, visuals, and VO… Name stickman/火柴人 in the ask to mix character acting with other skills",
         "narrate": "Describe an explainer — idea, pacing, story… or tap a topic below",
         "short": "Describe a vertical short — hook, rhythm, CTA… or tap a topic below",
-        "stickman": "Describe a logo film — upload SVG/PNG and how it should reveal… or tap a topic below",
-        "launch": "Describe a source-driven story — paste article URL / topic / assets… or tap a topic below"
+        "logo": "Describe a logo sting — upload SVG/PNG, brand name & mood; system builds tease→assemble→settle; no VO… or tap a topic below",
+        "showreel": "Describe an MG showreel — brand/theme/colors; system runs 6 technique chapters; no VO… or tap a topic below",
+        "launch": "Describe a source-driven story — paste article URL / topic / assets… or tap a topic below",
+        "remix": "Describe the remix topic or paste VO — pick a footage folder first, then write the ask / upload a script… or tap a topic below"
       },
       "quickbook": {
         "tips": {
           "narrate": "Supports script / doc drive",
           "short": "Vertical 9:16 · Douyin / TikTok ready",
-          "stickman": "Supports SVG / PNG drive",
-          "launch": "Supports article link / topic / attachment; paste body or upload if the site blocks fetch"
+          "logo": "Mark reveal sting · no VO · SVG/PNG",
+          "showreel": "6-chapter MG reel · no VO · 16:9 default",
+          "launch": "Supports article link / topic / attachment; paste body or upload if the site blocks fetch",
+          "remix": "VO drives footage cuts · folder required · 9:16 default"
         },
         "topics": {
           "narrate": {
@@ -440,18 +456,32 @@
               "fill": "A loopable vertical quote film: slam one punchy line word-by-word with kinetic type and a gentle camera push. ~12–15s TikTok loop. Land it: the line itself is the product."
             }
           },
-          "stickman": {
+          "logo": {
             "draw": {
-              "title": "Draw on my line mark",
-              "fill": "I have a line-art or monoline SVG logo. Reveal it by drawing the strokes on, as if being written by hand, then a single confident settle. Around 5-6 seconds, refined and minimal, on a soft neutral background. The mark itself is the hero, with no added text."
+              "title": "Stroke-draw my mark",
+              "fill": "I have a line-art SVG logo. Open with a minimal geometric tease, then an accent-color bounce with a path trail, then stroke-draw the mark with overshoot settle. About 6–8s, refined, dark grain background. Mark is the hero — no explainer captions."
             },
             "icon": {
-              "title": "Drop in my icon mark",
-              "fill": "I have a compact icon or badge SVG logo. Bring it in with a lively scale-up and a touch of overshoot, plus a small secondary bounce as it settles. Around 4 seconds, bold and energetic, with punchy colors on a vibrant background. Just the mark, no text."
+              "title": "Bounce in my icon",
+              "fill": "I have a compact icon/badge SVG logo. Geometric tease, accent bounce-in, scale overshoot and a secondary settle bounce with a hotspot glow. About 5–7s, bold energy. Mark only, no copy."
             },
             "build": {
-              "title": "Build my mark piece by piece",
-              "fill": "I have a multi-part or wordmark SVG logo. Reveal it part by part in a tight, deliberate sequence, letter by letter or shape by shape, in a sensible build order, snapping cleanly into the final lockup. Around 5 seconds, precise and confident, on a clean solid background. Logo only, no tagline."
+              "title": "Assemble my wordmark",
+              "fill": "I have a multi-part/wordmark SVG logo. After a geometric guide, assemble letter-by-letter or shape-by-shape, overshoot into the lockup, optional one-line URL. About 6–8s, precise. No VO, no explainer captions."
+            }
+          },
+          "showreel": {
+            "principles": {
+              "title": "12 principles reel",
+              "fill": "Make a ~14s 16:9 motion showreel branded “Studio”. Six chapters: squash & stretch, kinetic type, systems & stagger, radial orbit, shatter, end lockup. High-contrast red/white/black, no VO, tiny HUD ok."
+            },
+            "brand": {
+              "title": "Brand-color MG reel",
+              "fill": "Build a ~14s MG showreel in my brand colors: six technique chapters (squash / kinetic / stagger grid / radial type / shatter / lockup), end on my brand name. No VO, full-bleed vector motion."
+            },
+            "dark": {
+              "title": "Dark tech reel",
+              "fill": "Deep black, fine grain, orange-red accents. ~15s showreel covering squash, kinetic slam, stagger grid, radial orbit, shatter, and lockup. No VO — portfolio opener energy."
             }
           },
           "launch": {
@@ -462,6 +492,20 @@
             "chapters": {
               "title": "Chaptered deep dive",
               "fill": "Turn this article into a 75-second chaptered explainer in a 16:9 frame. Open with a one-line thesis, then walk each section as its own chapter with a small progress indicator, schematic diagrams that build step by step, and smooth transitions between chapters. Measured, documentary-style pacing suited to a voice-over. Use this source: https://www.xxx.com/..."
+            }
+          },
+          "remix": {
+            "promo": {
+              "title": "Product pitch",
+              "fill": "Make a ~45s vertical remix from the footage folder: open with a pain point, show how the product fixes it, end with a clear CTA. Spoken, natural VO — not ad-speak."
+            },
+            "story": {
+              "title": "Story VO",
+              "fill": "Build a ~60s story remix: hook → details → twist or payoff. One idea per VO line; cuts follow the narration."
+            },
+            "tips": {
+              "title": "Tips list",
+              "fill": "A ~40s tips remix: three actionable tips, one spoken line each. Vertical, made for a quick Douyin scroll."
             }
           }
         }
@@ -557,6 +601,56 @@
       "voice": "Generate VO",
       "build": "Generate visuals",
       "inspect": "QA"
+    },
+    "stepDetails": {
+      "scene": "Write Manim Scene (construct / MathTex)",
+      "plan": "Refine the prompt and plan the storyboard",
+      "brief": "Lock canvas and visual tone",
+      "voice": "Generate VO when needed; otherwise prepare the audio bed",
+      "build": "Generate animation from the storyboard",
+      "stills": "Grab stills to preview key frames",
+      "inspect": "Confirm framing and structure",
+      "encode": "Mux the final video",
+      "planRemake": "Revise selected beats from your notes",
+      "briefRemake": "Keep the current film look",
+      "voiceRemake": "Re-voice changed beats when needed",
+      "buildRemake": "Rebuild animation from the new beats",
+      "inspectRemake": "Confirm the edits pass QA",
+      "encodeRemake": "Mux the new version",
+      "planRemix": "Lock VO copy / synthesize narration",
+      "briefRemix": "Scan the footage library",
+      "voiceRemix": "EdgeTTS per line",
+      "encodeRemix": "Cut clips + burn captions",
+      "stillsManim": "manim -sql still check",
+      "encodeManim": "manim -qh export + probe"
+    },
+    "stepLive": {
+      "densify": "Silent densify · dual-track brief",
+      "webSearch": "Web search…",
+      "urlExtract": "Fetch pages · {{n}} link(s)",
+      "scriptDrive": "Script-drive · {{mode}}",
+      "scriptLocked": "VO locked · {{n}} lines",
+      "scriptSynth": "Synthesize VO · no docs",
+      "scriptSynthLocked": "VO locked · synthesized {{n}} lines",
+      "styleLook": "Style ref → look",
+      "skipEmptyVo": "Skip empty VO · hold beat length",
+      "remixCopy": "Lock VO copy",
+      "remixVoLines": "VO · {{n}} lines",
+      "remixFootage": "Footage · {{n}} clips",
+      "remixFootageReady": "{{n}} clips ready",
+      "remixCutting": "Cutting clips…",
+      "remixFfmpeg": "FFmpeg · {{n}} segments",
+      "remakeBeats": "Edit {{n}} beats",
+      "remakeBeatsDone": "Edited {{n}} beats · {{mode}}",
+      "refreshPalette": "Refresh palette",
+      "updateVo": "Update narration",
+      "reVo": "Re-voice {{n}} beats",
+      "voUnchanged": "Narration unchanged",
+      "copyWhenUnlocked": "Copy film when file unlocks",
+      "docs": "Docs · {{info}}",
+      "webSearchInfo": "Web search · {{info}}",
+      "dualReady": "Dual brief ready · {{info}}",
+      "primaryDone": "Plan done · {{info}}"
     },
     "config": {
       "title": "Settings",

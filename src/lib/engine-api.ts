@@ -207,6 +207,16 @@ export const engineApi = {
     contentLang?: 'zh' | 'en' | 'bilingual'
     /** 真实网页检索 */
     webSearch?: boolean
+    /** 混剪素材文件夹（绝对路径） */
+    footageFolder?: string
+    footagePaths?: string[]
+    /** 混剪话题字段：品牌/卖点/主题 → 口播策划 */
+    remixBrief?: {
+      topic?: 'promo' | 'story' | 'tips' | string
+      brand?: string
+      sellingPoints?: string
+      theme?: string
+    }
   }) => req<EngineProject>('/api/make', { method: 'POST', body }),
   queue: () => req<EngineQueueSnapshot>('/api/queue'),
   project: (id: string) => req<EngineProject>(`/api/projects/${id}`),

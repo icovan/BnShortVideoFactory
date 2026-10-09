@@ -137,6 +137,72 @@ export const PropBlock: React.FC<{
   />
 );
 
+/** Placard / mini board near a stickman hand — staging prop, not a UI card. */
+export const SignBoard: React.FC<{
+  x: number;
+  y: number;
+  w?: number;
+  h?: number;
+  label?: string;
+  fill?: string;
+  ink?: string;
+}> = ({
+  x,
+  y,
+  w = 72,
+  h = 48,
+  label,
+  fill = VISUAL_LOCK.propLight,
+  ink = VISUAL_LOCK.ink,
+}) => (
+  <div
+    className="stickman-sign"
+    style={{
+      position: 'absolute',
+      left: x,
+      top: y,
+      width: w,
+      height: h,
+      background: fill,
+      borderRadius: 6,
+      border: `2px solid ${ink}`,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: Math.max(10, Math.round(h * 0.28)),
+      fontWeight: 700,
+      color: ink,
+      fontFamily: CJK,
+      padding: 4,
+      boxSizing: 'border-box',
+      textAlign: 'center',
+      lineHeight: 1.1,
+    }}
+  >
+    {label || ''}
+  </div>
+);
+
+/** Tiny phone slab for phone-talk staging. */
+export const PhoneSlab: React.FC<{
+  x: number;
+  y: number;
+  color?: string;
+}> = ({ x, y, color = VISUAL_LOCK.ink }) => (
+  <div
+    style={{
+      position: 'absolute',
+      left: x,
+      top: y,
+      width: 14,
+      height: 26,
+      borderRadius: 3,
+      background: color,
+      opacity: 0.92,
+    }}
+  />
+);
+
 /** Progress dashes + optional 03 / 08 counter. */
 export const ProgressTicks: React.FC<{
   y: number;

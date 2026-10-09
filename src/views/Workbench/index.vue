@@ -122,7 +122,7 @@
             <strong>{{ stepLabel(s) }}</strong>
             <span :class="s.status">{{ stepStatus(s.status) }}</span>
           </div>
-          <p v-if="s.detail">{{ s.detail }}</p>
+          <p v-if="stepDetail(s)">{{ stepDetail(s) }}</p>
         </li>
       </ul>
 
@@ -191,6 +191,7 @@ import {
   type EngineVersion,
   type RemakeMode,
 } from '@/lib/engine-api'
+import { localizeStepDetail } from '@/lib/pipeline-i18n'
 import { useStudioStore, type PipelineStep } from '@/store/studio'
 
 const { t, i18next } = useTranslation()
@@ -327,6 +328,11 @@ const statusText = computed(() => {
 function stepLabel(s: PipelineStep) {
   const key = `studio.steps.${s.id}`
   return i18next.exists(key) ? t(key) : s.label
+}
+
+function stepDetail(s: PipelineStep) {
+  void i18next.language
+  return localizeStepDetail(s, t, (key) => i18next.exists(key))
 }
 
 function stepStatus(s: string) {

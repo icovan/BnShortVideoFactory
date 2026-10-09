@@ -50,8 +50,14 @@ export function estimateCreate(
 ): { durationSec: number; waitMinLow: number; waitMinHigh: number } {
   const chars = promptText.replace(/\s+/g, '').length + (hasDoc ? 1200 : 0)
   let durationSec = Math.round(chars / 4)
-  if (formMode === 'stickman' || formMode === 'launch') {
+  if (formMode === 'logo' || formMode === 'stickman') {
+    durationSec = Math.max(6, Math.min(12, Math.round(chars / 10) || 8))
+  } else if (formMode === 'showreel') {
+    durationSec = Math.max(12, Math.min(18, Math.round(chars / 8) || 14))
+  } else if (formMode === 'launch') {
     durationSec = Math.max(15, Math.min(45, Math.round(chars / 8) || 20))
+  } else if (formMode === 'remix') {
+    durationSec = Math.max(20, Math.min(180, Math.round(chars / 5) || 45))
   } else if (formMode === 'short') {
     durationSec = Math.max(12, Math.min(60, Math.round(chars / 6) || 20))
   } else {

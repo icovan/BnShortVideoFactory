@@ -255,7 +255,7 @@
             type="button"
             class="select-option"
             :class="{ on: speech.voice === o.value }"
-            @click="speech.voice = o.value; closeSelect()"
+            @click="pickSystemVoice(o.value)"
           >
             {{ o.title }}
           </button>
@@ -293,6 +293,7 @@ import {
   defaultEdgeVoice,
   edgeVoiceLabel,
   edgeVoicesForLang,
+  speechVoiceForLang,
   uiVoiceLang,
   useSettingsStore,
   voiceMatchesUiLang,
@@ -316,6 +317,8 @@ const vendorId = ref<LlmVendorId>(detectVendor(settings.llm.apiUrl))
 const llm = reactive({ ...settings.llm })
 const speech = reactive({
   ...settings.speech,
+  voiceZh: settings.speech.voiceZh || defaultEdgeVoice('zh'),
+  voiceEn: settings.speech.voiceEn || defaultEdgeVoice('en'),
   myVoices: [...(settings.speech.myVoices || [])],
 })
 
@@ -446,6 +449,8 @@ watch(
   () => settings.speech,
   (v) => {
     Object.assign(speech, v)
+    speech.voiceZh = v.voiceZh || defaultEdgeVoice('zh')
+    speech.voiceEn = v.voiceEn || defaultEdgeVoice('en')
     speech.myVoices = [...(v.myVoices || [])]
   },
   { deep: true },
@@ -454,9 +459,17 @@ watch(
 watch(
   voiceLang,
   (lang) => {
-    if (!voiceMatchesUiLang(speech.voice, lang)) {
-      speech.voice = defaultEdgeVoice(lang)
-    }
+    // 切中/英文：展示该语种已配置的默认配音
+    const next = speechVoiceForLang(
+      {
+        voice: speech.voice,
+        voiceZh: speech.voiceZh || settings.speech.voiceZh,
+        voiceEn: speech.voiceEn || settings.speech.voiceEn,
+        myVoices: speech.myVoices,
+      },
+      lang,
+    )
+    if (speech.voice !== next) speech.voice = next
   },
   { immediate: true },
 )
@@ -468,6 +481,22 @@ function onCloneProvider(v: CloneProvider) {
     if (!speech.cloneBaseUrl) speech.cloneBaseUrl = d.base
     if (!speech.speechModel || speech.speechModel === 'edge-tts') speech.speechModel = d.model
   }
+}
+
+function rememberVoiceSlot(id: string) {
+  speech.voice = id
+  if (id.startsWith('my:')) {
+    if (voiceLang.value === 'en') speech.voiceEn = id
+    else speech.voiceZh = id
+    return
+  }
+  if (voiceMatchesUiLang(id, 'zh')) speech.voiceZh = id
+  if (voiceMatchesUiLang(id, 'en')) speech.voiceEn = id
+}
+
+function pickSystemVoice(id: string) {
+  rememberVoiceSlot(id)
+  closeSelect()
 }
 
 function addMyVoice() {
@@ -482,18 +511,21 @@ function addMyVoice() {
       voiceId: draftVoiceId.value.trim().slice(0, 120),
     },
   ].slice(0, 8)
-  speech.voice = `my:${id}`
+  rememberVoiceSlot(`my:${id}`)
   draftName.value = ''
   draftVoiceId.value = ''
 }
 
 function removeMyVoice(id: string) {
   speech.myVoices = speech.myVoices.filter((v) => v.id !== id)
-  if (speech.voice === `my:${id}`) speech.voice = defaultEdgeVoice(voiceLang.value)
+  const gone = `my:${id}`
+  if (speech.voiceZh === gone) speech.voiceZh = defaultEdgeVoice('zh')
+  if (speech.voiceEn === gone) speech.voiceEn = defaultEdgeVoice('en')
+  if (speech.voice === gone) speech.voice = speechVoiceForLang(speech, voiceLang.value)
 }
 
 function pickMyVoice(id: string) {
-  speech.voice = `my:${id}`
+  rememberVoiceSlot(`my:${id}`)
 }
 
 async function save() {
@@ -501,6 +533,9 @@ async function save() {
   settings.updateSpeech({
     provider: speech.provider,
     voice: speech.voice,
+    voiceZh: speech.voiceZh,
+    voiceEn: speech.voiceEn,
+    langHint: voiceLang.value,
     cloneProvider: speech.cloneProvider,
     cloneApiKey: speech.cloneApiKey,
     cloneBaseUrl: speech.cloneBaseUrl,

@@ -1,13 +1,13 @@
 /**
- * BiunowFactory create-core — 本机成片 API（Remotion / Manim）
+ * BnShortVideoFactory create-core — 本机成片 API（Remotion / Manim）
  * 仅暴露 Electron UI 所需路由；无 web / admin / commerce。
  */
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   type Aspect,
@@ -29,7 +29,7 @@ import {
 import { failPipeline, initialPipeline, remakePipeline } from './pipeline.ts';
 import { OUTPUTS_DIR } from './paths.ts';
 import { decorateProjects, withPoster } from './poster.ts';
-import { listStyleRefs, resolveStyleLook, styleRefsDir } from './make/styleLook.ts';
+import { listStyleRefs, resolveStyleLook, resolveStyleRefFile } from './make/styleLook.ts';
 import { localOpenUser } from './shell/localOpen.ts';
 import { shellInfo } from './shell/role.ts';
 import { maskSettings, store } from './store.ts';
@@ -59,23 +59,33 @@ app.use(
   }),
 );
 
-const STYLE_REFS_ROOT = styleRefsDir();
-if (existsSync(STYLE_REFS_ROOT)) {
-  app.use(
-    '/style-refs/*',
-    serveStatic({
-      root: STYLE_REFS_ROOT,
-      rewriteRequestPath: (p) => decodeURIComponent(p.replace(/^\/style-refs\/?/, '/')),
-    }),
-  );
-}
+const STYLE_REF_MIME: Record<string, string> = {
+  '.webp': 'image/webp',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+};
+
+/** 多目录候选（cankao / assets / data），按文件名解析后直出 */
+app.get('/style-refs/:file', (c) => {
+  const file = c.req.param('file');
+  const abs = resolveStyleRefFile(file);
+  if (!abs || !existsSync(abs)) return c.notFound();
+  const ext = extname(abs).toLowerCase();
+  const type = STYLE_REF_MIME[ext] || 'application/octet-stream';
+  return c.body(readFileSync(abs), 200, {
+    'Content-Type': type,
+    'Cache-Control': 'public, max-age=86400',
+  });
+});
 
 app.get('/api/health', (c) => {
   const s = store.settings();
   const q = queueSnapshot();
   return c.json({
     ok: true,
-    name: 'BiunowFactory create-core',
+    name: 'BnShortVideoFactory create-core',
     port: PORT,
     llmConfigured: Boolean(s.llmApiKey),
     speechProvider: s.speechProvider,
@@ -327,11 +337,22 @@ app.post('/api/make', async (c) => {
     contentLang?: 'zh' | 'en' | 'bilingual';
     webSearch?: boolean;
     quality?: '1080p' | '720p';
+    formMode?: string;
+    footageFolder?: string;
+    footagePaths?: string[];
+    remixBrief?: {
+      topic?: string;
+      brand?: string;
+      sellingPoints?: string;
+      theme?: string;
+    };
   };
   const prompt = (body.prompt || '').trim();
   if (!prompt) return c.json({ error: '请先填写需求' }, 400);
 
-  const aspect = parseAspect(body.aspect, '16:9');
+  const formMode = typeof body.formMode === 'string' ? body.formMode : undefined;
+  const isRemix = formMode === 'remix' || formMode === 'footage-remix' || body.stylePack === 'footage-remix';
+  const aspect = parseAspect(body.aspect, isRemix ? '9:16' : '16:9');
   const quality = body.quality === '720p' ? '720p' as const : '1080p' as const;
   const autoSfx = body.autoSfx === true;
   const webSearch = body.webSearch === true;
@@ -366,18 +387,40 @@ app.post('/api/make', async (c) => {
           role: a.role,
         }))
     : undefined;
+  const footageFolder = typeof body.footageFolder === 'string' && body.footageFolder.trim()
+    ? body.footageFolder.trim()
+    : undefined;
+  const footagePaths = Array.isArray(body.footagePaths)
+    ? body.footagePaths.map((p) => String(p || '').trim()).filter(Boolean).slice(0, 200)
+    : undefined;
+  const remixBriefRaw = body.remixBrief && typeof body.remixBrief === 'object' ? body.remixBrief : undefined;
+  const remixBrief = remixBriefRaw
+    ? {
+      topic: typeof remixBriefRaw.topic === 'string' ? remixBriefRaw.topic.trim().slice(0, 40) : undefined,
+      brand: typeof remixBriefRaw.brand === 'string' ? remixBriefRaw.brand.trim().slice(0, 80) : undefined,
+      sellingPoints: typeof remixBriefRaw.sellingPoints === 'string'
+        ? remixBriefRaw.sellingPoints.trim().slice(0, 240)
+        : undefined,
+      theme: typeof remixBriefRaw.theme === 'string' ? remixBriefRaw.theme.trim().slice(0, 120) : undefined,
+    }
+    : undefined;
+
+  if (isRemix && !footageFolder && !(footagePaths && footagePaths.length)) {
+    return c.json({ error: '混剪需要先选择分镜素材文件夹' }, 400);
+  }
 
   const user = c.get('user');
   const settings = store.settings();
-  // 硬 SKU 模板已移除：仅 footage-remix | skill-directed
-  const stylePack: StylePack =
-    body.stylePack === 'footage-remix' ? 'footage-remix' : 'skill-directed';
+  const stylePack: StylePack = isRemix || body.stylePack === 'footage-remix'
+    ? 'footage-remix'
+    : 'skill-directed';
+  const engine: Engine = isRemix ? 'footage-remix' : 'explainer-remotion';
 
   const project: Project = {
     id: newId(),
-    title: prompt.slice(0, 28) || '新创作',
+    title: prompt.slice(0, 28) || (isRemix ? '素材混剪' : '新创作'),
     kind: body.kind || 'explainer',
-    engine: 'explainer-remotion',
+    engine,
     stylePack,
     prompt,
     status: 'queued',
@@ -386,7 +429,7 @@ app.post('/api/make', async (c) => {
     aspect,
     quality,
     userId: user.id,
-    pipeline: initialPipeline('explainer-remotion', stylePack),
+    pipeline: initialPipeline(engine, stylePack),
   };
   store.upsertProject(project);
 
@@ -397,14 +440,18 @@ app.post('/api/make', async (c) => {
       const { makeFromPrompt } = await import('./make/fromPrompt.ts');
       await makeFromPrompt(prompt, settings, project.id, aspect, undefined, {
         autoSfx,
-        voMode,
-        scriptDrive,
+        voMode: isRemix ? 'on' : voMode,
+        scriptDrive: isRemix ? (scriptDrive === 'off' ? 'auto' : scriptDrive) : scriptDrive,
         styleRefId,
         styleRefDataUrl,
         userAssets,
-        stylePack: stylePack === 'footage-remix' ? 'footage-remix' : 'skill-directed',
-        webSearch,
+        stylePack,
+        webSearch: isRemix ? false : webSearch,
         quality,
+        formMode,
+        footageFolder,
+        footagePaths,
+        remixBrief,
         contentLang:
           body.contentLang === 'zh' || body.contentLang === 'en' || body.contentLang === 'bilingual'
             ? body.contentLang
@@ -419,7 +466,7 @@ app.post('/api/make', async (c) => {
 app.get('/', (c) =>
   c.json({
     ok: true,
-    service: 'BiunowFactory create-core',
+    service: 'BnShortVideoFactory create-core',
     health: '/api/health',
   }),
 );

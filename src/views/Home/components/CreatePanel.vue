@@ -68,6 +68,45 @@
         </div>
       </div>
 
+      <div v-if="formMode === 'remix'" class="footage-bar">
+        <button type="button" class="footage-pick" @click="pickFootageFolder">
+          <AppIcon :icon="FolderOpen" :size="16" />
+          <span class="footage-path">{{
+            footageFolder
+              ? footageFolder
+              : t('studio.create.footage.pick')
+          }}</span>
+        </button>
+        <em v-if="footageCount > 0" class="footage-count">
+          {{ t('studio.create.footage.count', { n: footageCount }) }}
+        </em>
+        <em v-else-if="footageFolder" class="footage-count warn">
+          {{ t('studio.create.footage.empty') }}
+        </em>
+        <template v-if="remixTopicId === 'promo'">
+          <input
+            v-model="remixBrand"
+            type="text"
+            class="footage-input"
+            :placeholder="t('studio.create.footage.brand')"
+          />
+          <input
+            v-model="remixSellingPoints"
+            type="text"
+            class="footage-input wide"
+            :placeholder="t('studio.create.footage.sellingPoints')"
+          />
+        </template>
+        <template v-else-if="remixTopicId === 'story' || remixTopicId === 'tips'">
+          <input
+            v-model="remixTheme"
+            type="text"
+            class="footage-input wide"
+            :placeholder="t('studio.create.footage.theme')"
+          />
+        </template>
+      </div>
+
       <textarea
         class="prompt"
         rows="7"
@@ -85,6 +124,7 @@
             :key="topic.id"
             type="button"
             class="topic-chip"
+            :class="{ on: formMode === 'remix' && remixTopicId === topic.id }"
             @click="fillTopic(topic.id)"
           >
             {{ topic.title }}
@@ -106,7 +146,16 @@
               <AppIcon :icon="Plus" :size="18" />
               <span v-if="plusDot" class="dot" />
             </button>
-            <div v-if="plusOpen" class="plus-pop" :class="{ style: plusView === 'style' }" @click.stop>
+            <div
+              v-if="plusOpen"
+              class="plus-pop"
+              :class="{
+                sheet: plusView === 'style' || plusView === 'voice',
+                style: plusView === 'style',
+                voice: plusView === 'voice',
+              }"
+              @click.stop
+            >
               <template v-if="plusView === 'main'">
                 <button type="button" class="plus-row" @click="fileInput?.click()">
                   <span class="plus-ico"><AppIcon :icon="Upload" :size="16" /></span>
@@ -147,12 +196,12 @@
                 <button
                   type="button"
                   class="plus-row"
-                  :disabled="formMode === 'narrate'"
+                  :disabled="formMode === 'narrate' || formMode === 'remix' || formMode === 'logo' || formMode === 'showreel'"
                   @click="cycleVo"
                 >
                   <span class="plus-ico"><AppIcon :icon="Mic" :size="16" /></span>
                   <span>{{ t('studio.create.plus.vo') }}</span>
-                  <em :class="{ lit: voMode !== 'auto' || formMode === 'narrate' }">{{ voLabel }}</em>
+                  <em :class="{ lit: voMode !== 'auto' || formMode === 'narrate' || formMode === 'remix' || formMode === 'logo' || formMode === 'showreel' }">{{ voLabel }}</em>
                 </button>
                 <button type="button" class="plus-row" @click="cycleDrive">
                   <span class="plus-ico"><AppIcon :icon="FileText" :size="16" /></span>
@@ -161,37 +210,50 @@
                 </button>
               </template>
               <template v-else-if="plusView === 'voice'">
-                <button type="button" class="plus-row" @click="plusView = 'main'">
-                  <span class="plus-ico"><AppIcon :icon="ChevronLeft" :size="16" /></span>
-                  <span>{{ t('studio.create.plus.back') }}</span>
-                </button>
-                <p v-if="myVoiceOptions.length" class="plus-empty">{{ t('studio.create.myVoices') }}</p>
-                <button
-                  v-for="v in myVoiceOptions"
-                  :key="v.id"
-                  type="button"
-                  class="plus-row"
-                  :class="{ on: speechVoice === v.id }"
-                  @click="pickVoice(v.id)"
-                >
-                  <span>{{ v.label }}</span>
-                  <em v-if="speechVoice === v.id"><AppIcon :icon="Check" :size="14" /></em>
-                </button>
-                <button
-                  v-for="v in systemVoices"
-                  :key="v.id"
-                  type="button"
-                  class="plus-row"
-                  :class="{ on: speechVoice === v.id }"
-                  @click="pickVoice(v.id)"
-                >
-                  <span>{{ edgeVoiceLabel(v) }}</span>
-                  <em v-if="speechVoice === v.id"><AppIcon :icon="Check" :size="14" /></em>
-                </button>
-                <button type="button" class="plus-row" :disabled="previewing" @click="previewVoice">
-                  <span class="plus-ico"><AppIcon :icon="Play" :size="16" /></span>
-                  <span>{{ previewing ? t('studio.create.plus.previewing') : t('studio.create.plus.preview') }}</span>
-                </button>
+                <div class="voice-head">
+                  <button type="button" class="plus-row back" @click="plusView = 'main'">
+                    <span class="plus-ico"><AppIcon :icon="ChevronLeft" :size="16" /></span>
+                    <span>{{ t('studio.create.plus.back') }}</span>
+                  </button>
+                </div>
+                <div class="voice-list">
+                  <p v-if="myVoiceOptions.length" class="plus-empty">{{ t('studio.create.myVoices') }}</p>
+                  <button
+                    v-for="v in myVoiceOptions"
+                    :key="v.id"
+                    type="button"
+                    class="plus-row"
+                    :class="{ on: speechVoice === v.id }"
+                    @click="pickVoice(v.id)"
+                  >
+                    <span>{{ v.label }}</span>
+                    <em v-if="speechVoice === v.id"><AppIcon :icon="Check" :size="14" /></em>
+                  </button>
+                  <button
+                    v-for="v in systemVoices"
+                    :key="v.id"
+                    type="button"
+                    class="plus-row"
+                    :class="{ on: speechVoice === v.id }"
+                    @click="pickVoice(v.id)"
+                  >
+                    <span>{{ edgeVoiceLabel(v) }}</span>
+                    <em v-if="speechVoice === v.id"><AppIcon :icon="Check" :size="14" /></em>
+                  </button>
+                </div>
+                <div class="voice-foot">
+                  <button
+                    type="button"
+                    class="plus-row preview"
+                    :disabled="previewing"
+                    @click="previewVoice"
+                  >
+                    <span class="plus-ico"><AppIcon :icon="Play" :size="16" /></span>
+                    <span>{{
+                      previewing ? t('studio.create.plus.previewing') : t('studio.create.plus.preview')
+                    }}</span>
+                  </button>
+                </div>
               </template>
               <template v-else-if="plusView === 'style'">
                 <div class="style-head">
@@ -314,6 +376,7 @@ import {
   ChevronDown,
   ChevronLeft,
   FileText,
+  FolderOpen,
   Image as ImageIcon,
   Mic,
   Music,
@@ -333,13 +396,14 @@ import {
   type UserAsset,
 } from '@/lib/engine-api'
 import { detectContentLang, estimateCreate } from '@/lib/content-lang'
+import { useAppStore } from '@/store'
 import {
   defaultEdgeVoice,
   edgeVoiceLabel,
   edgeVoicesForLang,
+  speechVoiceForLang,
   uiVoiceLang,
   useSettingsStore,
-  voiceMatchesUiLang,
 } from '@/store/settings'
 import { type Aspect, type FormMode, useStudioStore } from '@/store/studio'
 
@@ -349,6 +413,7 @@ const { t, i18next } = useTranslation()
 const router = useRouter()
 const studio = useStudioStore()
 const settings = useSettingsStore()
+const appStore = useAppStore()
 
 type Attach = {
   id: string
@@ -363,17 +428,21 @@ const FORM_MODES: { id: FormMode; aspect: Aspect }[] = [
   { id: 'prompt', aspect: '16:9' },
   { id: 'narrate', aspect: '16:9' },
   { id: 'short', aspect: '9:16' },
-  { id: 'stickman', aspect: '16:9' },
+  { id: 'logo', aspect: '16:9' },
+  { id: 'showreel', aspect: '16:9' },
   { id: 'launch', aspect: '16:9' },
+  { id: 'remix', aspect: '9:16' },
 ]
 const ASPECTS: Aspect[] = ['16:9', '9:16', '1:1', '3:4']
 
-/** 各形态傻瓜话题手册（id 仍用 narrate/short/stickman/launch 兼容后端） */
+/** 各形态傻瓜话题手册 */
 const TOPIC_IDS: Record<Exclude<FormMode, 'prompt'>, string[]> = {
   narrate: ['ramen', 'honey', 'cats', 'beijing'],
   short: ['hook', 'list', 'loop'],
-  stickman: ['draw', 'icon', 'build'],
+  logo: ['draw', 'icon', 'build'],
+  showreel: ['principles', 'brand', 'dark'],
   launch: ['three', 'chapters'],
+  remix: ['promo', 'story', 'tips'],
 }
 
 const prompt = ref('')
@@ -394,11 +463,15 @@ const plusWrap = ref<HTMLElement | null>(null)
 const plusOpen = ref(false)
 const plusView = ref<'main' | 'voice' | 'style'>('main')
 const attachments = ref<Attach[]>([])
-const webSearch = ref(false)
-const autoSfx = ref(false)
+const webSearch = ref(true)
+const autoSfx = ref(true)
 const voMode = ref<'on' | 'off' | 'auto'>('auto')
 const scriptDrive = ref<'off' | 'auto' | 'polish' | 'verbatim'>('auto')
-const speechVoice = ref(settings.speech.voice || 'zh-CN-XiaoxiaoNeural')
+const speechVoice = ref(
+  speechVoiceForLang(settings.speech, uiVoiceLang(i18next.language)) ||
+    settings.speech.voice ||
+    defaultEdgeVoice(uiVoiceLang(i18next.language)),
+)
 const previewing = ref(false)
 const styleRefs = ref<StyleRefItem[]>([])
 const styleThumbMap = ref<Record<string, string>>({})
@@ -429,9 +502,75 @@ const topicTips = computed(() => {
   return t(`studio.create.quickbook.tips.${formMode.value}`)
 })
 const hasDoc = computed(() => attachments.value.some((a) => a.kind === 'doc'))
-const canSubmit = computed(
-  () => prompt.value.trim().length > 0 || (formMode.value === 'narrate' && hasDoc.value),
-)
+const footageFolder = ref(appStore.videoAssetsFolder || '')
+const footageCount = ref(0)
+/** 混剪话题：promo=种草；story/tips=主题 */
+const remixTopicId = ref<'promo' | 'story' | 'tips' | ''>('')
+const remixBrand = ref('')
+const remixSellingPoints = ref('')
+const remixTheme = ref('')
+
+function resetRemixFields() {
+  remixTopicId.value = ''
+  remixBrand.value = ''
+  remixSellingPoints.value = ''
+  remixTheme.value = ''
+}
+
+/** 切换分类时清空输入，回到该形态默认态（素材库路径保留） */
+function resetComposerForMode() {
+  prompt.value = ''
+  briefHint.value = ''
+  error.value = ''
+  attachments.value = []
+  stylePick.value = null
+  plusOpen.value = false
+  plusView.value = 'main'
+  webSearch.value = true
+  autoSfx.value = true
+  resetRemixFields()
+}
+
+function remixBriefPayload() {
+  if (formMode.value !== 'remix' || !remixTopicId.value) return undefined
+  const brand = remixBrand.value.trim()
+  const sellingPoints = remixSellingPoints.value.trim()
+  const theme = remixTheme.value.trim()
+  if (remixTopicId.value === 'promo') {
+    if (!brand && !sellingPoints) return { topic: 'promo' as const }
+    return { topic: 'promo' as const, brand: brand || undefined, sellingPoints: sellingPoints || undefined }
+  }
+  if (!theme) return { topic: remixTopicId.value }
+  return { topic: remixTopicId.value, theme }
+}
+const canSubmit = computed(() => {
+  const hasAsk = prompt.value.trim().length > 0 || ((formMode.value === 'narrate' || formMode.value === 'remix') && hasDoc.value)
+  if (formMode.value === 'remix') return hasAsk && !!footageFolder.value && footageCount.value > 0
+  return hasAsk
+})
+
+async function refreshFootageCount() {
+  footageCount.value = 0
+  const folder = footageFolder.value
+  if (!folder) return
+  try {
+    const assets = await window.electron.listFilesFromFolder({ folderPath: folder })
+    footageCount.value = assets.filter((a) => /\.(mp4|mov|webm|mkv|m4v)$/i.test(a.name)).length
+  } catch {
+    footageCount.value = 0
+  }
+}
+
+async function pickFootageFolder() {
+  const folderPath = await window.electron.selectFolder({
+    title: t('studio.create.footage.dialog'),
+    defaultPath: footageFolder.value || appStore.videoAssetsFolder || undefined,
+  })
+  if (!folderPath) return
+  footageFolder.value = folderPath
+  appStore.videoAssetsFolder = folderPath
+  await refreshFootageCount()
+}
 const detectedUrls = computed(() => {
   const found = prompt.value.match(/https?:\/\/[^\s<>"'）】\]]+/gi) || []
   const uniq: string[] = []
@@ -488,7 +627,9 @@ const estimateLine = computed(() => {
   })
 })
 const voLabel = computed(() => {
-  if (formMode.value === 'narrate') return t('studio.create.plus.voLocked')
+  if (formMode.value === 'narrate' || formMode.value === 'remix' || formMode.value === 'logo' || formMode.value === 'showreel') {
+    return t('studio.create.plus.voLocked')
+  }
   if (voMode.value === 'on') return t('studio.create.plus.on')
   if (voMode.value === 'off') return t('studio.create.plus.off')
   return t('studio.create.plus.auto')
@@ -571,12 +712,14 @@ function removeAttach(id: string) {
 function applyMode(id: FormMode) {
   // 自由创作：无话题手册；其他形态：点开/再点关
   if (id === 'prompt') {
+    if (formMode.value !== 'prompt') resetComposerForMode()
     formMode.value = 'prompt'
     topicSheetOpen.value = false
   } else if (formMode.value === id && topicSheetOpen.value) {
     topicSheetOpen.value = false
     return
   } else {
+    if (formMode.value !== id) resetComposerForMode()
     formMode.value = id
     topicSheetOpen.value = true
   }
@@ -586,14 +729,18 @@ function applyMode(id: FormMode) {
   if (id === 'narrate') {
     voMode.value = 'on'
     scriptDrive.value = 'auto'
-  } else if (id === 'stickman') {
-    // 产品品牌 · Logo 片：默认可无旁白
+  } else if (id === 'logo' || id === 'showreel') {
+    // Logo 片 / 动效展片：默认无旁白、无文稿驱动
     voMode.value = 'off'
     scriptDrive.value = 'off'
   } else if (id === 'launch') {
     // 素材叙事：旁白 + 文稿/链接驱动
     voMode.value = 'on'
     scriptDrive.value = 'auto'
+  } else if (id === 'remix') {
+    voMode.value = 'on'
+    scriptDrive.value = 'auto'
+    void refreshFootageCount()
   } else if (id === 'short') {
     voMode.value = 'on'
     scriptDrive.value = 'auto'
@@ -610,6 +757,16 @@ function fillTopic(topicId: string) {
   prompt.value = fill
   briefHint.value = ''
   error.value = ''
+  if (formMode.value === 'remix') {
+    if (topicId === 'promo' || topicId === 'story' || topicId === 'tips') {
+      if (remixTopicId.value !== topicId) {
+        remixBrand.value = ''
+        remixSellingPoints.value = ''
+        remixTheme.value = ''
+      }
+      remixTopicId.value = topicId
+    }
+  }
 }
 
 function onPromptInput(next: string) {
@@ -627,11 +784,14 @@ function togglePlus() {
 }
 
 function cycleVo() {
-  if (formMode.value === 'narrate') return
+  if (formMode.value === 'narrate' || formMode.value === 'remix' || formMode.value === 'logo' || formMode.value === 'showreel') {
+    return
+  }
   voMode.value = voMode.value === 'auto' ? 'on' : voMode.value === 'on' ? 'off' : 'auto'
 }
 
 function cycleDrive() {
+  if (formMode.value === 'logo' || formMode.value === 'showreel') return
   const order: Array<'off' | 'auto' | 'polish' | 'verbatim'> = ['auto', 'polish', 'verbatim', 'off']
   const i = order.indexOf(scriptDrive.value)
   scriptDrive.value = order[(i + 1) % order.length]
@@ -669,7 +829,7 @@ async function openStyle() {
 
 function pickVoice(id: string) {
   speechVoice.value = id
-  settings.updateSpeech({ voice: id })
+  settings.updateSpeech({ voice: id, langHint: voiceLang.value })
 }
 
 async function previewVoice() {
@@ -750,10 +910,15 @@ function modeHintLine(lang?: 'zh' | 'en' | 'bilingual') {
       ? '形态：讲解科普；VO on；文稿驱动（script-drive polish）。'
       : '形态：讲解科普；VO on。'
   }
-  if (formMode.value === 'stickman') {
+  if (formMode.value === 'logo') {
     return en
-      ? 'Form: brand / logo motion; prefer uploaded SVG/PNG as the hero mark.'
-      : '形态：产品品牌 · Logo 动效；优先用上传的 SVG/PNG 作为主角标志。'
+      ? 'Form: Logo sting — geo tease → accent → assemble → overshoot → settle; no VO; prefer uploaded SVG/PNG.'
+      : '形态：Logo 片 — 几何起势→强调色运动→组装→过冲→定版；无旁白；优先上传 SVG/PNG。'
+  }
+  if (formMode.value === 'showreel') {
+    return en
+      ? 'Form: MG showreel — 6 technique chapters (squash / kinetic / systems / radial / shatter / lockup); no VO.'
+      : '形态：动效展片 — 六章技法（弹压/动能字/错峰/径向/碎裂/定版）；无旁白。'
   }
   if (formMode.value === 'short') {
     return en ? 'Form lean: vertical short-form video (9:16).' : '形态倾向：竖屏短视频（9:16）。'
@@ -762,6 +927,11 @@ function modeHintLine(lang?: 'zh' | 'en' | 'bilingual') {
     return en
       ? 'Form: source-driven story — article URL / topic / attachments into a narrated film.'
       : '形态：素材叙事 — 文章链接 / 话题 / 附件驱动讲解片。'
+  }
+  if (formMode.value === 'remix') {
+    return en
+      ? 'Form: footage remix — VO script drives random cuts from the asset folder; burn captions.'
+      : '形态：混剪 — 口播文案驱动素材库随机切镜；烧录字幕成片。'
   }
   return ''
 }
@@ -778,22 +948,43 @@ function packPrompt(raw: string) {
           : scriptDrive.value
       : scriptDrive.value
   const brandHint =
-    formMode.value === 'stickman'
+    (formMode.value === 'logo' || formMode.value === 'showreel')
       && attachments.value.some((a) => a.kind === 'image')
       && !/logo|标志|svg|icon|wordmark/i.test(raw)
       ? lang === 'en'
         ? 'Brand logo assets attached — treat uploaded mark as the hero; no invented alternate logos.'
         : '已附品牌标志素材 — 以上传标志为主角，勿另造 Logo。'
       : ''
-  // 仅画布/动效：字体、弹簧、景深、构图、绘图、配色（旁白/片型另管）
-  const craftFloor = lang === 'en'
-    ? 'Craft floor (canvas/motion): hero type ≥72–140px; spring slam; perspective/depth layers; full-bleed or oversized subject; stroke/diagram draw when useful; palette from THIS topic — forbid tiny centered micro-UI.'
-    : '画面增效（仅画布/动效）：字号≥72 动能排版；弹簧动画；透视/分层景深；满幅或超大主体；需要时用描边/图表绘制；配色跟主题走——禁止缩在画面中央的小控件。'
+  const portrait = aspect.value === '9:16' || aspect.value === '3:4'
+  const craftFloor = formMode.value === 'remix'
+    ? ''
+    : formMode.value === 'logo'
+      ? (lang === 'en'
+        ? 'Craft: logo sting — geo tease, accent bounce/path, stroke-assemble, overshoot, settle. No explainer captions. Safe area (portrait: top 8% / bottom 18%).'
+        : '画面：Logo 片 — 几何起势、强调色弹跳/路径、描边组装、过冲、定版。不要讲解字幕。安全区（竖屏上 8% / 下 18%）。')
+      : formMode.value === 'showreel'
+        ? (lang === 'en'
+          ? 'Craft: MG showreel — 6 chapters squash/kinetic/systems/radial/shatter/lockup; no VO; tiny HUD OK; high-contrast full-bleed motion.'
+          : '画面：动效展片 — 六章弹压/动能字/错峰/径向/碎裂/定版；无旁白；可有小角标 HUD；高对比满幅动效。')
+      : portrait
+        ? (lang === 'en'
+          ? 'Craft (9:16): one short hero slam at 8–12% width; body type 4.5–6% — do NOT put 72–140px on every line. Safe area top 8% / bottom 18% / sides 8%. Spring translateY/scale, no heavy 3D tilt.'
+          : '画面（竖屏）：只做一次短钩子砸字（宽的 8–12%）；正文 4.5–6%——禁止每行都 ≥72。安全区上 8% / 下 18% / 左右 8%。弹簧位移缩放，不要大倾角透视。')
+        : (lang === 'en'
+          ? 'Craft (16:9): one hero slam ≥72–140px; spring; depth layers; ≥6% safe pad; full-bleed subject; palette from THIS topic — forbid tiny centered micro-UI.'
+          : '画面（宽屏）：一次主标题砸字 ≥72；弹簧与景深；四周至少 6% 安全区；满幅主体；配色跟主题走——禁止缩在画面中央的小控件。')
+  const stickmanAsk = /stickman|stick[\s-]?fig|火柴人|胶囊(?:人|火柴)/i.test(raw)
+  const stickmanLock = stickmanAsk
+    ? (lang === 'en'
+      ? 'Stickman actor lock: character beats use clip phrases (explain-board / compare-sides / hesitate / agree-cheer / desk-work / duo-debate…); do NOT list raw pose names; mix with diagram/kinetic on other beats.'
+      : '火柴人角色锁：角色镜用短语 clip（explain-board / compare-sides / hesitate / agree-cheer / desk-work / duo-debate…）；禁止罗列姿态名；其他镜可混 diagram/动能字。')
+    : ''
   return [
     raw,
     modeHintLine(lang),
     brandHint,
     craftFloor,
+    stickmanLock,
     stylePick.value ? `Design reference: ${stylePick.value.name} (lock skin from image).` : '',
     attachments.value.some((a) => a.kind === 'image')
       ? `Screen assets attached: ${attachments.value
@@ -872,7 +1063,7 @@ async function submit() {
   error.value = ''
   try {
     await studio.ensureEngine()
-    settings.updateSpeech({ voice: speechVoice.value })
+    settings.updateSpeech({ voice: speechVoice.value, langHint: voiceLang.value })
     const { syncSettingsToEngine } = await import('@/lib/sync-settings')
     await syncSettingsToEngine()
 
@@ -880,16 +1071,35 @@ async function submit() {
       prompt.value.trim() ||
       (formMode.value === 'narrate' && hasDoc.value
         ? '根据上传文稿制作讲解科普动画。'
-        : '')
-    const sendVo = formMode.value === 'narrate' ? 'on' : voMode.value
+        : formMode.value === 'remix' && hasDoc.value
+          ? '根据上传文稿做素材混剪短视频。'
+          : '')
+    if (formMode.value === 'remix') {
+      if (!footageFolder.value || footageCount.value <= 0) {
+        error.value = t('studio.create.footage.needFolder')
+        return
+      }
+      await refreshFootageCount()
+      if (footageCount.value <= 0) {
+        error.value = t('studio.create.footage.empty')
+        return
+      }
+    }
+    const sendVo = formMode.value === 'narrate' || formMode.value === 'remix'
+      ? 'on'
+      : formMode.value === 'logo' || formMode.value === 'showreel'
+        ? 'off'
+        : voMode.value
     const sendDrive =
-      formMode.value === 'narrate'
-        ? hasDoc.value
-          ? 'polish'
-          : scriptDrive.value === 'off'
-            ? 'auto'
-            : scriptDrive.value
-        : scriptDrive.value
+      formMode.value === 'logo' || formMode.value === 'showreel'
+        ? 'off'
+        : formMode.value === 'narrate' || formMode.value === 'remix'
+          ? hasDoc.value
+            ? 'polish'
+            : scriptDrive.value === 'off'
+              ? 'auto'
+              : scriptDrive.value
+          : scriptDrive.value
 
     // 配乐功能已禁用：不上传、不提交 audio
     const userAssets: UserAsset[] = attachments.value
@@ -908,14 +1118,16 @@ async function submit() {
       aspect: aspect.value,
       quality: quality.value,
       mediaKind: mediaKind.value,
-      autoSfx: autoSfx.value,
+      autoSfx: formMode.value === 'remix' ? false : autoSfx.value,
       voMode: sendVo,
       scriptDrive: sendDrive,
-      styleRefId: stylePick.value?.id,
-      styleRefDataUrl: stylePick.value?.dataUrl,
+      styleRefId: formMode.value === 'remix' ? undefined : stylePick.value?.id,
+      styleRefDataUrl: formMode.value === 'remix' ? undefined : stylePick.value?.dataUrl,
       userAssets: userAssets.length ? userAssets : undefined,
       contentLang,
-      webSearch: webSearch.value,
+      webSearch: formMode.value === 'remix' ? false : webSearch.value,
+      footageFolder: formMode.value === 'remix' ? footageFolder.value : undefined,
+      remixBrief: formMode.value === 'remix' ? remixBriefPayload() : undefined,
     })
     emit('created', task.id)
     // 排在别人后面时留在创作页，方便连提下一单；首位/已开跑则进工作台
@@ -947,17 +1159,23 @@ function onDocClick(ev: MouseEvent) {
 watch(
   voiceLang,
   (lang) => {
-    if (!voiceMatchesUiLang(speechVoice.value, lang)) {
-      const next = defaultEdgeVoice(lang)
-      speechVoice.value = next
-      settings.updateSpeech({ voice: next })
-    }
+    // 切中/英文：用全局配置里该语种已保存的默认音色，不覆盖另一语种
+    const next = settings.applyVoiceForUiLang(lang)
+    speechVoice.value = next
   },
   { immediate: true },
 )
 
+watch(
+  () => [settings.speech.voice, settings.speech.voiceZh, settings.speech.voiceEn] as const,
+  () => {
+    speechVoice.value = speechVoiceForLang(settings.speech, voiceLang.value)
+  },
+)
+
 onMounted(() => {
   void studio.ensureEngine().catch(() => {})
+  if (footageFolder.value) void refreshFootageCount()
   document.addEventListener('click', onDocClick)
 })
 onUnmounted(() => document.removeEventListener('click', onDocClick))
@@ -1138,6 +1356,62 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
   overflow: visible;
 }
 
+.footage-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px 0;
+  flex-wrap: wrap;
+}
+.footage-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  border: 1px dashed var(--line);
+  background: var(--bg, #f6f6f4);
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.footage-path {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.footage-count {
+  font-size: 12px;
+  color: var(--muted);
+  font-style: normal;
+  &.warn {
+    color: #c45c26;
+  }
+}
+.footage-input {
+  flex: 1 1 140px;
+  min-width: 120px;
+  max-width: 100%;
+  border: 1px dashed var(--line);
+  background: var(--bg, #f6f6f4);
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 12px;
+  outline: none;
+  &.wide {
+    flex: 1 1 220px;
+  }
+  &::placeholder {
+    color: var(--muted);
+  }
+  &:focus {
+    border-color: color-mix(in srgb, var(--ink) 35%, var(--line));
+  }
+}
+
 .mode-tabs {
   display: flex;
   gap: 4px;
@@ -1297,6 +1571,11 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
     background: var(--accent-soft);
     border-color: rgb(212 240 122 / 55%);
   }
+  &.on {
+    background: var(--ink);
+    color: var(--accent);
+    border-color: var(--ink);
+  }
 }
 
 .topic-tips {
@@ -1380,17 +1659,42 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
   box-shadow: var(--shadow-pop);
   padding: 6px;
   z-index: 20;
+  &.sheet {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 8px;
+  }
   &.style {
     width: 320px;
     max-height: 420px;
-    display: flex;
-    flex-direction: column;
-    padding: 8px;
+  }
+  &.voice {
+    max-height: 420px;
   }
 }
 
-.style-head .plus-row.back {
+.style-head .plus-row.back,
+.voice-head .plus-row.back {
   padding: 6px 8px;
+}
+
+.voice-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 0 4px;
+}
+
+.voice-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+  .plus-row.preview {
+    flex: 1;
+  }
 }
 
 .style-hint {

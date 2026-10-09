@@ -1,13 +1,16 @@
 import axios from 'axios'
 import { BrowserWindow } from 'electron'
+import i18next from 'i18next'
 
-/** GitHub 优先，Gitee 回落（国内）——可用环境变量覆盖 */
+/** 英文 → GitHub；中文 → Gitee。可用环境变量覆盖。 */
 const GITHUB_RELEASE_URL =
+  process.env.BN_UPDATE_GITHUB ||
   process.env.BIUNOW_UPDATE_GITHUB ||
-  'https://api.github.com/repos/biunow/BiunowFactory/releases/latest'
+  'https://api.github.com/repos/icovan/BnShortVideoFactory/releases/latest'
 const GITEE_RELEASE_URL =
+  process.env.BN_UPDATE_GITEE ||
   process.env.BIUNOW_UPDATE_GITEE ||
-  'https://gitee.com/api/v5/repos/biunow/BiunowFactory/releases/latest'
+  'https://gitee.com/api/v5/repos/zaokework/bn-short-video-factory/releases/latest'
 
 export interface UpdateInfo {
   version: string
@@ -28,6 +31,19 @@ interface GitHubLatestRelease {
 
 let mainWindow: BrowserWindow | null = null
 let checking: Promise<UpdateCheckResult> | null = null
+
+function isChineseLocale(lng?: string) {
+  const code = String(lng || i18next.language || '').toLowerCase()
+  return code === 'zh' || code.startsWith('zh-') || code.startsWith('zh_')
+}
+
+/** 中文优先 Gitee，其它语言优先 GitHub；另一源作回落。 */
+function releaseUrlsForLocale(lng?: string): string[] {
+  if (isChineseLocale(lng)) {
+    return [GITEE_RELEASE_URL, GITHUB_RELEASE_URL]
+  }
+  return [GITHUB_RELEASE_URL, GITEE_RELEASE_URL]
+}
 
 function parseReleaseNotes(body: string | null): Record<string, string> {
   const notes = body || ''
@@ -89,7 +105,7 @@ async function fetchLatest(url: string): Promise<GitHubLatestRelease> {
     timeout: 10000,
     headers: {
       Accept: 'application/vnd.github+json',
-      'User-Agent': 'BiunowFactory',
+      'User-Agent': 'BnShortVideoFactory',
     },
   })
   return data
@@ -100,7 +116,7 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateChe
 
   const run: Promise<UpdateCheckResult> = (async (): Promise<UpdateCheckResult> => {
     const errors: string[] = []
-    for (const url of [GITHUB_RELEASE_URL, GITEE_RELEASE_URL]) {
+    for (const url of releaseUrlsForLocale()) {
       try {
         const data = await fetchLatest(url)
         const version = String(data.tag_name || '').replace(/^v/, '')

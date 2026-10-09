@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { chatJson, chatText, readSkill } from '../llm.ts';
-import type { Settings } from '../../../shared/src/index.ts';
+import type { Aspect, Settings } from '../../../shared/src/index.ts';
 import {
   collectBeatKinds,
   extractConstArray,
@@ -9,6 +9,13 @@ import {
   surgicalDriftTooHigh,
   syncBeatsCopyFromScenes,
 } from './surgicalBeats.ts';
+import {
+  cinematicFloorLine,
+  cinematicMotionFloor,
+  isPortraitAspect,
+  type CraftKind,
+} from './craftFloor.ts';
+import { logoCodegenHint, showreelCodegenHint } from './mgFilm.ts';
 
 const requireTs = createRequire(import.meta.url);
 
@@ -104,20 +111,13 @@ export function validateLaunchTsx(src: string): string[] {
   return issues;
 }
 
-/**
- * 自由模式通用「画布/动效」地板：字体、弹簧动画、景深、构图、绘图表达、配色。
- * 不含片型弧、口播、引擎切换等硬管线语义。
- */
-export const CINEMATIC_MOTION_FLOOR = `- Type: hero kinetic type 88–140px (floor ≥72); prefer KineticWords / KineticLines from '../ui'; weight contrast, tracking snap.
-- Motion: spring({ damping: ~12 }) slam — translateY 28–48px + scale 1.12→1 (or 0.88→1 overshoot); stagger 0.08–0.15s; interpolate/camera push; no frozen static AbsoluteFill >0.4s.
-- Depth: perspective / rotateX|Y / parallax / stacked AbsoluteFills with opacity — never a flat single-layer slide.
-- Frame: ≥1 full-bleed / edge-to-edge beat; subject or chrome fills ≥55% of frame; forbid timid centered micro-UI / inset mockups < half the shorter edge.
-- Draw: diagrams/charts via strokeDash, progressive reveal, count-up, shape morph — intentional graphic change in the first 8 frames of each Sequence.
-- Palette: invent canvas/ink/accent from THIS topic; do NOT default Linear purple-black / PageOn purple-white / sandwich orange unless named.`;
+/** @deprecated Use cinematicMotionFloor(aspect). Kept as 16:9 default for legacy SKU codegen. */
+export const CINEMATIC_MOTION_FLOOR = cinematicMotionFloor('16:9');
 
-/** One-liner：仅画布/动效 */
-export const CINEMATIC_FLOOR_LINE =
-  'CRAFT FLOOR (canvas/motion only): hero type ≥72–140px; spring slam; perspective/depth layers; full-bleed or oversized subject; diagram/stroke draw when relevant; palette from THIS brief — forbid tiny centered micro-UI. (Not about VO/SKU arcs.)';
+/** @deprecated Use cinematicFloorLine(aspect). */
+export const CINEMATIC_FLOOR_LINE = cinematicFloorLine('16:9');
+
+export { cinematicFloorLine, cinematicMotionFloor };
 
 const NARRATED_SKELETON = `import React from 'react';
 import {
@@ -557,34 +557,53 @@ function stickmanDirectedHint(contentLang: 'zh' | 'en' | 'bilingual' = 'zh'): st
   return `
 STICKMAN HARD LOCK (when stickman-animation is in the plan):
 - MUST: import {
-    Stickman, POSES, lerpPose, idleBob, walkPose, runPose, jumpPose, jumpHipY,
-    wavePose, climbPose, pushupPose, mirrorPose,
+    Stickman, POSES, lerpPose, idleBob, walkPose, sampleClip, sampleClipForIntent, clipsForIntent,
     resolveStickInk,
-    // optional: Platform, typeScale, BilingualTitle, CaptionPill, … ONLY when the beat needs them
+    // staging props when needed: Platform, PropBlock, SignBoard, PhoneSlab, typeScale, CaptionPill…
   } from '../stickman';
-- MUST: render <Stickman x={…} y={…} pose={…} ink={…} /> on every stickman-animation character beat.
-- MUST: drive poses via POSES.* / lerpPose / idleBob / walkPose / runPose / jumpPose / wavePose / climbPose / pushupPose — never invent thin SVG stick figures; never pose={undefined} or hand-built partial pose objects.
-- STRUCTURE: root = AbsoluteFill → <Series> → map scenes to <Series.Sequence durationInFrames={…}>. Put beat visuals INSIDE Series.Sequence. Nested <Sequence> only for timed Audio/SFX (layout="none"). NEVER render Series.Sequence outside <Series>, and NEVER use bare Sequence as the scene wrapper.
-- LOOK: AbsoluteFill background = props.canvas (NOT a hardcoded #000). Figure ink = props.ink || resolveStickInk(props.canvas) — white capsules on dark, dark capsules on light.
-- FIGURE: capsule RIG only (face/variant/ink/accent); matte glow=0. Chaplin/tramp markers = hat/cane/shoes as small props ON the capsule — do not switch to thin polylines.
-- POSES include: walk/run/jump/land/crouch/kneel/wave/think/phone/shrug/bow/present/lean/kick/fall/lie/…
-- Scene / titles / platforms are OPTIONAL per brief — invent staging from the ask; do NOT force split-compare, motivation ladders, or ProgressTicks.
+- MUST: render <Stickman x={…} y={…} pose={…} ink={…} face={…} /> on every stickman-animation character beat.
+- PHRASES > POSES: drive character motion with sampleClip(clipId, tLocal, { frame, fps }) or sampleClipForIntent(scene.visualIntent||scene.vo, tLocal, { frame, fps }).
+  If scene.visualIntent starts with "clip:<id> —", MUST use that id in sampleClip(<id>, tLocal, { frame, fps }).
+  tLocal = (frame - sequenceStart) / durationInFrames clamped 0..1. Apply sample.dx/dy onto base x/y; honor sample.face.
+  Clip catalog: enter-present | explain-board | compare-sides | hesitate | agree-cheer | phone-talk | desk-work | give-take | push-heavy | pull-in | carry-across | greet-wave | think-loop | duo-debate-a | duo-debate-b.
+  Intent map (examples): explain/teach→explain-board; compare/vs→compare-sides; doubt→hesitate; win→agree-cheer; phone→phone-talk; desk→desk-work; give→give-take; push/pull/carry→matching clip; 两人/辩论→duo-debate-a + duo-debate-b.
+- Raw POSES.* / walkPose / wavePose only as fallback inside a clip — never invent thin SVG stick figures; never pose={undefined}.
+- STAGING: rich expression = phrases + blocking + props, not a bigger pose list.
+  · Dual cast: two Stickman with opposite face; duo-debate-a (left) + duo-debate-b (right); leave center for diagram/kinetic.
+  · Props: SignBoard / PropBlock near hands for board/box; PhoneSlab on phone-talk; Platform or Ground under feet.
+  · Mix: other plan skills (diagram/kinetic/caption) must still SHOW — stickman is an actor layer, not every beat.
+- STRUCTURE: AbsoluteFill → <Series> → <Series.Sequence> per scene. Nested <Sequence layout="none"> only for timed Audio/SFX.
+- LOOK: background = props.canvas; ink = props.ink || resolveStickInk(props.canvas). Capsule RIG only; glow=0.
   ${titleRule}
-  · If using titles: prefer typeScale(width).title (NOT fixed 40–44px on 1080-wide).
-  · Ground: thin line OR Platform — whichever the brief asks; hairline is fine for skill demos.
-- FORBIDDEN: local Stickman / LimbChain / RIG reimplementation; ignoring props.canvas/ink.
-- Support skills may decorate; they must not replace stickmen on character beats.
+  · Titles optional; prefer typeScale(width).title. Do NOT force motivation ladders / ProgressTicks.
+- Gap poses available if a clip needs them: push | pull | carry | handoff | desk (still prefer sampleClip).
+- FORBIDDEN: local Stickman / LimbChain / RIG reimplementation; ignoring props.canvas/ink; dumping idle POSES.stand for every beat.
 - Obey props.contentLang for all on-screen strings (already locked in lookLine).
 `;
+}
+
+function craftKindFromSkills(skillIds: string[]): CraftKind {
+  const showreel = skillIds.includes('launch-video')
+    && skillIds.includes('kinetic-typography')
+    && skillIds.includes('diagram-animation')
+    && skillIds.includes('logo-animation');
+  if (showreel) return 'showreel';
+  if (skillIds.includes('logo-animation') && !skillIds.includes('stickman-animation')) return 'logo';
+  return 'default';
 }
 
 export function validateDirectedTsx(
   src: string,
   skillIds?: string[],
   contentLang: 'zh' | 'en' | 'bilingual' = 'zh',
+  aspect: Aspect = '16:9',
 ): string[] {
   const issues: string[] = [];
   const stickmanOn = skillIds?.includes('stickman-animation') === true;
+  const craft = craftKindFromSkills(skillIds || []);
+  const logoOn = craft === 'logo';
+  const showreelOn = craft === 'showreel';
+  const portrait = isPortraitAspect(aspect);
   if (!/export\s+(const|function)\s+ActiveDirected/.test(src)) issues.push('must export ActiveDirected');
   if (!/from\s+['"]remotion['"]/.test(src)) issues.push('must import from remotion');
   if (!/DirectedProps/.test(src)) issues.push('must use DirectedProps');
@@ -593,18 +612,35 @@ export function validateDirectedTsx(
   }
   if (src.length < 800) issues.push('source too short');
   if (!/spring\s*\(/.test(src)) issues.push('must use spring()');
-  // Portfolio cinematic floor — same energy as narrated/launch hard paths (skip stickman slapstick)
-  if (!stickmanOn) {
-    if (!/fontSize:\s*(?:7[2-9]|[89]\d|1\d{2}|2\d{2})/.test(src)) {
-      issues.push('hero type must hit ≥72px somewhere (portfolio-scale kinetic)');
+  if (logoOn) {
+    if (!/(strokeDash|stroke-dash|pathLength|scale|assemble|Img\b)/i.test(src)) {
+      issues.push('logo: must stroke-draw / scale-assemble the mark (or Img asset)');
+    }
+    if (/<Stickman\b/.test(src)) issues.push('logo: stickman forbidden on logo sting');
+  }
+  if (showreelOn) {
+    if (!/Series\.Sequence/.test(src)) issues.push('showreel: must use Series.Sequence chapters');
+    if ((src.match(/Series\.Sequence/g) || []).length < 4) {
+      issues.push('showreel: need ≥4 technique chapters on screen');
+    }
+  }
+  // Logo 片：标志动效，不强制动能大字。展片/默认仍走画面地板。
+  if (!logoOn) {
+    if (!portrait) {
+      if (!/fontSize:\s*(?:7[2-9]|[89]\d|1\d{2}|2\d{2})/.test(src)) {
+        issues.push('hero type must hit ≥72px somewhere (one slam, not every caption)');
+      }
+    } else if (!/fontSize:\s*(?:5[6-9]|[6-9]\d|1\d{2}|2\d{2})/.test(src)) {
+      issues.push('portrait hero type must hit ≥56px somewhere (8–12% width slam; not every line)');
     }
     if (!/(rotate|scale)\s*[`(]/.test(src) && !/transform:.*(?:rotate|scale)/.test(src)) {
       issues.push('must use scale/rotate transforms for depth (tilted UI / slam)');
     }
-    // 景深/透视：至少一种（软约束，可 soft-accept，但仍进 repair）
-    if (!/(rotateX|rotateY|perspective|translateZ|parallax)/i.test(src)
-      && (src.match(/AbsoluteFill/g) || []).length < 4) {
-      issues.push('add depth: perspective/rotateX|Y or ≥4 layered AbsoluteFills');
+    if (!portrait) {
+      if (!/(rotateX|rotateY|perspective|translateZ|parallax)/i.test(src)
+        && (src.match(/AbsoluteFill/g) || []).length < 4) {
+        issues.push('add depth: perspective/rotateX|Y or ≥4 layered AbsoluteFills');
+      }
     }
     if (/<AbsoluteFill\s*\/>\s*<\/Series\.Sequence>/.test(src)
       || /Series\.Sequence[^>]*>\s*<AbsoluteFill\s*\/>\s*<\/Series\.Sequence>/.test(src)) {
@@ -624,12 +660,21 @@ export function validateDirectedTsx(
     if (!/<Series[\s>]/.test(src) || !/Series\.Sequence/.test(src)) {
       issues.push('stickman: wrap scenes in <Series> + <Series.Sequence>');
     }
-    // Titles / Platform / typeScale are OPTIONAL — requiring them forced motivation shells and wiped slapstick briefs.
+    // Prefer phrase clips; still accept legacy walkPose/POSES drivers
+    if (!/sampleClip(ForIntent)?\s*\(/.test(src)
+      && !/walkPose\s*\(|idleBob\s*\(|wavePose\s*\(|lerpPose\s*\(/.test(src)) {
+      issues.push('stickman: drive motion with sampleClip / sampleClipForIntent (or walkPose/lerpPose)');
+    }
     void contentLang;
   }
   // 语法错误优先：esbuild 会在 still 阶段炸，必须在 soft-accept 前拦住
   issues.push(...parseTsxSyntaxIssues(src, 'ActiveDirected.tsx'));
   return issues;
+}
+
+function parseAspectFromProps(propsJson: string): Aspect {
+  const m = propsJson.match(/"aspect"\s*:\s*"(16:9|9:16|1:1|3:4)"/);
+  return (m?.[1] as Aspect) || '16:9';
 }
 
 export async function generateDirectedTsx(
@@ -640,16 +685,20 @@ export async function generateDirectedTsx(
     skillIds: string[];
     lookLine?: string;
     contentLang?: 'zh' | 'en' | 'bilingual';
+    aspect?: Aspect;
   },
 ): Promise<string> {
   const skill = readSkill(opts.skillIds as Parameters<typeof readSkill>[0], 42000);
   const stickmanOn = opts.skillIds.includes('stickman-animation');
   const contentLang = opts.contentLang || 'zh';
+  const aspect = opts.aspect || parseAspectFromProps(opts.propsJson);
+  const craftKind = craftKindFromSkills(opts.skillIds);
+  const floor = cinematicMotionFloor(aspect, craftKind);
   const raw = await chatText(
     settings,
     `You are a Remotion AUTHOR under a HARD skill pipeline (portfolio craft floor). Skills in the plan are LAW — implement their cores in THIS file.
 Export: export const ActiveDirected: React.FC<DirectedProps> from '../directedSchema'
-Canvas size comes from props.aspect (16:9 1920×1080, 9:16 1080×1920, 1:1 1080×1080). Safe areas required.
+Canvas size comes from props.aspect (16:9 1920×1080, 9:16 1080×1920, 1:1 1080×1080, 3:4 1080×1440). Safe areas required.
 Series over props.scenes; Audio via staticFile(scene.narrationFile) ONLY when narrationFile is set — omit Audio when missing (music/SFX-led). Optional props.musicFile + props.dropSec for launch-video.
 When props.autoSfx is on, play scene.sfxCues (preferred) as timed hits:
   cues.map(cue => <Sequence from={Math.round(cue.atSec*fps)} layout="none"><Audio src={staticFile(cue.file)} volume={cue.volume} /></Sequence>)
@@ -659,12 +708,14 @@ If props.musicFile exists, play it under VO at volume ~0.22.
 Invent UNIQUE layouts from THIS brief and props colors. Do not clone Linear / PageOn / sandwich SKUs.
 Brand-faithful colors/materials YES — timid inset micro-UI NO. Product UI may be rebuilt oversized/tilted/full-bleed as cinematic chrome.
 For each skill in the plan, SHOW its core on screen (not a comment): chat bubbles, strokeDash whiteboard, Ken Burns scale, isometric rotateX, countdown remaining, cursor/device, CTA, quote/stars, map marker, logo sting, audiogram bars, promo % off, wrapped recap stats, lowerThird, motionBg gradient, dropSec reveal.
-Use scene.headline / scene.vo / scene.line EXACTLY as given in props for on-screen text — do not translate or invent another language.
+Use scene.headline / scene.vo / scene.line EXACTLY as given in props for on-screen text — do not translate or invent another language. Empty headline → do NOT invent a title card.
 Fill each Sequence duration with on-screen motion/graphics — no dead empty frames.
 ${stickmanOn ? stickmanDirectedHint(contentLang) : ''}
+${craftKind === 'logo' ? logoCodegenHint() : ''}
+${craftKind === 'showreel' ? showreelCodegenHint() : ''}
 ${opts.lookLine || ''}
-${!stickmanOn ? `\n=== CRAFT FLOOR (canvas / type / motion / draw — validated) ===\n${CINEMATIC_MOTION_FLOOR}\n` : ''}
-${!stickmanOn ? '\nHARD: fontSize ≥72; spring; scale/rotate + perspective or layered depth; drawn graphics when the beat needs diagrams; no empty AbsoluteFill sequences.\n' : ''}
+${craftKind === 'default' ? `\n=== CRAFT FLOOR (canvas / type / motion / draw — validated) ===\n${floor}\n` : `\n=== CRAFT FLOOR ===\n${floor}\n`}
+${stickmanOn ? '\nSTICKMAN MIX: Stickman is an actor layer. Other skills in the plan must still SHOW (diagram/kinetic/caption). Do not turn every beat into stick figures.\n' : ''}
 FORBIDDEN: re-export stock components; fetch/timers; empty AbsoluteFill placeholders; tiny centered cards in void; default purple/Linear/PageOn skins.
 
 === SKILLS ===
@@ -698,11 +749,12 @@ export async function fixDirectedTsx(
     settings,
     `Fix Remotion TSX for GeneratedDirected. Keep export const ActiveDirected. Frame-driven. Complete file only.
 Preserve the brief's staging / props / look (props.canvas, props.ink) — do NOT replace the film with a generic pose demo.
-If error mentions hero type / scale / rotate / timid: enlarge type to ≥72–140px, add spring scale/rotate depth, make chrome oversized or full-bleed — do NOT keep tiny centered cards.
+If error mentions hero type / scale / rotate / timid: on 16:9 enlarge ONE slam to ≥72–140px with spring scale/rotate depth; on 9:16 keep captions smaller and respect top 8%/bottom 18% safe area — do NOT put 72px on every line or keep tiny centered cards. If logo/motion: animate the mark, do not add explainer titles.
 If stickman / Series / pose errors:
-- import { Stickman, POSES, lerpPose, idleBob, walkPose, resolveStickInk, ensurePose } from '../stickman' — never redefine Stickman locally.
+- import { Stickman, sampleClip, sampleClipForIntent, POSES, lerpPose, idleBob, walkPose, resolveStickInk, ensurePose } from '../stickman' — never redefine Stickman locally.
+- Prefer sampleClip(clipId, tLocal, { frame, fps }) / sampleClipForIntent(intent, tLocal, { frame, fps }); apply dx/dy/face onto Stickman.
 - Structure MUST be AbsoluteFill → <Series> → <Series.Sequence> per scene. Series.Sequence ONLY inside Series. Use nested <Sequence layout="none"> only for timed Audio.
-- Every <Stickman pose={…} /> must get a real StickPose (POSES.* / lerpPose / idleBob / ensurePose(…)). Never undefined pose.
+- Every <Stickman pose={…} /> must get a real StickPose (clip sample / POSES.* / lerpPose / ensurePose(…)). Never undefined pose.
 - Background = props.canvas; body ink = props.ink || resolveStickInk(props.canvas).`,
     `Error:
 ${opts.error.slice(0, 2500)}

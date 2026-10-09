@@ -162,6 +162,97 @@ Return:
   }));
 }
 
+/**
+ * 无上传文稿、但需要口播：把用户需求扩成可出片旁白，再走同一套硬锁。
+ * 不得编造文稿里没有的数字/专名；句数按信息密度，禁止压成 5 句口号。
+ */
+export async function synthesizeScriptFromAsk(
+  settings: Settings,
+  opts: {
+    userAsk: string;
+    contentLang: ContentLang;
+    aspect: string;
+  },
+): Promise<ScriptBeat[]> {
+  const src = opts.userAsk.trim().slice(0, 8_000);
+  if (!src) return [];
+  const portrait = opts.aspect === '9:16' || opts.aspect === '3:4';
+  const beatRange = portrait ? 'Prefer 6–14 beats (up to 20 if the ask is dense).' : 'Prefer 8–18 beats (up to 28 if the ask is dense).';
+  const langRule = opts.contentLang === 'en'
+    ? 'VO lines MUST be English.'
+    : opts.contentLang === 'bilingual'
+      ? 'VO lines MUST be Simplified Chinese; headlines Chinese; short English sublabel optional in visualIntent only.'
+      : 'VO lines and headlines MUST be Simplified Chinese.';
+
+  if (!settings.llmApiKey) {
+    const bits = splitVerbatimScript(src);
+    return bits.slice(0, 24).map((vo, i) => ({
+      job: `beat-${i}`,
+      vo: vo.slice(0, 40),
+      headline: vo.slice(0, 16),
+      visualIntent: `Illustrate: ${vo.slice(0, 80)}`,
+      keyMotion: 'spring reveal',
+    }));
+  }
+
+  try {
+    const out = await chatJson<{
+      beats?: Array<{
+        job?: string;
+        vo?: string;
+        headline?: string;
+        visualIntent?: string;
+        keyMotion?: string;
+        skill?: string;
+      }>;
+    }>(settings, `You turn a USER ASK (not a finished script) into a FILM-READY voice-over for a Remotion explainer.
+
+Goals (in order):
+1) Coverage: every concrete fact, step, name, and number in the ask must appear in some vo line. Do NOT collapse a lesson into 5 slogan beats.
+2) Speakable: one idea per beat, one breath unit.
+3) Honesty: do NOT invent statistics, brands, URLs, or claims absent from the ask. If the ask is thin, write a clear short film — still one idea per beat, not filler slogans.
+4) Output is the FINAL VO — later stages speak these lines verbatim.
+
+Rules:
+- ${langRule}
+- Aspect ${opts.aspect}. ${beatRange}
+- Each vo: zh ≈ 12–40 chars; en ≈ 8–22 words. Split long thoughts; do not truncate mid-idea.
+- headline ≤16 zh chars / ≤6 en words — on-screen title, not a second VO.
+- visualIntent = concrete motion-graphic action (diagram / kinetic hook / chart / caption).
+- keyMotion = 2–5 word motion verb phrase.
+- skill optional: explainer-video | kinetic-typography | diagram-animation | chart-animation | caption-animation | whiteboard-animation.
+- Keep a natural teaching order: hook → steps/points → payoff.
+
+JSON only.`, `User ask (authority for facts — this is NOT already a VO script):
+${src}
+
+Return:
+{
+  "beats":[
+    {"job":"hook","vo":"","headline":"","visualIntent":"","keyMotion":"","skill":"kinetic-typography"}
+  ]
+}`, 0.35);
+
+    const beats = Array.isArray(out.beats) ? out.beats : [];
+    const cleaned = beats
+      .map((b, i) => ({
+        job: String(b.job || `beat-${i}`).slice(0, 24),
+        vo: String(b.vo || '').trim(),
+        headline: String(b.headline || '').trim().slice(0, 48),
+        visualIntent: String(b.visualIntent || '').trim().slice(0, 200),
+        keyMotion: String(b.keyMotion || 'spring reveal').trim().slice(0, 80),
+        skill: isSkillName(b.skill) ? b.skill : undefined,
+      }))
+      .filter((b) => b.vo.length >= 2)
+      .slice(0, 28);
+
+    if (cleaned.length >= 4) return cleaned;
+  } catch {
+    /* fall through */
+  }
+  return [];
+}
+
 /** 把旁白脚本硬锁进 plan：VO 不再被短句规则改写 */
 export function applyScriptDriveToPlan(
   plan: SkillPlan,

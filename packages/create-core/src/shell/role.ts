@@ -1,4 +1,4 @@
-/** BiunowFactory 本机一体：始终 monolith，不走云端编排壳 */
+/** BnShortVideoFactory 本机一体：始终 monolith，不走云端编排壳 */
 export type FactoryRole = 'monolith' | 'orchestrator' | 'renderer';
 
 export function factoryRole(): FactoryRole {

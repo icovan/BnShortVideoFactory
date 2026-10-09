@@ -227,6 +227,46 @@ export const POSES: Record<PoseName, StickPose> = {
     kneeL: 10, kneeR: 40,
     torsoTilt: 90, ...H(0),
   },
+  /** Lean into a shove — pair with PropBlock */
+  push: {
+    shoulderL: -95, shoulderR: -85,
+    elbowL: -8, elbowR: -5,
+    hipL: 22, hipR: -10,
+    kneeL: 35, kneeR: 12,
+    torsoTilt: -18, ...H(-6),
+  },
+  /** Lean back hauling — mirror of push energy */
+  pull: {
+    shoulderL: 55, shoulderR: 70,
+    elbowL: 75, elbowR: 85,
+    hipL: -8, hipR: 28,
+    kneeL: 18, kneeR: 40,
+    torsoTilt: 16, ...H(8),
+  },
+  /** Both arms cradle a box / board in front */
+  carry: {
+    shoulderL: 45, shoulderR: -45,
+    elbowL: 70, elbowR: -70,
+    hipL: 14, hipR: -10,
+    kneeL: 18, kneeR: 12,
+    torsoTilt: 6, ...H(4),
+  },
+  /** Mid hand-off: one arm extended, other still holding */
+  handoff: {
+    shoulderL: 30, shoulderR: -105,
+    elbowL: 45, elbowR: -15,
+    hipL: 10, hipR: -12,
+    kneeL: 8, kneeR: -4,
+    torsoTilt: -6, ...H(-2),
+  },
+  /** Seated at a desk / laptop — lower than sit, arms forward */
+  desk: {
+    shoulderL: 55, shoulderR: -50,
+    elbowL: 70, elbowR: -65,
+    hipL: 85, hipR: 90,
+    kneeL: 95, kneeR: 92,
+    torsoTilt: 10, ...H(8),
+  },
 };
 
 const KEYS: (keyof StickPose)[] = [

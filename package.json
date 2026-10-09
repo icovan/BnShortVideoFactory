@@ -1,6 +1,6 @@
 {
-  "name": "biunow-factory",
-  "description": "BiunowFactory — 本机创作台：创作面板 → 工作台 → 成片",
+  "name": "bn-short-video-factory",
+  "description": "BnShortVideoFactory — 本机创作台：创作面板 → 工作台 → 成片",
   "version": "0.1.0",
   "author": {
     "name": "Biunow",

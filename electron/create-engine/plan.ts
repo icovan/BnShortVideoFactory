@@ -19,7 +19,7 @@ export async function planStoryboard(input: {
 }): Promise<{ title: string; beats: StoryboardBeat[] }> {
   const wantVo = input.voMode !== 'off'
   const system = [
-    'You are BiunowFactory storyboard planner.',
+    'You are BnShortVideoFactory storyboard planner.',
     'Reply JSON only: {"title":"...","beats":[{"title":"...","narration":"...","visual":"...","durationSec":4}]}',
     'Create 4-8 beats. Keep user language.',
     wantVo

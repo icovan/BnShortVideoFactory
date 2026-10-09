@@ -15,26 +15,57 @@ import { normalizeLook, type JobLook, type LookFamily } from './look.ts';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
 const DATA_DIR = join(ROOT, 'data');
 const CACHE_FILE = join(DATA_DIR, 'style-look-cache.json');
+const IMG_RE = /\.(webp|png|jpe?g|gif)$/i;
 
-/** 优先 env → cankao → data/style-refs（Docker 可写卷）→ assets/style-refs */
-export function styleRefsDir(): string {
-  const env = process.env.STYLE_REFS_DIR?.trim();
-  if (env) {
-    try {
-      mkdirSync(env, { recursive: true });
-      return env;
-    } catch { /* fall through */ }
-  }
-  const cankao = join(ROOT, '../cankao/style');
-  if (existsSync(cankao)) return cankao;
-  const underData = join(DATA_DIR, 'style-refs');
+function dirHasImages(dir: string): boolean {
+  if (!existsSync(dir)) return false;
   try {
+    return readdirSync(dir).some((f) => IMG_RE.test(f));
+  } catch {
+    return false;
+  }
+}
+
+/** 候选目录：env → 开发态 cankao → 安装包 assets → 可写 data */
+function styleRefsCandidates(): string[] {
+  const out: string[] = [];
+  const push = (d?: string | null) => {
+    const t = (d || '').trim();
+    if (!t || out.includes(t)) return;
+    out.push(t);
+  };
+  push(process.env.STYLE_REFS_DIR);
+  push(join(ROOT, '../cankao/style'));
+  push(join(ROOT, 'assets/style-refs'));
+  push(join(ROOT, 'packages/create-core/assets/style-refs'));
+  push(join(DATA_DIR, 'style-refs'));
+  return out;
+}
+
+/**
+ * 主目录：优先「已有参考图」的目录。
+ * 旧逻辑会 mkdir 空 data/style-refs 并直接返回，安装包列表永远为空。
+ */
+export function styleRefsDir(): string {
+  for (const d of styleRefsCandidates()) {
+    if (dirHasImages(d)) return d;
+  }
+  const bundled = join(ROOT, 'assets/style-refs');
+  try {
+    mkdirSync(bundled, { recursive: true });
+    return bundled;
+  } catch {
+    const underData = join(DATA_DIR, 'style-refs');
     mkdirSync(underData, { recursive: true });
     return underData;
-  } catch { /* fall through */ }
-  const bundled = join(ROOT, 'assets/style-refs');
-  mkdirSync(bundled, { recursive: true });
-  return bundled;
+  }
+}
+
+/** 用户上传参考图的可写目录 */
+export function styleRefsUploadDir(): string {
+  const underData = join(DATA_DIR, 'style-refs');
+  mkdirSync(underData, { recursive: true });
+  return underData;
 }
 
 export type StyleRefMeta = {
@@ -45,35 +76,47 @@ export type StyleRefMeta = {
 };
 
 export function listStyleRefs(): StyleRefMeta[] {
-  const dir = styleRefsDir();
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((f) => /\.(webp|png|jpe?g|gif)$/i.test(f))
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-    .map((file) => {
+  const seen = new Set<string>();
+  const out: StyleRefMeta[] = [];
+  for (const dir of styleRefsCandidates()) {
+    if (!existsSync(dir)) continue;
+    let files: string[] = [];
+    try {
+      files = readdirSync(dir).filter((f) => IMG_RE.test(f));
+    } catch {
+      continue;
+    }
+    files.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    for (const file of files) {
       const id = file.replace(/\.[^.]+$/, '');
-      return {
+      if (seen.has(id) || seen.has(file)) continue;
+      seen.add(id);
+      seen.add(file);
+      out.push({
         id,
         name: id.replace(/[-_]/g, ' '),
         file,
         url: `/style-refs/${encodeURIComponent(file)}`,
-      };
-    });
+      });
+    }
+  }
+  return out;
 }
 
 export function resolveStyleRefFile(idOrFile: string): string | null {
-  const dir = styleRefsDir();
-  const bare = idOrFile.replace(/^.*[/\\]/, '');
-  const direct = join(dir, bare);
-  if (existsSync(direct)) return direct;
-  for (const ext of ['.webp', '.png', '.jpg', '.jpeg', '.gif']) {
-    const p = join(dir, `${bare}${ext}`);
-    if (existsSync(p)) return p;
-    const q = join(dir, bare.replace(/\.[^.]+$/, '') + ext);
-    if (existsSync(q)) return q;
+  const bare = decodeURIComponent(idOrFile.replace(/^.*[/\\]/, ''));
+  for (const dir of styleRefsCandidates()) {
+    if (!existsSync(dir)) continue;
+    const direct = join(dir, bare);
+    if (existsSync(direct)) return direct;
+    for (const ext of ['.webp', '.png', '.jpg', '.jpeg', '.gif']) {
+      const p = join(dir, `${bare}${ext}`);
+      if (existsSync(p)) return p;
+      const q = join(dir, bare.replace(/\.[^.]+$/, '') + ext);
+      if (existsSync(q)) return q;
+    }
   }
-  const hit = listStyleRefs().find((r) => r.id === bare || r.file === bare);
-  return hit ? join(dir, hit.file) : null;
+  return null;
 }
 
 type CacheMap = Record<string, JobLook & { updatedAt?: string }>;

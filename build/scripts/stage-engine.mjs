@@ -50,6 +50,33 @@ mkdirSync(OUT, { recursive: true })
 
 copyTree(join(ROOT, 'packages'), join(OUT, 'packages'))
 
+// 设计参考图：开发态在 ../cankao/style，安装包需打进 assets/style-refs
+{
+  const IMG = /\.(webp|png|jpe?g|gif)$/i
+  const dest = join(OUT, 'assets', 'style-refs')
+  mkdirSync(dest, { recursive: true })
+  const sources = [
+    join(ROOT, 'assets', 'style-refs'),
+    join(ROOT, 'packages', 'create-core', 'assets', 'style-refs'),
+    join(ROOT, '../cankao/style'),
+  ]
+  let n = 0
+  for (const src of sources) {
+    if (!existsSync(src)) continue
+    for (const name of readdirSync(src)) {
+      if (!IMG.test(name)) continue
+      const from = join(src, name)
+      if (!statSync(from).isFile()) continue
+      cpSync(from, join(dest, name))
+      n += 1
+    }
+  }
+  console.log(`[stage-engine] style-refs bundled: ${n} → assets/style-refs`)
+  if (n === 0) {
+    console.warn('[stage-engine] WARNING: no style-refs images found (cankao/style missing?)')
+  }
+}
+
 // vendor：始终带 skills-manifest；skills 正文仅正式包
 mkdirSync(join(OUT, 'vendor'), { recursive: true })
 const manifest = join(ROOT, 'vendor', 'skills-manifest.json')
@@ -80,7 +107,7 @@ if (INCLUDE_SKILLS && existsSync(skillsSrc)) {
 }
 
 writeFileSync(join(OUT, 'package.json'), JSON.stringify({
-  name: 'biunow-factory-create-core-bundle',
+  name: 'bn-short-video-factory-create-core-bundle',
   private: true,
   version: '0.1.0',
 }, null, 2))

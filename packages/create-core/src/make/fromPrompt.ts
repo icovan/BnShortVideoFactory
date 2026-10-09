@@ -4,13 +4,13 @@ import { planSkills } from './skillPlan.ts';
 import { optimizePrompt } from './optimizePrompt.ts';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { finishPipeline, resetPipeline, setPipelineStep } from '../pipeline.ts';
+import { resetPipeline, setPipelineStep } from '../pipeline.ts';
 import { store } from '../store.ts';
 import { OUTPUTS_DIR } from '../paths.ts';
 import { resolveStyleLook } from './styleLook.ts';
 import { reconcileStyleLook, type LookFamily } from './look.ts';
 import { docsBriefBlock, extractDocText, type IncomingUserAsset } from './userAssets.ts';
-import { detectContentLang, isContentLang, type ContentLang, type VoMode } from './contentLang.ts';
+import { detectContentLang, isContentLang, stripFactoryPackLines, type ContentLang, type VoMode } from './contentLang.ts';
 import { runWebSearch } from './webSearch.ts';
 import { extractUrlsFromText, runUrlExtract } from './urlExtract.ts';
 import {
@@ -19,9 +19,16 @@ import {
   polishScriptForFilm,
   resolveScriptDrive,
   splitVerbatimScript,
+  synthesizeScriptFromAsk,
   type ScriptDriveMode,
 } from './scriptDrive.ts';
 import type { Aspect, Project, Quality, Settings } from '../../../shared/src/index.ts';
+import { isRemixFormMode, makeFootageRemix } from './footageRemix.ts';
+import {
+  applyStickmanPhraseToBeats,
+  asksForStickman,
+  withStickmanMachineLock,
+} from './stickmanBrief.ts';
 
 type MakeOpts = {
   autoSfx?: boolean;
@@ -40,6 +47,19 @@ type MakeOpts = {
   webSearch?: boolean;
   /** 出片分辨率 1080p | 720p */
   quality?: Quality;
+  /** UI 形态：narrate/short/logo/launch/remix/prompt（旧 stickman = logo） */
+  formMode?: string;
+  /** 混剪：本机素材文件夹 */
+  footageFolder?: string;
+  /** 混剪：显式视频路径 */
+  footagePaths?: string[];
+  /** 混剪：品牌/卖点/主题 → 口播策划 */
+  remixBrief?: {
+    topic?: string;
+    brand?: string;
+    sellingPoints?: string;
+    theme?: string;
+  };
 };
 
 function earlyExtractDocs(assets?: IncomingUserAsset[]) {
@@ -142,10 +162,15 @@ async function planFromPrompt(
   }
 
   const mergedDocs = [...docTexts, ...urlDocs];
-  const scriptMode = resolveScriptDrive({
-    uiMode: opts?.scriptDrive,
-    hasDocs: mergedDocs.length > 0,
-  });
+  const logoFilm = opts?.formMode === 'logo' || opts?.formMode === 'stickman';
+  const showreelFilm = opts?.formMode === 'showreel' || opts?.formMode === 'mg';
+  const mgSilent = logoFilm || showreelFilm;
+  const scriptMode = mgSilent && opts?.voMode !== 'on'
+    ? 'off' as ScriptDriveMode
+    : resolveScriptDrive({
+      uiMode: opts?.scriptDrive,
+      hasDocs: mergedDocs.length > 0,
+    });
 
   let webBlock = '';
   if (opts?.webSearch) {
@@ -198,17 +223,19 @@ async function planFromPrompt(
     opts?.contentLang && isContentLang(opts.contentLang)
       ? opts.contentLang
       : detectContentLang(prompt);
-  const machineBrief = brief.machinePrompt || brief.prompt;
+  const machineBrief = withStickmanMachineLock(brief.machinePrompt || brief.prompt, prompt);
   setPipelineStep(
     projectId,
     'plan',
     'running',
     brief.primaryGuess
-      ? `双轨就绪 · ${brief.primaryGuess} · 观众语 ${brief.contentLang}`
-      : `双轨就绪 · 观众语 ${brief.contentLang}`,
+      ? `双轨就绪 · ${brief.primaryGuess} · 观众语 ${brief.contentLang}${asksForStickman(prompt) ? ' · stickman' : ''}`
+      : `双轨就绪 · 观众语 ${brief.contentLang}${asksForStickman(prompt) ? ' · stickman' : ''}`,
   );
 
-  const voForPlan = scriptMode !== 'off' ? 'on' as VoMode : opts?.voMode;
+  const voForPlan = mgSilent
+    ? (opts?.voMode === 'on' ? 'on' as VoMode : 'off' as VoMode)
+    : scriptMode !== 'off' ? 'on' as VoMode : opts?.voMode;
 
   let plan = await planSkills(
     machineBrief,
@@ -218,7 +245,10 @@ async function planFromPrompt(
     brief.contentLang,
     voForPlan,
     prompt,
-    { forceRemotion: opts?.forceRemotion === true },
+    {
+      forceRemotion: opts?.forceRemotion === true,
+      filmKind: logoFilm ? 'logo' : showreelFilm ? 'showreel' : undefined,
+    },
   );
   plan.contentLang = brief.contentLang;
 
@@ -244,6 +274,25 @@ async function planFromPrompt(
     }
     plan = applyScriptDriveToPlan(plan, scriptBeats, scriptMode);
     setPipelineStep(projectId, 'plan', 'running', `旁白锁定 · ${plan.beats.length} 句`);
+  } else if (!logoFilm && plan.voMode === 'on' && !mergedDocs.length) {
+    setPipelineStep(projectId, 'plan', 'running', '旁白合成 · 无文稿');
+    const synthesized = await synthesizeScriptFromAsk(settings, {
+      userAsk: stripFactoryPackLines(prompt) || prompt,
+      contentLang: brief.contentLang,
+      aspect,
+    });
+    if (synthesized.length >= 4) {
+      plan = applyScriptDriveToPlan(plan, synthesized, 'polish');
+      setPipelineStep(projectId, 'plan', 'running', `旁白锁定 · 合成 ${plan.beats.length} 句`);
+    }
+  }
+
+  // 旁白驱动后可能冲掉 clip: 前缀 — 火柴人镜再锁回短语
+  if (asksForStickman(prompt) || plan.skills.includes('stickman-animation')) {
+    plan = {
+      ...plan,
+      beats: applyStickmanPhraseToBeats(plan.beats, { sourceAsk: prompt }),
+    };
   }
 
   let styleSource: string | undefined;
@@ -286,6 +335,20 @@ export async function makeFromPrompt(
   _templateId?: string,
   opts?: MakeOpts,
 ): Promise<Project> {
+  // 混剪：不走 Remotion plan，直接口播驱动素材
+  if (isRemixFormMode(opts?.formMode) || opts?.stylePack === 'footage-remix') {
+    return makeFootageRemix(prompt, settings, projectId, {
+      aspect,
+      quality: opts?.quality,
+      scriptDrive: opts?.scriptDrive,
+      contentLang: opts?.contentLang,
+      userAssets: opts?.userAssets,
+      footageFolder: opts?.footageFolder,
+      footagePaths: opts?.footagePaths,
+      remixBrief: opts?.remixBrief,
+    });
+  }
+
   const { plan, brief, machineBrief, styleSource } = await planFromPrompt(
     prompt, settings, projectId, aspect, opts,
   );
@@ -293,19 +356,17 @@ export async function makeFromPrompt(
     resetPipeline(projectId, 'manim', undefined, { engine: 'manim' });
     return makeManim(machineBrief, settings, projectId);
   }
-  if (plan.engine === 'footage-remix' || plan.primary === 'footage-remix' || opts?.stylePack === 'footage-remix') {
-    resetPipeline(projectId, 'explainer-remotion', 'footage-remix', {
-      engine: 'footage-remix',
-      stylePack: 'footage-remix',
-      title: (plan.coreIdea || prompt).slice(0, 28) || '混剪任务',
+  if (plan.engine === 'footage-remix' || plan.primary === 'footage-remix') {
+    return makeFootageRemix(prompt, settings, projectId, {
+      aspect,
+      quality: opts?.quality,
+      scriptDrive: opts?.scriptDrive,
+      contentLang: opts?.contentLang,
+      userAssets: opts?.userAssets,
+      footageFolder: opts?.footageFolder,
+      footagePaths: opts?.footagePaths,
+      remixBrief: opts?.remixBrief,
     });
-    setPipelineStep(projectId, 'plan', 'done', 'footage-remix · 交给混剪台');
-    setPipelineStep(projectId, 'brief', 'done', '请在混剪技能页完成素材与配音');
-    return finishPipeline(projectId, {
-      engine: 'footage-remix',
-      stylePack: 'footage-remix',
-      durationSec: 0,
-    }) || store.getProject(projectId)!;
   }
 
   // 仅自由模式 skill-directed（四模板硬管线已移除）
