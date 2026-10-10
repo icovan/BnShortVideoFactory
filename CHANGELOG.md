@@ -1,5 +1,6 @@
 ## Unreleased
 
+- 正式包可打入管理端地址：`config/commerce.json` 或打包时 `BN_COMMERCE_URL`；安装后无需用户设环境变量（仍可用环境变量 / 用户目录 `commerce.json` 覆盖）。
 - 对齐老厂：工作流 = StylePack（skill-directed / launch-showreel / narrated-explainer / next-word-loop / footage-remix）；原案例货架改为模板货架，绑定工作流+种子提示词；APP 点选后改词同质出片；恢复硬 SKU 出片路由。
 - 模板货架：默认不展示（官网配置开关）；分类下拉 + 横向滚动与左右翻页；预览播放弹窗；点选只绑自由创作（混剪除外）。
 - （已纠正）此前误把工作流绑成 APP `formMode` 入口形态，已撤销。

@@ -1,5 +1,7 @@
 /// <reference types="vite-plugin-electron/electron-env" />
 
+declare const __BN_COMMERCE_URL__: string
+
 declare namespace NodeJS {
   interface ProcessEnv {
     /**

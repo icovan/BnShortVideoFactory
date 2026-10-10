@@ -18,6 +18,11 @@
       to: 'create-core',
       filter: ['**/*'],
     },
+    {
+      from: 'config',
+      to: 'config',
+      filter: ['commerce.json'],
+    },
   ],
   mac: {
     target: [

@@ -359,7 +359,7 @@ export const useStudioStore = defineStore(
     persist: {
       pick: ['tasks', 'activeTaskId'],
       afterHydrate: (ctx) => {
-        const store = ctx.store as { tasks: StudioTask[] }
+        const store = ctx.store as unknown as { tasks: StudioTask[] }
         store.tasks = (store.tasks || []).map((t) => ({
           ...t,
           formMode: coerceFormMode(t.formMode),

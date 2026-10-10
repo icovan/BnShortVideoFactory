@@ -8,10 +8,22 @@ import UnoCSS from 'unocss/vite'
 import { version } from './package.json'
 import { syncElectronDevServerUrl } from './build/vite-plugins/sync-electron-dev-server-url'
 
+function bakedCommerceUrl() {
+  return JSON.stringify(
+    (process.env.BN_COMMERCE_URL
+      || process.env.BIUNOW_COMMERCE_URL
+      || process.env.FACTORY_COMMERCE_URL
+      || '')
+      .trim()
+      .replace(/\/$/, ''),
+  )
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(version),
+    __BN_COMMERCE_URL__: bakedCommerceUrl(),
   },
   plugins: [
     syncElectronDevServerUrl(),
@@ -23,6 +35,9 @@ export default defineConfig({
         // Shortcut of `build.lib.entry`.
         entry: 'electron/main.ts',
         vite: {
+          define: {
+            __BN_COMMERCE_URL__: bakedCommerceUrl(),
+          },
           build: {
             rollupOptions: {
               external: ['better-sqlite3'],

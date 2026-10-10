@@ -9,6 +9,7 @@ import path from 'node:path'
 import { app } from 'electron'
 import { findTsxCli, probeEngineDeps, type EngineDepsStatus } from './deps'
 import { probeSkillsPack, resolveActiveSkillsDir, type SkillsPackStatus } from '../skills-pack'
+import { resolveCommerceUrl } from '../commerce-url'
 
 export type EngineRuntimeState = {
   ready: boolean
@@ -160,7 +161,13 @@ async function startOnce(): Promise<EngineRuntimeState> {
 
   const skillsResolved = resolveActiveSkillsDir(root)
   const nodeBin = process.env.BIUNOW_NODE || 'node'
-  console.info('[create-core] spawning', { root, entry, skills: skillsResolved.dir })
+  const commerceUrl = resolveCommerceUrl()
+  console.info('[create-core] spawning', {
+    root,
+    entry,
+    skills: skillsResolved.dir,
+    commerce: commerceUrl || '(unset)',
+  })
   const proc = spawn(nodeBin, [tsx, entry], {
     cwd: root,
     env: {
@@ -172,6 +179,13 @@ async function startOnce(): Promise<EngineRuntimeState> {
       FACTORY_LOCAL_OPEN: '1',
       FACTORY_ORCHESTRATOR_URL: '',
       BIUNOW_SKILLS_DIR: skillsResolved.dir,
+      ...(commerceUrl
+        ? {
+          BN_COMMERCE_URL: commerceUrl,
+          BIUNOW_COMMERCE_URL: commerceUrl,
+          FACTORY_COMMERCE_URL: commerceUrl,
+        }
+        : {}),
     },
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
