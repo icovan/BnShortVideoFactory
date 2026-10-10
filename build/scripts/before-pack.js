@@ -45,6 +45,24 @@ function ensureWinIcon() {
   if (r.status !== 0) throw new Error('gen-icons.mjs failed')
 }
 
+function cleanDistElectron() {
+  const dir = path.join(__dirname, '../../dist-electron')
+  if (!fs.existsSync(dir)) return
+  // 只保留当前入口：main.js / preload.js（及同目录非哈希碎片）
+  const keep = new Set(['main.js', 'preload.js', 'main.js.map', 'preload.js.map'])
+  for (const name of fs.readdirSync(dir)) {
+    if (keep.has(name)) continue
+    // 清掉历史 hashed chunks：main-XXXX.js / MpegParser-*.js 等
+    if (
+      /^main-[A-Za-z0-9_-]+\.js(\.map)?$/.test(name)
+      || /^(Mpeg|MP4|Matroska|Wave|WavPack|Musepack|Ogg|Asf|Aiff|Dsdiff|Dsf|Flac|ID3|AbstractID3)Parser-/.test(name)
+    ) {
+      fs.rmSync(path.join(dir, name), { force: true })
+    }
+  }
+  console.log('[beforePack] cleaned stale dist-electron artifacts')
+}
+
 module.exports = function beforePack(context) {
   const platform = context.packager.platform.nodeName
   const arch = Arch[context.arch]
@@ -55,5 +73,6 @@ module.exports = function beforePack(context) {
   )
 
   if (platform === 'win32') ensureWinIcon()
+  cleanDistElectron()
   stageEngine()
 }

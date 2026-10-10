@@ -8,7 +8,20 @@
     output: 'release/${version}',
     buildResources: 'build/icons',
   },
-  files: ['dist', 'dist-electron', 'dist-native', 'locales'],
+  files: [
+    'dist',
+    'dist-electron',
+    'dist-native',
+    'locales',
+    // 瘦身：不把 ffmpeg-static / 开发用 UI 库打进 asar（渲染进程已由 Vite 打包进 dist）
+    '!node_modules/ffmpeg-static/**',
+    '!node_modules/pixi.js/**',
+    '!node_modules/@lucide/**',
+  ],
+  asarUnpack: [
+    // better-sqlite3 等原生模块仍需解包；ffmpeg 已改为首次下载
+    '**/node_modules/better-sqlite3/**',
+  ],
   npmRebuild: false, // disable rebuild node_modules 使用包内自带预构建二进制，而不重新构建
   beforePack: './build/scripts/before-pack.js',
   // 引擎源码（stage-engine 已排除 node_modules；skills 仅 BIUNOW_INCLUDE_SKILLS=1 时打入）

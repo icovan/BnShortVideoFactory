@@ -1,28 +1,47 @@
 /**
- * 成片引擎依赖探测 / 一键安装（不打包进安装包，首启按提示安装）
+ * 成片引擎依赖探测 / 一键安装（Node、FFmpeg、npm 依赖 — 不打包进安装包）
  */
-import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { BrowserWindow } from 'electron'
+import {
+  applyRuntimeBinEnv,
+  ensureFfmpegBin,
+  ensurePortableNode,
+  probeRuntimeBins,
+  resolveNodeBinary,
+} from './runtimeBins'
 
 export type EngineDepsStatus = {
   ok: boolean
   productRoot: string
   hasNode: boolean
+  hasFfmpeg: boolean
   hasTsx: boolean
   createCoreNm: boolean
   remotionNm: boolean
   missing: string[]
   nodeVersion?: string
+  ffmpegPath?: string
 }
 
-function npmBin() {
+function npmBin(env: NodeJS.ProcessEnv = process.env) {
+  const fromEnv = (env.BIUNOW_NPM || '').trim()
+  if (fromEnv && existsSync(fromEnv)) return fromEnv
+  const node = resolveNodeBinary()
+  if (node && node !== 'node') {
+    const sibling = path.join(
+      path.dirname(node),
+      process.platform === 'win32' ? 'npm.cmd' : 'npm',
+    )
+    if (existsSync(sibling)) return sibling
+  }
   return process.platform === 'win32' ? 'npm.cmd' : 'npm'
 }
 
 function cleanEnv() {
-  const env = { ...process.env }
+  const env = applyRuntimeBinEnv({ ...process.env })
   for (const key of Object.keys(env)) {
     if (/^npm_config_/i.test(key)) delete env[key]
   }
@@ -40,15 +59,10 @@ export function findTsxCli(productRoot: string): string | null {
   return candidates.find((p) => existsSync(p)) || null
 }
 
-export function probeNode(): { ok: boolean; version?: string } {
-  const nodeBin = process.env.BIUNOW_NODE || 'node'
-  const r = spawnSync(nodeBin, ['-v'], {
-    encoding: 'utf8',
-    windowsHide: true,
-    timeout: 8_000,
-  })
-  if (r.status !== 0) return { ok: false }
-  return { ok: true, version: String(r.stdout || r.stderr || '').trim() }
+export function probeNode(): { ok: boolean; version?: string; path?: string } {
+  const bins = probeRuntimeBins()
+  if (!bins.nodeOk) return { ok: false }
+  return { ok: true, version: bins.nodeVersion, path: bins.nodePath }
 }
 
 export function probeEngineDeps(productRoot: string): EngineDepsStatus {
@@ -57,21 +71,24 @@ export function probeEngineDeps(productRoot: string): EngineDepsStatus {
   const createCoreNm = existsSync(path.join(core, 'node_modules'))
   const remotionNm = existsSync(path.join(remotion, 'node_modules'))
   const hasTsx = Boolean(findTsxCli(productRoot))
-  const node = probeNode()
+  const bins = probeRuntimeBins()
   const missing: string[] = []
-  if (!node.ok) missing.push('node')
+  if (!bins.nodeOk) missing.push('node')
+  if (!bins.ffmpegOk) missing.push('ffmpeg')
   if (!createCoreNm) missing.push('create-core/node_modules')
   if (!remotionNm) missing.push('remotion-explainer/node_modules')
   if (!hasTsx) missing.push('tsx')
   return {
     ok: missing.length === 0,
     productRoot,
-    hasNode: node.ok,
+    hasNode: bins.nodeOk,
+    hasFfmpeg: bins.ffmpegOk,
     hasTsx,
     createCoreNm,
     remotionNm,
     missing,
-    nodeVersion: node.version,
+    nodeVersion: bins.nodeVersion,
+    ffmpegPath: bins.ffmpegPath,
   }
 }
 
@@ -83,10 +100,11 @@ function emit(channel: string, payload: unknown) {
 
 function runNpmInstall(cwd: string): Promise<{ ok: boolean; log: string }> {
   return new Promise((resolve) => {
+    const env = cleanEnv()
     const args = ['install', '--no-fund', '--no-audit']
-    const child: ChildProcessWithoutNullStreams = spawn(npmBin(), args, {
+    const child: ChildProcessWithoutNullStreams = spawn(npmBin(env), args, {
       cwd,
-      env: cleanEnv(),
+      env,
       windowsHide: true,
       shell: process.platform === 'win32',
     }) as ChildProcessWithoutNullStreams
@@ -107,20 +125,29 @@ function runNpmInstall(cwd: string): Promise<{ ok: boolean; log: string }> {
   })
 }
 
-/** 一键安装 create-core + remotion-explainer 依赖（可耗时数分钟） */
+/** 一键安装：便携 Node → FFmpeg → create-core + remotion-explainer 依赖 */
 export async function installEngineDeps(productRoot: string): Promise<{
   ok: boolean
   error?: string
   status: EngineDepsStatus
 }> {
   emit('engine-install-progress', { phase: 'start' })
-  const node = probeNode()
-  if (!node.ok) {
-    const error =
-      '未检测到 Node.js。请先安装 Node 22+（https://nodejs.org），然后重新打开本应用一键安装运行环境。'
+
+  const nodeEnsure = await ensurePortableNode()
+  if (!nodeEnsure.ok) {
+    const error = `Node 准备失败：${nodeEnsure.error || 'unknown'}`
     emit('engine-install-progress', { phase: 'error', error })
     return { ok: false, error, status: probeEngineDeps(productRoot) }
   }
+  applyRuntimeBinEnv(process.env)
+
+  const ffmpegEnsure = await ensureFfmpegBin()
+  if (!ffmpegEnsure.ok) {
+    const error = `FFmpeg 准备失败：${ffmpegEnsure.error || 'unknown'}`
+    emit('engine-install-progress', { phase: 'error', error })
+    return { ok: false, error, status: probeEngineDeps(productRoot) }
+  }
+  applyRuntimeBinEnv(process.env)
 
   const targets = [
     path.join(productRoot, 'packages', 'create-core'),

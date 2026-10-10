@@ -393,9 +393,14 @@ export function isSkillName(v: unknown): v is SkillName {
   return typeof v === 'string' && v in SKILL_CONTRACTS;
 }
 
+/**
+ * 硬门禁只验 craft 技能（primary + ≤2 support）+ remotion-video。
+ * shot-composition / animation-principles / 未列入 hardIds 的 skill 不硬卡。
+ */
 export function assertSkillsInTsx(
   skillIds: SkillName[],
   tsx: string,
+  opts?: { hardIds?: SkillName[] },
 ): { ok: boolean; issues: string[] } {
   const issues: string[] = [];
   if (/fetch\s*\(|setInterval|setTimeout|requestAnimationFrame/.test(tsx)) {
@@ -407,22 +412,23 @@ export function assertSkillsInTsx(
   if (!/export\s+(const|function)\s+ActiveDirected/.test(tsx)) {
     issues.push('must export ActiveDirected');
   }
-  /** Stickman-led films: figure+motion is the contract. Support overlays must not fail the whole gate. */
-  const stickmanLed = skillIds.includes('stickman-animation');
-  for (const id of skillIds) {
-    if (id === 'manim' || id === 'creative-brief') continue;
+
+  const hardIds = (opts?.hardIds?.length ? opts.hardIds : skillIds).filter((id) => {
+    if (id === 'manim' || id === 'creative-brief') return false;
+    if (id === 'shot-composition' || id === 'animation-principles') return false;
+    return true;
+  });
+  if (!hardIds.includes('remotion-video')) hardIds.unshift('remotion-video');
+
+  const stickmanLed = hardIds.includes('stickman-animation');
+  for (const id of hardIds) {
     const c = SKILL_CONTRACTS[id];
     if (!c?.gates.length) continue;
-    // Soft: support skills + short-form (often auto-tagged on 9:16) when stickman is acting
-    const soft =
-      stickmanLed &&
-      (c.role === 'support' || id === 'short-form-video' || id === 'shot-composition');
+    // 火柴人片：support 技法门禁 soft（避免为过关堆 token）
+    if (stickmanLed && c.role === 'support' && id !== 'stickman-animation') continue;
     for (const g of c.gates) {
       if (g.id === 'no-timers') continue;
-      if (!g.re.test(tsx)) {
-        if (soft) continue;
-        issues.push(g.message);
-      }
+      if (!g.re.test(tsx)) issues.push(g.message);
     }
   }
   return { ok: issues.length === 0, issues };

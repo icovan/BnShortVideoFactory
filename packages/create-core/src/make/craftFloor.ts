@@ -2,69 +2,139 @@ import type { Aspect } from '../../../shared/src/index.ts';
 
 export type CraftKind = 'default' | 'logo' | 'showreel';
 
+/** Kinetic reveal families — rotate per beat so codegen cannot spring+translateY every scene. */
+export type RevealFamily = 'mask' | 'blur' | 'clip' | 'slam';
+
 export function isPortraitAspect(aspect: Aspect): boolean {
   return aspect === '9:16' || aspect === '3:4';
 }
 
-/** 平台 UI 安全区：背景可满幅，字/Logo/控件必须落在区内。 */
+/**
+ * 轻量安全区（贴近旧厂「Safe areas required」）。
+ * 竖屏不再强塞底 18%——那会把动能/金句片挤成中间细条；仅提示别贴边。
+ */
 export function safeAreaSpec(aspect: Aspect): string {
   if (isPortraitAspect(aspect)) {
-    return '9:16/3:4 SAFE AREA: top ≥8%, bottom ≥18% (platform UI), left/right ≥8%. Full-bleed backgrounds OK; type, logo, and chrome MUST stay inside this box.';
+    return '9:16/3:4 SAFE AREA (soft): ~5–6% pad on all sides; keep type/logo off the extreme edges. Full-bleed BG OK. Extra bottom clearance only if a platform CTA/chrome is in the brief.';
   }
-  return '16:9/1:1 SAFE AREA: ≥6% pad on all sides. Titles/logos not flush to frame edge. Full-bleed BG OK.';
+  return '16:9/1:1 SAFE AREA (soft): ~5–6% pad on all sides. Titles/logos not flush to frame edge. Full-bleed BG OK.';
+}
+
+/** Detect which reveal families appear in generated TSX (static scan). */
+export function detectRevealFamilies(src: string): RevealFamily[] {
+  const found: RevealFamily[] = [];
+  if (/clipPath|clip-path/i.test(src)) found.push('clip');
+  if (/\bblur\s*\(/i.test(src)) found.push('blur');
+  if (
+    /maskImage|WebkitMask|\bmask\s*:|maskSize|maskPosition|maskRepeat/i.test(src)
+    || /RGB|chromatic|channel.?offset|channel.?split/i.test(src)
+  ) {
+    found.push('mask');
+  }
+  // slam: scale overshoot and/or spring + translateY drop
+  if (
+    /scale\s*[`(]/.test(src)
+    || /transform:\s*[`'"].*scale/i.test(src)
+    || (/translateY\s*[`(]/.test(src) && /spring\s*\(/.test(src))
+  ) {
+    found.push('slam');
+  }
+  return found;
+}
+
+export function minRevealFamilies(opts: {
+  craftKind?: CraftKind;
+  sceneCount?: number;
+  stickmanLed?: boolean;
+}): number {
+  if (opts.craftKind === 'logo') return 0;
+  const n = opts.sceneCount ?? 4;
+  if (n <= 2) return 1;
+  // Stickman-led: still need variety on type/diagram beats, but 1 family floor for short pieces
+  if (opts.stickmanLed && n <= 4) return 1;
+  if (n <= 4) return 2;
+  return 3;
+}
+
+/** Hard gate issues when the film collapses to one spring recipe. */
+export function assertRevealFamilyRotation(
+  src: string,
+  opts?: { craftKind?: CraftKind; sceneCount?: number; stickmanLed?: boolean },
+): string[] {
+  const min = minRevealFamilies(opts || {});
+  if (min <= 0) return [];
+  const found = detectRevealFamilies(src);
+  if (found.length >= min) return [];
+  return [
+    `reveal families: need ≥${min} of mask|blur|clip|slam across beats (found: ${found.join(',') || 'none'}). Rotate per scene — forbid spring+translateY-only film.`,
+  ];
 }
 
 /**
- * 画布/动效地板。竖屏禁止「每行 ≥72 动能砸字」——那是宽屏作品集门禁，会把 9:16 挤爆并顶到抖音按钮区。
+ * Injected into codegen system prompts for ALL skill paths.
+ * sceneCount drives how many distinct families are required.
+ */
+export function revealFamilyHardRules(sceneCount?: number): string {
+  const n = Math.max(1, sceneCount ?? 6);
+  const min = n <= 2 ? 1 : n <= 4 ? 2 : 3;
+  return `=== REVEAL FAMILY ROTATION (HARD — statically validated) ===
+Four reveal families — assign ONE primary family per beat and ROTATE across the film:
+1. mask — overflow:hidden wipe, CSS mask-image, or RGB/chromatic channel-split that resolves
+2. blur — filter:blur(...) soft↔sharp on type or graphic
+3. clip — clipPath / clip-path inset or polygon wipe
+4. slam — spring scale overshoot (e.g. 1.18→1.0) and/or translateY drop + scale settle
+REQUIRE ≥${min} distinct families in this film (~${n} scenes). Adjacent beats SHOULD use different families.
+Skill-specific craft (strokeDash diagrams, count-up, stickman sampleClip, logo path trim) stacks ON TOP — it does not replace rotation.
+FORBIDDEN: every beat = the same spring() + translateY recipe.`;
+}
+
+/**
+ * Soft craft hint — 旧厂级 + 一丢丢，禁止写成硬字号表。
  */
 export function cinematicMotionFloor(aspect: Aspect, kind: CraftKind = 'default'): string {
   if (kind === 'logo') {
-    return `- LOGO STING (mg-logo craft): mark is the ONLY hero. Recipe: geometric tease → accent bounce/path → stroke-assemble → overshoot/glow → settle.
-- On-screen type: none, or brand name / one URL line if brief asks. No explainer headlines, no caption bars, no KineticWords slam, no showreel HUD.
+    return `- LOGO STING: mark is the ONLY hero — geo tease → accent → stroke-assemble → overshoot → settle.
+- On-screen type: none, or brand name / one URL if asked. No explainer caption bars.
 - ${safeAreaSpec(aspect)}
-- Motion: spring overshoot / path trail / strokeDash; graphic change in first 8 frames. Prefer uploaded SVG/PNG.
-- Palette from THIS mark; dark grain OK; never invent a second logo.`;
+- Motion: spring / path / strokeDash; prefer uploaded SVG/PNG. Palette from THIS mark.`;
   }
   if (kind === 'showreel') {
-    return `- MG SHOWREEL (mg-showreel craft): 6 technique chapters — squash&stretch, kinetic type, systems&stagger, radial orbit, shatter, end lockup.
-- No VO. Short technique labels as chrome OK; optional tiny corner HUD (index/timecode). No explainer sandwich.
-- ${safeAreaSpec(aspect)}
-- Motion: every chapter full-bleed geometric/kinetic change in first 8 frames; stagger grids; spring; high contrast MG palette from THIS brief.
-- Type: ONE hero slam ≥88px on the kinetic chapter (16:9); other chapters may use small chrome only.`;
+    return `- MG SHOWREEL: technique chapters (squash, kinetic, stagger, radial, shatter, lockup). No VO.
+- Short chrome labels OK. ${safeAreaSpec(aspect)}
+- Motion: full-bleed geometric/kinetic change early in each chapter; rotate reveal families (mask/blur/clip/slam); palette from THIS brief.`;
   }
   if (isPortraitAspect(aspect)) {
-    return `- Type: ONE hero slam (1–4 words / ≤8 zh chars) at 8–12% of width (~86–130px at 1080). Body/captions 4.5–6% (~48–65px). Do NOT set every line to 72–140px.
-- KineticWords / KineticLines only for short hooks — never slam a full VO sentence.
-- Motion: spring translateY + scale; avoid heavy rotateX/perspective that clips on portrait.
+    return `- Type (portrait, soft): short hero hooks may be bold and large (roughly ~14–20% of width for 1–3 words — about 150–220px at 1080). Multi-line body/quote readable (~7–10% / ~75–110px). Do NOT make every line a max slam; do NOT shrink the whole film into a timid center strip.
+- Kinetic type: prefer short hooks; full VO sentences stay smaller.
+- Motion: rotate reveal families (mask / blur / clip / slam) per beat — not spring+translateY on every word.
 - ${safeAreaSpec(aspect)}
-- Frame: subject can full-bleed in the middle band; forbid timid centered micro-UI.
-- Draw: stroke/count-up when the beat is diagrammatic. Palette from THIS topic (no default Linear/PageOn purple).`;
+- Frame: use the vertical canvas — type/graphics can own most of the middle; forbid tiny centered micro-UI.
+- Palette from THIS topic (no default Linear/PageOn purple).`;
   }
-  return `- Type: hero kinetic type 88–140px (floor ≥72) for ONE slam, not every caption; prefer KineticWords / KineticLines from '../ui' for short hooks only.
-- Motion: spring({ damping: ~12 }) slam — translateY 28–48px + scale 1.12→1 (or 0.88→1 overshoot); stagger 0.08–0.15s; interpolate/camera push; no frozen static AbsoluteFill >0.4s.
-- Depth: perspective / rotateX|Y / parallax / stacked AbsoluteFills — never a flat single-layer slide.
+  return `- Type (landscape, soft): one hero slam can be large (about 72–140px); captions smaller. Prefer KineticWords / KineticLines for short hooks only.
+- Motion: rotate reveal families (mask / blur / clip / slam); spring/depth welcome; no frozen empty AbsoluteFill.
 - ${safeAreaSpec(aspect)}
-- Frame: ≥1 full-bleed / edge-to-edge beat; subject or chrome fills ≥55% of frame; forbid timid centered micro-UI.
-- Draw: diagrams/charts via strokeDash, progressive reveal, count-up, shape morph — graphic change in the first 8 frames of each Sequence.
-- Palette: invent canvas/ink/accent from THIS topic; do NOT default Linear purple-black / PageOn purple-white unless named.`;
+- Frame: full-bleed subject OK; forbid timid centered micro-UI.
+- Draw: strokeDash / progressive reveal / count-up when diagrammatic.
+- Palette from THIS topic (no default Linear/PageOn purple unless named).`;
 }
 
 export function cinematicFloorLine(aspect: Aspect, kind: CraftKind = 'default'): string {
   if (kind === 'logo') {
-    return `CRAFT (logo sting): mark hero; geo→accent→assemble→overshoot→settle; no explainer captions. ${safeAreaSpec(aspect)}`;
+    return `CRAFT (logo sting, soft): mark hero; assemble/overshoot; no explainer captions. ${safeAreaSpec(aspect)}`;
   }
   if (kind === 'showreel') {
-    return `CRAFT (MG showreel): 6 technique chapters; no VO; kinetic/systems/radial/shatter; tiny HUD OK. ${safeAreaSpec(aspect)}`;
+    return `CRAFT (MG showreel, soft): technique chapters; rotate reveal families; no VO. ${safeAreaSpec(aspect)}`;
   }
   if (isPortraitAspect(aspect)) {
-    return `CRAFT (9:16): one short hero slam 8–12% width; body type 4.5–6%; ${safeAreaSpec(aspect)} Spring translateY/scale — not 72px on every line.`;
+    return `CRAFT (9:16, soft): bold short heroes OK; body readable; ~5–6% edge pad — not a tiny center strip. Rotate mask/blur/clip/slam per beat.`;
   }
-  return `CRAFT FLOOR: one hero slam ≥72–140px; spring; depth layers; ${safeAreaSpec(aspect)} Palette from THIS brief — forbid tiny centered micro-UI.`;
+  return `CRAFT (16:9, soft): one hero slam welcome; rotate mask/blur/clip/slam; ${safeAreaSpec(aspect)} forbid tiny centered micro-UI.`;
 }
 
 export function craftFloorForOptimize(aspect: Aspect): string {
   if (isPortraitAspect(aspect)) {
-    return `CRAFT (portrait): one short hero slam at 8–12% width; captions 4.5–6% width — NEVER 72–140px on every line. ${safeAreaSpec(aspect)} Spring translateY/scale; no heavy 3D tilt.`;
+    return `CRAFT (portrait, soft): bold short hero type OK; multi-line body readable; ~5–6% edge pad. Rotate reveal families (mask/blur/clip/slam) — do not spring+translateY every beat.`;
   }
-  return `CRAFT (landscape): one hero slam 72–140px; spring; perspective/depth; ${safeAreaSpec(aspect)} Full-bleed subject; stroke/draw when diagrams fit — NEVER tiny centered micro-UI.`;
+  return `CRAFT (landscape, soft): one hero slam welcome; rotate mask/blur/clip/slam; modest safe pad; full-bleed subject OK — not tiny centered micro-UI.`;
 }

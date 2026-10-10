@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
+import { resolveFfmpegBinary } from '../engine/runtimeBins'
 
 export function engineDataRoot() {
   const root = path.join(app.getPath('userData'), 'create-engine')
@@ -31,10 +32,9 @@ export function projectDir(dirName: string) {
 }
 
 export function getFfmpegPath(): string {
-  const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const raw = require('ffmpeg-static') as string
-  const p = VITE_DEV_SERVER_URL ? raw : raw.replace('app.asar', 'app.asar.unpacked')
-  if (!existsSync(p)) throw new Error(`FFmpeg not found: ${p}`)
+  const p = resolveFfmpegBinary()
+  if (!p || (p !== 'ffmpeg' && !existsSync(p))) {
+    throw new Error('FFmpeg not found — run one-click runtime install')
+  }
   return p
 }

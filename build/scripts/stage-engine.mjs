@@ -18,7 +18,17 @@ const SKIP = new Set([
   'dist', 'coverage', '.turbo', '.cache',
 ])
 
-function copyTree(from, to, { skipSkillsBodies = false } = {}) {
+/** 样例旁白 / 临时渲染产物不进安装包（SFX 由首次 ensureSfxAssets 拉取） */
+function skipStagedFile(relFromPackages, name) {
+  if (/^vo(-\d+|-\d+\.mp3|\.mp3)$/i.test(name) || /^vo-pad-\d+\.mp3$/i.test(name)) return true
+  if (name === 'narration.mp3' || name === 'props.render.json') return true
+  if (name.startsWith('vo-') && name.endsWith('.mp3')) return true
+  // remotion-explainer/public 下的本地调试床轨可保留 launch-bed / bed；vo* 全跳过
+  void relFromPackages
+  return false
+}
+
+function copyTree(from, to, { skipSkillsBodies = false, rel = '' } = {}) {
   mkdirSync(to, { recursive: true })
   for (const name of readdirSync(from)) {
     if (SKIP.has(name)) continue
@@ -30,8 +40,9 @@ function copyTree(from, to, { skipSkillsBodies = false } = {}) {
         // skills 正文跳过：只在后续单独处理 README
         continue
       }
-      copyTree(src, dest, { skipSkillsBodies })
+      copyTree(src, dest, { skipSkillsBodies, rel: rel ? `${rel}/${name}` : name })
     } else {
+      if (skipStagedFile(rel, name)) continue
       cpSync(src, dest)
     }
   }

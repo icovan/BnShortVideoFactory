@@ -34,9 +34,8 @@ import {
   type JobLook,
 } from './look.ts';
 import { contentLangLockLine } from './contentLang.ts';
-import type { SkillPlan } from './skillPlan.ts';
+import { codegenSkillIds, craftSkillIds, type SkillPlan } from './skillPlan.ts';
 import {
-  cinematicFloorLine,
   fixDirectedTsx,
   generateDirectedTsx,
   parseTsxSyntaxIssues,
@@ -580,11 +579,18 @@ export async function prepareDirectedHard(
   const finalMp4 = join(dir, 'final.mp4');
   const propsStr = JSON.stringify(props, null, 2);
 
-  setPipelineStep(projectId, 'build', 'running', `codegen · ${plan.skills.join(',')} · ${contentLang}`);
+  const craftIds = craftSkillIds(plan);
+  const codegenIds = codegenSkillIds(plan);
+  const sceneCount = Math.max(props.scenes?.length || 0, plan.beats?.length || 0, 1);
+  const validateTsx = (src: string) =>
+    validateDirectedTsx(src, craftIds, contentLang, plan.aspect, sceneCount);
+  const revealFamilyBlocked = (issues: string[]) =>
+    issues.some((i) => i.startsWith('reveal families'));
+  setPipelineStep(projectId, 'build', 'running', `codegen · ${craftIds.join('+')} · ${contentLang}`);
   let tsx = await generateDirectedTsx(settings, {
     prompt,
     propsJson: propsStr,
-    skillIds: plan.skills,
+    skillIds: codegenIds,
     aspect: plan.aspect,
     contentLang,
     lookLine: [
@@ -594,33 +600,23 @@ export async function prepareDirectedHard(
         ? styleLookLockLine(plan.look, meta.styleSource, { mono: monoLook })
         : '',
       assetsLockLine(screenAssets, musicFile),
-      !plan.skills.includes('stickman-animation')
-        ? cinematicFloorLine(
-          plan.aspect,
-          plan.primary === 'logo-animation'
-            ? 'logo'
-            : plan.beats.some((b) => /^ch-/.test(b.job || ''))
-              ? 'showreel'
-              : 'default',
-        )
-        : '',
       monoLook
         ? 'MONO HARD LOCK: black ink on paper only — no red/purple/neon accent fills, no collage color wipes.'
         : '',
     ].filter(Boolean).join('\n'),
   });
-  let codeIssues = validateDirectedTsx(tsx, plan.skills, contentLang, plan.aspect);
-  let skillGate = assertSkillsInTsx(plan.skills, tsx);
+  let codeIssues = validateTsx(tsx);
+  let skillGate = assertSkillsInTsx(codegenIds, tsx, { hardIds: craftIds });
   if (codeIssues.length || !skillGate.ok) {
     tsx = await fixDirectedTsx(settings, {
       source: tsx,
       error: [...codeIssues, ...skillGate.issues].join('; '),
       propsJson: propsStr,
     });
-    codeIssues = validateDirectedTsx(tsx, plan.skills, contentLang, plan.aspect);
-    skillGate = assertSkillsInTsx(plan.skills, tsx);
+    codeIssues = validateTsx(tsx);
+    skillGate = assertSkillsInTsx(codegenIds, tsx, { hardIds: craftIds });
   }
-  const stickmanJob = plan.skills.includes('stickman-animation') || plan.primary === 'stickman-animation';
+  const stickmanJob = craftIds.includes('stickman-animation') || plan.primary === 'stickman-animation';
   const stickmanContractOk = (src: string) =>
     /from\s+['"]\.\.\/stickman['"]/.test(src)
     && /<Stickman\b/.test(src)
@@ -639,10 +635,11 @@ export async function prepareDirectedHard(
         error: [...codeIssues, ...skillGate.issues, 'stickman: keep brief staging; use props.canvas/ink; optional titles only'].join('; '),
         propsJson: propsStr,
       });
-      codeIssues = validateDirectedTsx(tsx, plan.skills, contentLang, plan.aspect);
-      skillGate = assertSkillsInTsx(plan.skills, tsx);
+      codeIssues = validateTsx(tsx);
+      skillGate = assertSkillsInTsx(codegenIds, tsx, { hardIds: craftIds });
       usedCodegen = codeIssues.length === 0 && skillGate.ok;
-      if (!usedCodegen && stickmanContractOk(tsx) && parseTsxSyntaxIssues(tsx).length === 0) {
+      if (!usedCodegen && stickmanContractOk(tsx) && parseTsxSyntaxIssues(tsx).length === 0
+        && !revealFamilyBlocked(codeIssues)) {
         // Soft-accept: figure contract met — do not wipe narrative into pose-floor
         usedCodegen = true;
         softAccepted = true;
@@ -654,16 +651,23 @@ export async function prepareDirectedHard(
             error: `${syn.join('; ')}; FIX SYNTAX ONLY — keep stickman Series/poses`,
             propsJson: propsStr,
           });
-          if (stickmanContractOk(tsx) && parseTsxSyntaxIssues(tsx).length === 0) {
+          codeIssues = validateTsx(tsx);
+          if (stickmanContractOk(tsx) && parseTsxSyntaxIssues(tsx).length === 0
+            && !revealFamilyBlocked(codeIssues)) {
             usedCodegen = true;
             softAccepted = true;
           }
         }
+        if (!usedCodegen && revealFamilyBlocked(codeIssues)) {
+          throw new Error(
+            `ActiveDirected 揭示族不足（禁止 soft-accept / stock）：${codeIssues.filter((i) => i.startsWith('reveal families')).join('; ')}`,
+          );
+        }
         if (!usedCodegen) {
           tsx = STICKMAN_STOCK;
           usedStickmanPoseFloor = true;
-          codeIssues = validateDirectedTsx(tsx, plan.skills, contentLang, plan.aspect);
-          skillGate = assertSkillsInTsx(plan.skills, tsx);
+          codeIssues = validateTsx(tsx);
+          skillGate = assertSkillsInTsx(codegenIds, tsx, { hardIds: craftIds });
           usedCodegen = codeIssues.length === 0;
         }
       }
@@ -674,12 +678,13 @@ export async function prepareDirectedHard(
         error: [
           ...codeIssues,
           ...skillGate.issues,
-          'final repair: keep THIS brief narrative; enlarge hero type ≥72; add spring scale/rotate — do NOT re-export DirectedFilm',
+          'final repair: keep THIS brief narrative and selected skill techniques — do NOT re-export DirectedFilm',
+          'rotate reveal families mask/blur/clip/slam across beats — forbid spring+translateY-only',
         ].join('; '),
         propsJson: propsStr,
       });
-      codeIssues = validateDirectedTsx(tsx, plan.skills, contentLang, plan.aspect);
-      skillGate = assertSkillsInTsx(plan.skills, tsx);
+      codeIssues = validateTsx(tsx);
+      skillGate = assertSkillsInTsx(codegenIds, tsx, { hardIds: craftIds });
       usedCodegen = codeIssues.length === 0 && skillGate.ok;
       if (!usedCodegen && directedNarrativeContractOk(tsx)) {
         let syn = parseTsxSyntaxIssues(tsx);
@@ -690,7 +695,12 @@ export async function prepareDirectedHard(
             propsJson: propsStr,
           });
           syn = parseTsxSyntaxIssues(tsx);
-          codeIssues = validateDirectedTsx(tsx, plan.skills, contentLang, plan.aspect);
+          codeIssues = validateTsx(tsx);
+        }
+        if (revealFamilyBlocked(codeIssues)) {
+          throw new Error(
+            `ActiveDirected 揭示族不足（禁止 soft-accept / stock）：${codeIssues.filter((i) => i.startsWith('reveal families')).join('; ')}`,
+          );
         }
         if (syn.length === 0 && directedNarrativeContractOk(tsx)) {
           usedCodegen = true;

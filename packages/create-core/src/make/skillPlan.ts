@@ -1,11 +1,10 @@
-import { chatJson } from '../llm.ts';
-import type { SkillName } from '../llm.ts';
-import type { Aspect, Engine } from '../../../shared/src/index.ts';
-import type { Settings } from '../../../shared/src/index.ts';
+import { chatJson, readSkill, type SkillName } from '../llm.ts';
+import type { Aspect, Engine, Settings } from '../../../shared/src/index.ts';
 import { lookBrief, normalizeLook, type JobLook, type LookFamily } from './look.ts';
 import {
   CHASSIS_SKILLS,
   PRIMARY_SKILLS,
+  SKILL_CONTRACTS,
   SUPPORT_SKILLS,
   isSkillName,
 } from '../skills/registry.ts';
@@ -17,13 +16,21 @@ import {
   type ContentLang,
   type VoMode,
 } from './contentLang.ts';
-import { cinematicMotionFloor } from './craftFloor.ts';
 import { applyMgFilmRecipe, mgFilmLockPrompt, type MgFilmKind } from './mgFilm.ts';
 import {
   applyStickmanPhraseToBeats,
   asksForStickman,
   stickmanMachineLockBlock,
 } from './stickmanBrief.ts';
+
+function skillWhenCatalog(ids: SkillName[]): string {
+  return ids
+    .map((id) => {
+      const when = SKILL_CONTRACTS[id]?.when || id;
+      return `- ${id}: ${when}`;
+    })
+    .join('\n');
+}
 
 export type DirectedBeat = {
   job: string;
@@ -139,38 +146,39 @@ function lookFamily(
   return 'narrated';
 }
 
+/** 每个主 skill 最多补 1 个叶技法；总数在 normalize 里再砍到 ≤2。不做 motion-art 堆叠。 */
 function supportForPrimary(primary: SkillName, support: SkillName[]): SkillName[] {
   const add = (id: SkillName) => {
+    if (support.length >= 2) return;
     if (!support.includes(id) && SUPPORT_SKILLS.includes(id)) support.push(id);
   };
   if (primary === 'explainer-video') add('diagram-animation');
-  if (primary === 'presentation-video' || primary === 'launch-video') add('kinetic-typography');
-  if (primary === 'launch-video') add('beat-sync-editing');
-  if (primary === 'text-message-animation') add('kinetic-typography');
-  if (primary === 'whiteboard-animation') add('diagram-animation');
-  if (primary === 'stickman-animation') {
-    // Actor layer only — do not force kinetic/lower-thirds/motivation chrome.
-    // Captions stay optional via LLM plan / intertitles; beat-sync helps music-led shorts.
-    add('beat-sync-editing');
-  }
-  if (primary === 'wrapped-video' || primary === 'animated-infographic') {
-    add('chart-animation');
-    add('kinetic-typography');
-  }
-  if (primary === 'promo-video' || primary === 'ad-creative-video') add('kinetic-typography');
-  if (primary === 'product-demo-video') add('kinetic-typography');
-  if (primary === 'photo-slideshow') add('caption-animation');
-  if (primary === 'testimonial-video') {
-    add('lower-thirds');
-    add('kinetic-typography');
-  }
-  if (primary === 'countdown-video' || primary === 'youtube-intro-outro') {
-    add('kinetic-typography');
-  }
-  if (primary === 'isometric-animation' || primary === 'map-animation') add('diagram-animation');
-  if (primary === 'audiogram') add('caption-animation');
-  add('motion-art-direction');
+  else if (primary === 'presentation-video' || primary === 'launch-video') add('kinetic-typography');
+  else if (primary === 'text-message-animation') add('kinetic-typography');
+  else if (primary === 'whiteboard-animation') add('diagram-animation');
+  else if (primary === 'stickman-animation') add('beat-sync-editing');
+  else if (primary === 'wrapped-video' || primary === 'animated-infographic') add('chart-animation');
+  else if (primary === 'promo-video' || primary === 'ad-creative-video') add('kinetic-typography');
+  else if (primary === 'product-demo-video') add('kinetic-typography');
+  else if (primary === 'photo-slideshow') add('caption-animation');
+  else if (primary === 'testimonial-video') add('lower-thirds');
+  else if (primary === 'countdown-video' || primary === 'youtube-intro-outro') add('kinetic-typography');
+  else if (primary === 'isometric-animation' || primary === 'map-animation') add('diagram-animation');
+  else if (primary === 'audiogram') add('caption-animation');
+  else if (primary === 'short-form-video') add('kinetic-typography');
   return support;
+}
+
+/** Codegen / 硬门禁用：primary + support（不含 chassis 堆叠） */
+export function craftSkillIds(plan: { primary: SkillName; support: SkillName[] }): SkillName[] {
+  return uniqueSkills([plan.primary, ...plan.support]);
+}
+
+/** Codegen 正文：选中技能 + remotion-video API 底盘（单一 chassis，避免 8～9 技能截断） */
+export function codegenSkillIds(plan: { primary: SkillName; support: SkillName[] }): SkillName[] {
+  if (plan.primary === 'manim') return ['manim'];
+  if (plan.primary === 'footage-remix') return ['footage-remix'];
+  return uniqueSkills([plan.primary, ...plan.support, 'remotion-video']);
 }
 
 function uniqueSkills(ids: SkillName[]): SkillName[] {
@@ -253,25 +261,28 @@ export function normalizeSkillPlan(
     : primary === 'footage-remix'
       ? 'footage-remix'
       : 'explainer-remotion';
-  let support = (raw.support || []).filter(isSkillName).filter((s) => SUPPORT_SKILLS.includes(s)).slice(0, 4);
+  const supportCap = filmKind === 'showreel' ? 3 : 2;
+  let support = (raw.support || []).filter(isSkillName).filter((s) => SUPPORT_SKILLS.includes(s)).slice(0, supportCap);
   if (primary === 'logo-animation' || filmKind === 'logo') {
     support = support.filter((s) => s !== 'stickman-animation');
   }
   if (filmKind === 'showreel') {
-    for (const s of ['kinetic-typography', 'diagram-animation', 'color-motion', 'logo-animation'] as SkillName[]) {
-      if (!support.includes(s)) support.push(s);
+    for (const s of ['kinetic-typography', 'diagram-animation', 'color-motion'] as SkillName[]) {
+      if (!support.includes(s) && support.length < supportCap) support.push(s);
     }
-    support = support.filter((s) => s !== 'stickman-animation').slice(0, 6);
+    support = support.filter((s) => s !== 'stickman-animation').slice(0, supportCap);
   }
   if (wantStickmanMix && primary !== 'stickman-animation' && !support.includes('stickman-animation')) {
-    support.unshift('stickman-animation');
+    // 火柴人占一个 support 名额，挤掉末位
+    support = ['stickman-animation', ...support.filter((s) => s !== 'stickman-animation')].slice(0, supportCap);
   }
-  // 竖屏动能/字幕套件只给短视频主 skill，避免讲解/Logo 片被 caption 条占满
+  // 竖屏短视频：动能优先；字幕可选，不强制双开占满 2 槽
   if (aspect === '9:16' && primary === 'short-form-video') {
-    if (!support.includes('caption-animation')) support.unshift('caption-animation');
-    if (!support.includes('kinetic-typography')) support.push('kinetic-typography');
+    if (!support.includes('kinetic-typography') && support.length < supportCap) {
+      support.push('kinetic-typography');
+    }
   }
-  support = uniqueSkills(supportForPrimary(primary, support)).slice(0, 6);
+  support = uniqueSkills(supportForPrimary(primary, support)).slice(0, supportCap);
 
   const chassis = engine === 'explainer-remotion'
     ? [...CHASSIS_SKILLS, ...(aspect === '9:16' && primary !== 'stickman-animation' ? ['short-form-video' as SkillName] : [])]
@@ -375,48 +386,70 @@ export async function planSkills(
   const voHint = filmKind === 'logo' || filmKind === 'showreel'
     ? 'off' as VoMode
     : resolveVoMode({ ask: lockAsk, uiMode: uiVoMode });
-  const craftKind = filmKind === 'logo' ? 'logo' : filmKind === 'showreel' ? 'showreel' : 'default';
   const manimRule = opts?.forceRemotion
     ? '- Formula / theorem / axes / geometry → explainer-video + diagram-animation (Remotion). NEVER pick manim.'
     : '- Formula / theorem / axes / 3B1B → manim';
+  const primaryPool = PRIMARY_SKILLS.filter((s) => !(opts?.forceRemotion && s === 'manim'));
+  // 路由只读技能「何时用」+ 正文摘要，不灌 CRAFT FLOOR
+  const skillDigest = readSkill(
+    filmKind === 'logo'
+      ? ['logo-animation', 'remotion-video']
+      : filmKind === 'showreel'
+        ? ['launch-video', 'kinetic-typography', 'remotion-video']
+        : ['explainer-video', 'diagram-animation', 'kinetic-typography', 'short-form-video', 'launch-video'],
+    14000,
+  );
   const raw = await chatJson<Partial<SkillPlan>>(settings, `You are the SKILL ROUTER for a video factory.
-Pick skills from the vendored set, then write beats. Do NOT invent new skill names.
+Match the brief to skill REQUIREMENTS (story/technique), then write beats. Do NOT invent skill names.
 
-PRIMARY (exactly one): ${PRIMARY_SKILLS.filter((s) => !(opts?.forceRemotion && s === 'manim')).join(' | ')}
-SUPPORT (0–5): ${SUPPORT_SKILLS.join(' | ')}
-CHASSIS is added in code. Never pick chassis or creative-brief as primary.
+PICK FEW SKILLS (quality > coverage):
+- PRIMARY: exactly one from the list
+- SUPPORT: 0–2 leaf techniques ONLY (never 3+)
+- Do NOT stack kinetic + diagram + caption + color + motion-art. One primary + at most two supports.
+- Chassis (remotion-video / shot-composition / animation-principles) is added in code — never pick as primary/support.
 
-ROUTING (prompt wins; template is a PRESET):
+PRIMARY: ${primaryPool.join(' | ')}
+SUPPORT: ${SUPPORT_SKILLS.join(' | ')}
+
+=== WHEN TO USE (catalog) ===
+PRIMARY:
+${skillWhenCatalog(primaryPool)}
+SUPPORT:
+${skillWhenCatalog(SUPPORT_SKILLS)}
+
+=== SKILL CRAFT (verbatim excerpts — obey story/technique, not factory slogans) ===
+${skillDigest}
+
+ROUTING (prompt wins):
 ${manimRule}
   EXCLUSIVE: manim is the ONLY skill on that job — never mix manim with Remotion skills.
-- Stickman / 火柴人 / capsule stick figure → stickman-animation as a MIXABLE actor layer (NOT exclusive like manim). Keep the brief's true primary (explainer / short / diagram / promo…). Put stickman-animation in support and on character beats; other beats may use diagram/kinetic/caption. Do NOT make every beat stickman. Do NOT steal logo-animation.
-  LOOK: invent canvas/ink from THIS brief. Never default every stickman film to #000.
+- Stickman / 火柴人 → stickman-animation as MIXABLE support (not exclusive). Keep true primary; do not make every beat stickman; never steal logo-animation.
+  LOOK: invent canvas/ink from THIS brief — never force black for stickman.
 ${asksForStickman(lockAsk) ? `\n${stickmanMachineLockBlock()}\n` : ''}
-- Raw footage / 混剪 / 素材成片 / batch cut from clip folder → footage-remix
-- Chat / iMessage / WhatsApp script → text-message-animation
-- Hand-drawn / ink / woodcut / whiteboard stroke → whiteboard-animation
-- Year-in-review / wrapped stats → wrapped-video
-- Sale / % off / promo price → promo-video
-- UI walkthrough / cursor on product → product-demo-video
-- Photo Ken Burns slideshow → photo-slideshow
-- Paid social ad / CTA → ad-creative-video
-- Quote / review / stars → testimonial-video
-- Countdown clock / drop timer → countdown-video
-- Infographic cascade of facts → animated-infographic
-- Map / city / route / marker → map-animation
-- Logo sting / brand mark / 标志揭示 / wordmark assemble → logo-animation (never stickman). Logo films: VO empty, no explainer headlines.
-- Motion-design showreel / MG 展片 / technique reel (squash, kinetic, stagger, radial, shatter) → launch-video + kinetic/diagram/color support (never logo-only sting).
-- Podcast waveform / audiogram → audiogram
-- YouTube intro or outro sting → youtube-intro-outro
-- Isometric city / stack / 3D-flat → isometric-animation
-- Product hype / drop / sizzle / no-VO music film → launch-video
-- Pitch deck / slides rebuilt as motion → presentation-video
-- 9:16 retention short / hook / loop → short-form-video
-- How-it-works / onboarding / concept with VO spine → explainer-video
-Aspect is LOCKED: ${aspect}. Invent look from THIS brief (stickman does NOT force black).
-CRAFT FLOOR for every beat.visualIntent / keyMotion:
-${cinematicMotionFloor(aspect, craftKind)}
-Forbid timid inset micro-UI in empty void (brand-faithful materials OK).
+- Raw footage / 混剪 → footage-remix
+- Chat / iMessage script → text-message-animation
+- Hand-drawn / whiteboard → whiteboard-animation
+- Year-in-review / wrapped → wrapped-video
+- Sale / promo price → promo-video
+- UI walkthrough → product-demo-video
+- Photo slideshow → photo-slideshow
+- Paid social ad → ad-creative-video
+- Quote / stars → testimonial-video
+- Countdown → countdown-video
+- Infographic facts → animated-infographic
+- Map / route → map-animation
+- Logo sting / 标志揭示 → logo-animation (VO empty)
+- MG showreel / technique reel → launch-video + ≤2 of kinetic/diagram/color
+- Audiogram → audiogram
+- YouTube intro/outro → youtube-intro-outro
+- Isometric → isometric-animation
+- Product hype / no-VO sizzle → launch-video
+- Pitch deck motion → presentation-video
+- 9:16 retention short → short-form-video
+- How-it-works / concept with VO → explainer-video (+ diagram OR kinetic, not both unless needed)
+
+Aspect LOCKED: ${aspect}. Invent look from THIS brief.
+SOFT FRAME (optional, not law): full-bleed subject OK; avoid timid centered micro-UI; palette from topic.
 ${filmKind ? mgFilmLockPrompt(filmKind) : ''}
 ${lookBrief(
     briefSurfaceHint(lockAsk) === 'light'
@@ -428,10 +461,11 @@ ${lookBrief(
 ${planLanguageRules(contentLang)}
 VO MODE (LOCKED): ${voHint}
 ${voHint === 'off' ? '- Set EVERY beat.vo to "" and set durationSec (sum ≈ requested length). Music/SFX only.' : ''}
-${voHint === 'on' && !filmKind ? '- EVERY beat.vo MUST be a speakable line in contentLang (zh ≈ 12–40 chars; en ≈ 8–22 words). Later stages may expand coverage — do not slogan-compress a multi-point ask.' : ''}
+${voHint === 'on' && !filmKind ? '- EVERY beat.vo MUST be a speakable line in contentLang (zh ≈ 12–40 chars; en ≈ 8–22 words). Prefer skill pacing (explainer VO-first) over slogan compression.' : ''}
 ${voHint === 'auto' ? '- Prefer VO for explainer; prefer vo="" + durationSec for logo / launch / music films.' : ''}
-${filmKind === 'logo' ? 'Always 5 logo-motion beats (geo → accent → assemble → overshoot → settle).' : filmKind === 'showreel' ? 'Always 6 showreel chapters.' : 'Always 5–8 beats unless the brief is a dense lesson (then up to 10).'} Each beat names one skill it must SHOW.
-The machine brief above may be English — IGNORE that for VO/headline language; follow contentLang=${contentLang} only.
+${filmKind === 'logo' ? 'Always 5 logo-motion beats (geo → accent → assemble → overshoot → settle).' : filmKind === 'showreel' ? 'Always 6 showreel chapters.' : 'Always 5–8 beats (dense lesson ≤10).'} Each beat.skill must be primary or one of the ≤2 supports — SHOW that skill's technique, not craft-floor boilerplate.
+visualIntent: describe the graphic action from the skill (nodes→edges, word stagger, mark assemble…) — do NOT paste "72px / 6% safe / full-bleed" slogans.
+The machine brief may be English — IGNORE that for VO/headline language; follow contentLang=${contentLang} only.
 Seed ${seed}. JSON only.`, `Brief:
 ${prompt}
 
@@ -442,7 +476,7 @@ No template — route from the brief only.
 Return:
 {
   "primary":"explainer-video",
-  "support":["kinetic-typography","diagram-animation"],
+  "support":["diagram-animation"],
   "coreIdea":"",
   "canvas":"","ink":"","accent":"","muted":"","brandBg":"",
   "energy":"","surface":"dark",

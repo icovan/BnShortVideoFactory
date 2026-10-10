@@ -43,8 +43,7 @@ function densifyFallback(raw: string, aspect: Aspect): FactoryBrief {
       `Locked aspect ${aspect}. One idea, spoken then shown.`,
       `Audience contentLang=${contentLang}. Machine brief is English; VO/on-screen must follow contentLang.`,
       'If voiceover is implied, write VO in contentLang; if music-led / no VO, say so.',
-      craftFloorForOptimize(aspect),
-      'Name surface (dark/light), energy, 2–3 motion verbs (slam, count-up, stroke, parallax). Palette from THIS topic.',
+      'Name surface (dark/light), energy, 2–3 motion verbs from the topic (not generic slam slogans). Palette from THIS topic.',
       'Do not average three messages. Keep brand colors if the ask named them.',
     ].join(' '),
     t,
@@ -103,7 +102,7 @@ Rules:
 - Locked aspect is ${aspect}.
 - Name likely primary skill from: ${PRIMARY_SKILLS.filter((s) => s !== 'manim').join(', ')}.
 - contentLang is LOCKED to ${detected}. Echo it. Never flip language.
-- CRAFT FLOOR in machinePrompt (canvas/motion ONLY — not VO policy, not SKU arcs): ${craftFloorForOptimize(aspect)} Palette from THIS topic (forbid default Linear/PageOn purple).
+- Soft framing hint (optional): ${craftFloorForOptimize(aspect)} Prefer skill-native techniques over repeating px/safe-area slogans. Palette from THIS topic.
 ${asksForStickman(ask) ? `
 STICKMAN DETECTED in the ask — you MUST append this exact block at the end of machinePrompt (English ok inside the block):
 ---
@@ -113,7 +112,7 @@ In machinePrompt also name 2–4 stickman beats as clip:<id> phrases (explain-bo
 
 DUAL TRACK (critical):
 1) audiencePrompt — write in ${audLang}. Expand shots, type, depth, motion, contrast, length — STAY in that language. 80–220 words / 120–400 Chinese chars. No markdown headings.
-2) machinePrompt — MACHINE ENGLISH only for router + technique. Dense, concrete, 120–280 words. No Chinese body copy. Encode contentLang=${detected}. Explicitly state type scale, spring/depth, framing, draw techniques — do NOT rewrite VO on/off here (that is a separate lock).
+2) machinePrompt — MACHINE ENGLISH for router + skill technique. Dense, concrete, 120–280 words. No Chinese body copy. Encode contentLang=${detected}. Name the primary skill craft (diagram progressive reveal, kinetic stagger, VO-first explainer…) — do NOT pad with factory CRAFT FLOOR checklists. Do NOT rewrite VO on/off here.
 
 Do NOT invent "caption-driven (no VO)" unless the user said so.
 

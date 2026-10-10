@@ -14,6 +14,7 @@
           <em>{{ skillsOk ? t('setup.ready') : t('setup.skillsMissing') }}</em>
         </li>
         <li v-if="nodeHint" class="hint">{{ nodeHint }}</li>
+        <li v-if="ffmpegHint" class="hint">{{ ffmpegHint }}</li>
       </ul>
 
       <pre v-if="log" class="log">{{ log }}</pre>
@@ -57,6 +58,7 @@ const phase = ref<'idle' | 'deps' | 'skills'>('idle')
 const log = ref('')
 const error = ref('')
 const nodeHint = ref('')
+const ffmpegHint = ref('')
 
 const canContinue = computed(() => depsOk.value && skillsOk.value)
 
@@ -66,6 +68,7 @@ async function refresh() {
   depsOk.value = !!st.deps?.ok
   skillsOk.value = !!st.skills?.ready
   nodeHint.value = st.deps && !st.deps.hasNode ? t('setup.needNode') : ''
+  ffmpegHint.value = st.deps && st.deps.hasFfmpeg === false ? t('setup.needFfmpeg') : ''
 }
 
 async function installRuntime() {

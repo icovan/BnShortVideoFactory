@@ -9,13 +9,15 @@ import {
   isEffectRenderCancelledError,
   renderSubtitleFramesToPngSequence,
 } from '../effect-engine/subtitle-render-service'
+import { resolveFfmpegBinary } from '../engine/runtimeBins'
 
-const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 const isWindows = process.platform === 'win32'
 
-const ffmpegPath: string = VITE_DEV_SERVER_URL
-  ? require('ffmpeg-static')
-  : (require('ffmpeg-static') as string).replace('app.asar', 'app.asar.unpacked')
+function resolveFfmpegPath(): string {
+  const p = resolveFfmpegBinary()
+  if (!p) throw new Error('FFmpeg not found — run one-click runtime install')
+  return p
+}
 
 // async function test() {
 //   try {
@@ -294,7 +296,7 @@ export async function executeFFmpeg(
       env: process.env,
     }
 
-    const child = spawn(ffmpegPath, args, defaultOptions)
+    const child = spawn(resolveFfmpegPath(), args, defaultOptions)
     let settled = false
     const cleanupAbortListener = () => {
       options?.abortSignal?.removeEventListener('abort', onAbort)
@@ -398,12 +400,13 @@ export async function executeFFmpeg(
 }
 
 function validateExecutables() {
-  if (!fs.existsSync(ffmpegPath)) {
+  const ffmpegPath = resolveFfmpegPath()
+  if (ffmpegPath !== 'ffmpeg' && !fs.existsSync(ffmpegPath)) {
     throw new Error(`FFmpeg not found at: ${ffmpegPath}`)
   }
 
   try {
-    fs.accessSync(ffmpegPath, fs.constants.X_OK)
+    if (ffmpegPath !== 'ffmpeg') fs.accessSync(ffmpegPath, fs.constants.X_OK)
   } catch (error) {
     // Windows 上可能没有 X_OK 权限标志
     if (os.platform() !== 'win32') {

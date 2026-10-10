@@ -10,9 +10,10 @@ import {
   syncBeatsCopyFromScenes,
 } from './surgicalBeats.ts';
 import {
+  assertRevealFamilyRotation,
   cinematicFloorLine,
   cinematicMotionFloor,
-  isPortraitAspect,
+  revealFamilyHardRules,
   type CraftKind,
 } from './craftFloor.ts';
 import { logoCodegenHint, showreelCodegenHint } from './mgFilm.ts';
@@ -59,7 +60,18 @@ export function extractTsx(text: string): string {
   return (m ? m[1] : text).trim();
 }
 
-export function validateNarratedTsx(src: string): string[] {
+function parseSceneCountFromProps(propsJson: string): number {
+  try {
+    const j = JSON.parse(propsJson) as { scenes?: unknown[] };
+    if (Array.isArray(j.scenes) && j.scenes.length) return j.scenes.length;
+  } catch {
+    /* fall through */
+  }
+  const n = (propsJson.match(/"durationSec"\s*:/g) || []).length;
+  return n > 0 ? n : 4;
+}
+
+export function validateNarratedTsx(src: string, sceneCount?: number): string[] {
   const issues: string[] = [];
   if (!/export\s+(const|function)\s+ActiveNarrated/.test(src)) {
     issues.push('must export ActiveNarrated');
@@ -81,10 +93,11 @@ export function validateNarratedTsx(src: string): string[] {
   if (!/(rotate|scale)\s*[`(]/.test(src) && !/transform:.*(?:rotate|scale)/.test(src)) {
     issues.push('must use scale/rotate transforms for depth (tilted UI / slam)');
   }
+  issues.push(...assertRevealFamilyRotation(src, { sceneCount }));
   return issues;
 }
 
-export function validateLaunchTsx(src: string): string[] {
+export function validateLaunchTsx(src: string, sceneCount?: number): string[] {
   const issues: string[] = [];
   if (!/export\s+(const|function)\s+ActiveLaunch/.test(src)) {
     issues.push('must export ActiveLaunch');
@@ -108,6 +121,7 @@ export function validateLaunchTsx(src: string): string[] {
   if (!/(rotate|scale)\s*[`(]/.test(src) && !/transform:.*(?:rotate|scale)/.test(src)) {
     issues.push('must use scale/rotate transforms for depth (tilted UI / slam)');
   }
+  issues.push(...assertRevealFamilyRotation(src, { sceneCount }));
   return issues;
 }
 
@@ -203,6 +217,7 @@ export async function generateNarratedTsx(
     'diagram-animation',
     'presentation-video',
   ], 48000);
+  const sceneCount = parseSceneCountFromProps(opts.propsJson);
 
   const raw = await chatText(
     settings,
@@ -220,11 +235,13 @@ ${skill}
 5. REALIZE every scene.visualIntent + keyMotion with on-screen copy that matches the spoken line language (do not translate away from props).
 6. Technique cores REQUIRED in code:
    - diagram/research: progressive disclosure nodes → edges → labels (SVG path strokeDash / stagger springs)
-   - kinetic/problem|brand: word or line stagger (translateY + spring)
+   - kinetic/problem|brand: word or line stagger — rotate reveal families (mask/blur/clip/slam), not one spring recipe
    - stat/proof: numeric count-up driven by interpolate/spring
    - chat_edit/design: chat bubble + slide update
 7. Style lock from THIS job's props.canvas / ink / accent / brandBg — one grammar, prompt-owned skin.
 8. No fetch/timers/setState animation.
+
+${revealFamilyHardRules(sceneCount)}
 
 === MOTION LANGUAGE (quality floor, NOT official PageOn skin) ===
 ${opts.lookLine || 'Use props.canvas/ink/accent. Invent material from the brief.'}
@@ -290,6 +307,7 @@ export async function generateLaunchTsx(
     'shot-composition',
     'kinetic-typography',
   ], 42000);
+  const sceneCount = parseSceneCountFromProps(opts.propsJson);
 
   const raw = await chatText(
     settings,
@@ -305,8 +323,10 @@ ${skill}
 3. Root play music: <Audio src={staticFile(props.musicFile!)} /> PLUS per-scene <Audio src={staticFile(scene.narrationFile)} /> at Series.Sequence start.
 4. VO SYNC: key visual change lands in the first ~40% of each scene while that scene's VO speaks — do not leave long silent holds with static frames.
 5. Arc: hook → tease → reveal → feature×N → end. Reveal brand mark hits FULL at props.dropSec (scale overshoot then settle).
-6. Feature montage: one benefit + one keyword per shot, hard cuts, kinetic pop.
+6. Feature montage: one benefit + one keyword per shot, hard cuts, kinetic pop — rotate reveal families across features.
 7. End card logo+CTA hold ≥2s. FORBIDDEN: re-export LaunchShowreel; ignore dropSec; mute feature scenes.
+
+${revealFamilyHardRules(sceneCount)}
 
 === MOTION LANGUAGE (quality floor, NOT official Linear skin) ===
 ${opts.lookLine || 'Use props.canvas/ink/accent. Invent chrome from the brief.'}
@@ -359,7 +379,7 @@ ${opts.propsJson.slice(0, 4000)}`,
   return extractTsx(raw);
 }
 
-export function validateNextWordTsx(src: string): string[] {
+export function validateNextWordTsx(src: string, sceneCount?: number): string[] {
   const issues: string[] = [];
   if (!/export\s+(const|function)\s+ActiveNextWord/.test(src)) issues.push('must export ActiveNextWord');
   if (!/from\s+['"]remotion['"]/.test(src)) issues.push('must import from remotion');
@@ -378,6 +398,7 @@ export function validateNextWordTsx(src: string): string[] {
   if (!/durationSec/.test(src) || !/useCurrentFrame/.test(src)) {
     issues.push('pills must be driven off composition frame + scene durations (never remount inside Series)');
   }
+  issues.push(...assertRevealFamilyRotation(src, { sceneCount }));
   return issues;
 }
 
@@ -428,6 +449,7 @@ export async function generateNextWordTsx(
     'diagram-animation',
     'remotion-video',
   ], 42000);
+  const sceneCount = parseSceneCountFromProps(opts.propsJson);
 
   const raw = await chatText(
     settings,
@@ -448,6 +470,8 @@ ${skill}
 6. Kinetic stagger headlines. Odds: bars grow + count-up. Spin: unequal wheel + labels. Add: compact writing + wheel, winner accent. Loop: nodes then edges.
 7. FORBIDDEN: re-export NextWordLoop; remounting pills per scene; giant empty WRITING box; landscape layout.
 8. No fetch/timers/setState.
+
+${revealFamilyHardRules(sceneCount)}
 
 === LOOK + LAYOUT ===
 ${opts.lookLine || 'Use props.canvas/ink/accent. Invent from the brief — not a sandwich SKU.'}
@@ -597,13 +621,13 @@ export function validateDirectedTsx(
   skillIds?: string[],
   contentLang: 'zh' | 'en' | 'bilingual' = 'zh',
   aspect: Aspect = '16:9',
+  sceneCount?: number,
 ): string[] {
   const issues: string[] = [];
   const stickmanOn = skillIds?.includes('stickman-animation') === true;
   const craft = craftKindFromSkills(skillIds || []);
   const logoOn = craft === 'logo';
   const showreelOn = craft === 'showreel';
-  const portrait = isPortraitAspect(aspect);
   if (!/export\s+(const|function)\s+ActiveDirected/.test(src)) issues.push('must export ActiveDirected');
   if (!/from\s+['"]remotion['"]/.test(src)) issues.push('must import from remotion');
   if (!/DirectedProps/.test(src)) issues.push('must use DirectedProps');
@@ -624,29 +648,14 @@ export function validateDirectedTsx(
       issues.push('showreel: need ≥4 technique chapters on screen');
     }
   }
-  // Logo 片：标志动效，不强制动能大字。展片/默认仍走画面地板。
+  // CRAFT 地板改为 soft：不再因 72px / 层数 / 3D 硬失败（避免模型堆 token 过关）
   if (!logoOn) {
-    if (!portrait) {
-      if (!/fontSize:\s*(?:7[2-9]|[89]\d|1\d{2}|2\d{2})/.test(src)) {
-        issues.push('hero type must hit ≥72px somewhere (one slam, not every caption)');
-      }
-    } else if (!/fontSize:\s*(?:5[6-9]|[6-9]\d|1\d{2}|2\d{2})/.test(src)) {
-      issues.push('portrait hero type must hit ≥56px somewhere (8–12% width slam; not every line)');
-    }
-    if (!/(rotate|scale)\s*[`(]/.test(src) && !/transform:.*(?:rotate|scale)/.test(src)) {
-      issues.push('must use scale/rotate transforms for depth (tilted UI / slam)');
-    }
-    if (!portrait) {
-      if (!/(rotateX|rotateY|perspective|translateZ|parallax)/i.test(src)
-        && (src.match(/AbsoluteFill/g) || []).length < 4) {
-        issues.push('add depth: perspective/rotateX|Y or ≥4 layered AbsoluteFills');
-      }
-    }
     if (/<AbsoluteFill\s*\/>\s*<\/Series\.Sequence>/.test(src)
       || /Series\.Sequence[^>]*>\s*<AbsoluteFill\s*\/>\s*<\/Series\.Sequence>/.test(src)) {
       issues.push('empty AbsoluteFill placeholder sequences forbidden');
     }
   }
+  void aspect;
   if (stickmanOn) {
     if (!/from\s+['"]\.\.\/stickman['"]/.test(src)) {
       issues.push('stickman: must import from ../stickman');
@@ -667,6 +676,12 @@ export function validateDirectedTsx(
     }
     void contentLang;
   }
+  // 按镜轮换揭示族：全 skill 硬卡，禁止 spring+translateY 复读
+  issues.push(...assertRevealFamilyRotation(src, {
+    craftKind: craft,
+    sceneCount,
+    stickmanLed: stickmanOn,
+  }));
   // 语法错误优先：esbuild 会在 still 阶段炸，必须在 soft-accept 前拦住
   issues.push(...parseTsxSyntaxIssues(src, 'ActiveDirected.tsx'));
   return issues;
@@ -688,38 +703,40 @@ export async function generateDirectedTsx(
     aspect?: Aspect;
   },
 ): Promise<string> {
-  const skill = readSkill(opts.skillIds as Parameters<typeof readSkill>[0], 42000);
+  // 正文只灌选中技能（通常 primary+≤2 support+remotion），预算留给技法而非截断堆叠
+  const skill = readSkill(opts.skillIds as Parameters<typeof readSkill>[0], 36000);
   const stickmanOn = opts.skillIds.includes('stickman-animation');
   const contentLang = opts.contentLang || 'zh';
   const aspect = opts.aspect || parseAspectFromProps(opts.propsJson);
   const craftKind = craftKindFromSkills(opts.skillIds);
-  const floor = cinematicMotionFloor(aspect, craftKind);
+  const floorHint = cinematicMotionFloor(aspect, craftKind);
+  const sceneCount = parseSceneCountFromProps(opts.propsJson);
   const raw = await chatText(
     settings,
-    `You are a Remotion AUTHOR under a HARD skill pipeline (portfolio craft floor). Skills in the plan are LAW — implement their cores in THIS file.
+    `You are a Remotion AUTHOR. Implement the SELECTED skills deeply — story + technique from SKILL text below.
 Export: export const ActiveDirected: React.FC<DirectedProps> from '../directedSchema'
-Canvas size comes from props.aspect (16:9 1920×1080, 9:16 1080×1920, 1:1 1080×1080, 3:4 1080×1440). Safe areas required.
-Series over props.scenes; Audio via staticFile(scene.narrationFile) ONLY when narrationFile is set — omit Audio when missing (music/SFX-led). Optional props.musicFile + props.dropSec for launch-video.
-When props.autoSfx is on, play scene.sfxCues (preferred) as timed hits:
-  cues.map(cue => <Sequence from={Math.round(cue.atSec*fps)} layout="none"><Audio src={staticFile(cue.file)} volume={cue.volume} /></Sequence>)
-Fallback: single scene.sfxFile. Never invent audio filenames — only use files listed in props.
-If props.assets exist, render them with <Img src={staticFile(asset.file)} /> — logo on logo/end beats, product/shot in device or Ken Burns frames. Never invent image URLs.
-If props.musicFile exists, play it under VO at volume ~0.22.
-Invent UNIQUE layouts from THIS brief and props colors. Do not clone Linear / PageOn / sandwich SKUs.
-Brand-faithful colors/materials YES — timid inset micro-UI NO. Product UI may be rebuilt oversized/tilted/full-bleed as cinematic chrome.
-For each skill in the plan, SHOW its core on screen (not a comment): chat bubbles, strokeDash whiteboard, Ken Burns scale, isometric rotateX, countdown remaining, cursor/device, CTA, quote/stars, map marker, logo sting, audiogram bars, promo % off, wrapped recap stats, lowerThird, motionBg gradient, dropSec reveal.
-Use scene.headline / scene.vo / scene.line EXACTLY as given in props for on-screen text — do not translate or invent another language. Empty headline → do NOT invent a title card.
-Fill each Sequence duration with on-screen motion/graphics — no dead empty frames.
+Canvas from props.aspect. Series over props.scenes; Audio via staticFile(scene.narrationFile) only when set. Optional props.musicFile + props.dropSec.
+When props.autoSfx is on, play scene.sfxCues as timed hits (only files listed in props).
+If props.assets exist, use <Img src={staticFile(asset.file)} />. Never invent URLs.
+Use scene.headline / scene.vo / scene.line EXACTLY — do not translate. Empty headline → no invented title card.
+Fill each Sequence with real motion/graphics — no empty AbsoluteFill placeholders.
+Focus on the skills listed below (usually 1 primary + ≤2 supports). Do NOT sprinkle fake markers for unselected skills.
 ${stickmanOn ? stickmanDirectedHint(contentLang) : ''}
 ${craftKind === 'logo' ? logoCodegenHint() : ''}
 ${craftKind === 'showreel' ? showreelCodegenHint() : ''}
 ${opts.lookLine || ''}
-${craftKind === 'default' ? `\n=== CRAFT FLOOR (canvas / type / motion / draw — validated) ===\n${floor}\n` : `\n=== CRAFT FLOOR ===\n${floor}\n`}
-${stickmanOn ? '\nSTICKMAN MIX: Stickman is an actor layer. Other skills in the plan must still SHOW (diagram/kinetic/caption). Do not turn every beat into stick figures.\n' : ''}
-FORBIDDEN: re-export stock components; fetch/timers; empty AbsoluteFill placeholders; tiny centered cards in void; default purple/Linear/PageOn skins.
+${stickmanOn ? '\nSTICKMAN MIX: actor layer only; keep other selected skills visible on their beats.\n' : ''}
 
-=== SKILLS ===
+=== SELECTED SKILLS (LAW — implement their craft, not factory slogans) ===
 ${skill}
+
+${craftKind === 'logo' ? '' : revealFamilyHardRules(sceneCount)}
+
+=== SOFT HINT (optional quality, NOT a pass/fail checklist) ===
+${floorHint}
+Prefer skill pacing and progressive disclosure over repeating "72px / safe area / full-bleed" in every beat.
+FORBIDDEN: re-export stock SKUs; fetch/timers; empty placeholders; default Linear/PageOn purple skins unless brief asks.
+FORBIDDEN: spring()+translateY as the only reveal for every beat — rotate mask/blur/clip/slam.
 
 Skeleton:
 \`\`\`tsx
@@ -745,11 +762,14 @@ export async function fixDirectedTsx(
   settings: Settings,
   opts: { source: string; error: string; propsJson: string },
 ): Promise<string> {
+  const sceneCount = parseSceneCountFromProps(opts.propsJson);
   const raw = await chatText(
     settings,
     `Fix Remotion TSX for GeneratedDirected. Keep export const ActiveDirected. Frame-driven. Complete file only.
 Preserve the brief's staging / props / look (props.canvas, props.ink) — do NOT replace the film with a generic pose demo.
-If error mentions hero type / scale / rotate / timid: on 16:9 enlarge ONE slam to ≥72–140px with spring scale/rotate depth; on 9:16 keep captions smaller and respect top 8%/bottom 18% safe area — do NOT put 72px on every line or keep tiny centered cards. If logo/motion: animate the mark, do not add explainer titles.
+If error mentions hero type / scale / rotate / timid: on 16:9 enlarge ONE slam to ≥72–140px with spring scale/rotate depth; on 9:16 keep captions smaller and modest edge pad — do NOT put 72px on every line or keep tiny centered cards. If logo/motion: animate the mark, do not add explainer titles.
+If error mentions reveal families: ROTATE mask / blur / clip / slam across beats — add real clipPath, filter:blur, mask/RGB wipe, or scale-overshoot slam. Do NOT only retune spring+translateY.
+${revealFamilyHardRules(sceneCount)}
 If stickman / Series / pose errors:
 - import { Stickman, sampleClip, sampleClipForIntent, POSES, lerpPose, idleBob, walkPose, resolveStickInk, ensurePose } from '../stickman' — never redefine Stickman locally.
 - Prefer sampleClip(clipId, tLocal, { frame, fps }) / sampleClipForIntent(intent, tLocal, { frame, fps }); apply dx/dy/face onto Stickman.

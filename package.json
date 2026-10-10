@@ -1,7 +1,7 @@
 {
   "name": "bn-short-video-factory",
   "description": "BnShortVideoFactory — 本机创作台：创作面板 → 工作台 → 成片",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "author": {
     "name": "Biunow",
     "developer": "Biunow",
@@ -12,7 +12,7 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "cross-env VITE_CJS_IGNORE_WARNING=true vite",
-    "build": "node build/scripts/gen-icons.mjs && vue-tsc && cross-env VITE_CJS_IGNORE_WARNING=true vite build && electron-builder",
+    "build": "node build/scripts/clean-dist-electron.mjs && node build/scripts/gen-icons.mjs && vue-tsc && cross-env VITE_CJS_IGNORE_WARNING=true vite build && electron-builder",
     "build:oss": "cross-env BIUNOW_INCLUDE_SKILLS=0 pnpm build",
     "build:release": "cross-env BIUNOW_INCLUDE_SKILLS=1 pnpm build",
     "icons": "node build/scripts/gen-icons.mjs",
@@ -31,16 +31,13 @@
     "lipo-ffmpeg": "node build/scripts/lipo-ffmpeg.js"
   },
   "dependencies": {
-    "@lucide/vue": "^1.53.0",
     "archiver": "^7.0.1",
     "axios": "^1.11.0",
     "better-sqlite3": "9.6.0",
     "electron-log": "^5.4.3",
-    "ffmpeg-static": "^5.2.0",
     "i18next": "^25.4.0",
     "i18next-fs-backend": "^2.3.2",
     "music-metadata": "^11.7.3",
-    "pixi.js": "8.17.1",
     "subtitle": "4.2.2-alpha.0",
     "systeminformation": "^5.27.7",
     "ws": "^8.18.3"
@@ -49,6 +46,7 @@
     "@ai-sdk/anthropic": "4.0.58",
     "@ai-sdk/openai": "^4.0.71",
     "@ai-sdk/openai-compatible": "3.0.53",
+    "@lucide/vue": "^1.53.0",
     "@mdi/font": "^7.4.47",
     "@types/archiver": "^6.0.3",
     "@types/better-sqlite3": "^7.6.13",
@@ -63,6 +61,7 @@
     "cross-env": "^7.0.3",
     "electron": "^22.3.27",
     "electron-builder": "^24.13.3",
+    "ffmpeg-static": "^5.2.0",
     "i18next-http-backend": "^3.0.2",
     "i18next-vue": "^5.3.0",
     "jsdom": "29.1.0",
@@ -70,6 +69,7 @@
     "mitt": "^3.0.1",
     "pinia": "^3.0.3",
     "pinia-plugin-persistedstate": "^4.4.1",
+    "pixi.js": "8.17.1",
     "png-to-ico": "^3.0.2",
     "prettier": "^3.6.2",
     "random": "^5.4.1",

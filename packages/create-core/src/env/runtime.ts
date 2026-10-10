@@ -94,9 +94,9 @@ const TOOL_META: Record<string, Omit<EnvTool, 'state' | 'version' | 'detail'>> =
   python: {
     id: 'python',
     name: 'Python',
-    desc: 'edge-tts 配音与 Manim 运行时',
-    group: 'core',
-    installHint: '安装 Python 3.10+ 并加入 PATH；pip install edge-tts',
+    desc: '仅 Manim 可选引擎需要（配音已用本仓 TS EdgeTTS，不依赖 Python）',
+    group: 'optional',
+    installHint: '安装 Python 3.10+ 并加入 PATH（仅在使用 Manim 时需要）',
   },
   manim: {
     id: 'manim',
@@ -187,8 +187,9 @@ function checkNode(): Pick<EnvTool, 'state' | 'version' | 'detail'> {
 }
 
 function checkFfmpeg(): Pick<EnvTool, 'state' | 'version' | 'detail'> {
-  const bin = which('ffmpeg');
-  if (!bin) return { state: 'missing', version: null, detail: 'PATH 中无 ffmpeg' };
+  const envBin = (process.env.BIUNOW_FFMPEG || '').trim();
+  const bin = (envBin && existsSync(envBin) ? envBin : null) || which('ffmpeg');
+  if (!bin) return { state: 'missing', version: null, detail: 'PATH 中无 ffmpeg（可走应用内一键安装）' };
   const { code, out } = runCapture(bin, ['-version']);
   if (code !== 0) return { state: 'fail', version: null, detail: out.slice(0, 160) || 'ffmpeg 无法运行' };
   const m = out.match(/ffmpeg version\s+([^\s]+)/i);
@@ -224,16 +225,14 @@ function checkPython(): Pick<EnvTool, 'state' | 'version' | 'detail'> {
     if ((bin.includes('/') || bin.includes('\\')) && !existsSync(bin)) continue;
     const { code, out } = runCapture(bin, ['-c', 'import sys; print(sys.version.split()[0])']);
     if (code === 0 && out) {
-      const edge = runCapture(bin, ['-c', 'import edge_tts; print("edge-tts-ok")']);
-      const detail = edge.code === 0 ? `${bin} · edge-tts ok` : `${bin} · 缺 edge-tts（pip install edge-tts）`;
       return {
-        state: edge.code === 0 ? 'ok' : 'fail',
+        state: 'ok',
         version: out.split(/\r?\n/).find(Boolean) || null,
-        detail,
+        detail: `${bin} · 可选（Manim）`,
       };
     }
   }
-  return { state: 'missing', version: null, detail: '未找到 Python' };
+  return { state: 'missing', version: null, detail: '未找到 Python（仅 Manim 需要）' };
 }
 
 function checkManim(): Pick<EnvTool, 'state' | 'version' | 'detail'> {

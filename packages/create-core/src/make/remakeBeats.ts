@@ -392,7 +392,20 @@ Selected beat intents: ${indexes.map((i) => props.scenes[i]?.visualIntent || '')
           ? `只补丁 ${indexes.length} 镜 BEATS`
           : `只重画 ${indexes.length} 镜`,
     );
-    const skillIds = props.skills.filter(isSkillName);
+    const allSkillIds = props.skills.filter(isSkillName);
+    // 再创作：硬门禁只盯 primary/support 角色，避开 chassis 堆叠
+    const hardIds = allSkillIds.filter((id) => {
+      if (id === 'remotion-video' || id === 'shot-composition' || id === 'animation-principles') return false;
+      if (id === 'short-form-video' && allSkillIds.some((s) => s !== 'short-form-video' && s !== 'remotion-video')) {
+        return false;
+      }
+      return true;
+    }).slice(0, 3);
+    const skillIds: typeof allSkillIds = hardIds.length
+      ? (hardIds.includes('remotion-video' as typeof hardIds[number])
+        ? hardIds
+        : [...hardIds, 'remotion-video']).filter(isSkillName)
+      : allSkillIds;
     let tsx = await remakeSelectedDirectedTsx(settings, {
       source: priorTsx,
       propsJson: propsStr,
@@ -405,8 +418,9 @@ Selected beat intents: ${indexes.map((i) => props.scenes[i]?.visualIntent || '')
       mode,
       scenes: props.scenes,
     });
-    let codeIssues = validateDirectedTsx(tsx, skillIds, contentLang);
-    let skillGate = assertSkillsInTsx(skillIds, tsx);
+    const sceneCount = Math.max(props.scenes?.length || 0, 1);
+    let codeIssues = validateDirectedTsx(tsx, skillIds, contentLang, undefined, sceneCount);
+    let skillGate = assertSkillsInTsx(skillIds, tsx, { hardIds });
     if (codeIssues.length || !skillGate.ok) {
       // BEATS 补丁路径禁止再走「整文件 fix」（否则又会整片重写）
       if (beatsTable || mode === 'copy') {
@@ -427,8 +441,8 @@ Selected beat intents: ${indexes.map((i) => props.scenes[i]?.visualIntent || '')
           ].join('; '),
           propsJson: propsStr,
         });
-        codeIssues = validateDirectedTsx(tsx, skillIds, contentLang);
-        skillGate = assertSkillsInTsx(skillIds, tsx);
+        codeIssues = validateDirectedTsx(tsx, skillIds, contentLang, undefined, sceneCount);
+        skillGate = assertSkillsInTsx(skillIds, tsx, { hardIds });
       }
     }
     // Soft-accept stickman contract（语法错误不可软放行）

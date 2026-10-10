@@ -15,6 +15,7 @@ import { initLogger, writeMainLog } from './logger'
 import { checkForUpdates, initUpdateChecker } from './updater'
 import { getMainWindowSize } from './lib/window-size'
 import { startEngineRuntime, stopEngineRuntime } from './engine/runtime'
+import { applyRuntimeBinEnv } from './engine/runtimeBins'
 
 // 用于引入 CommonJS 模块的方法
 // import { createRequire } from 'node:module'
@@ -237,6 +238,8 @@ app.on('activate', () => {
 // app.disableHardwareAcceleration();
 
 app.whenReady().then(() => {
+  // 已下载的便携 Node/FFmpeg 注入 PATH，供探测与子进程使用
+  Object.assign(process.env, applyRuntimeBinEnv(process.env))
   initLogger()
   setupMainConsoleLogging()
   initSqlite()

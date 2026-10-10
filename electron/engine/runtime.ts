@@ -8,6 +8,7 @@ import http from 'node:http'
 import path from 'node:path'
 import { app } from 'electron'
 import { findTsxCli, probeEngineDeps, type EngineDepsStatus } from './deps'
+import { applyRuntimeBinEnv, resolveNodeBinary } from './runtimeBins'
 import { probeSkillsPack, resolveActiveSkillsDir, type SkillsPackStatus } from '../skills-pack'
 import { resolveCommerceUrl } from '../commerce-url'
 
@@ -145,9 +146,7 @@ async function startOnce(): Promise<EngineRuntimeState> {
   if (!deps.ok) {
     state.ready = false
     state.needsInstall = true
-    state.error = deps.missing.includes('node')
-      ? '未检测到 Node.js，请先安装 Node 22+ 后再一键安装运行环境'
-      : '运行环境未安装，请点击「一键安装」'
+    state.error = '运行环境未安装，请点击「一键安装」（将自动准备 Node、FFmpeg 与引擎依赖）'
     return getEngineState()
   }
 
@@ -160,33 +159,35 @@ async function startOnce(): Promise<EngineRuntimeState> {
   }
 
   const skillsResolved = resolveActiveSkillsDir(root)
-  const nodeBin = process.env.BIUNOW_NODE || 'node'
+  const nodeBin = resolveNodeBinary() || process.env.BIUNOW_NODE || 'node'
   const commerceUrl = resolveCommerceUrl()
+  const childEnv = applyRuntimeBinEnv({
+    ...process.env,
+    PORT: String(port),
+    HOST: '127.0.0.1',
+    FACTORY_RUNTIME: 'pc',
+    FACTORY_ROLE: 'monolith',
+    FACTORY_LOCAL_OPEN: '1',
+    FACTORY_ORCHESTRATOR_URL: '',
+    BIUNOW_SKILLS_DIR: skillsResolved.dir,
+    ...(commerceUrl
+      ? {
+        BN_COMMERCE_URL: commerceUrl,
+        BIUNOW_COMMERCE_URL: commerceUrl,
+        FACTORY_COMMERCE_URL: commerceUrl,
+      }
+      : {}),
+  })
   console.info('[create-core] spawning', {
     root,
     entry,
+    node: nodeBin,
     skills: skillsResolved.dir,
     commerce: commerceUrl || '(unset)',
   })
   const proc = spawn(nodeBin, [tsx, entry], {
     cwd: root,
-    env: {
-      ...process.env,
-      PORT: String(port),
-      HOST: '127.0.0.1',
-      FACTORY_RUNTIME: 'pc',
-      FACTORY_ROLE: 'monolith',
-      FACTORY_LOCAL_OPEN: '1',
-      FACTORY_ORCHESTRATOR_URL: '',
-      BIUNOW_SKILLS_DIR: skillsResolved.dir,
-      ...(commerceUrl
-        ? {
-          BN_COMMERCE_URL: commerceUrl,
-          BIUNOW_COMMERCE_URL: commerceUrl,
-          FACTORY_COMMERCE_URL: commerceUrl,
-        }
-        : {}),
-    },
+    env: childEnv,
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
