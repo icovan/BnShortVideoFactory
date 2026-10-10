@@ -35,7 +35,7 @@
         <button type="button" class="btn ghost" @click="dialogVisible = false">
           {{ t('update.updateLater') }}
         </button>
-        <button type="button" class="btn primary" @click="openWebsite">
+        <button type="button" class="btn primary" :disabled="opening" @click="openWebsite">
           {{ t('update.visitWebsite') }}
         </button>
       </footer>
@@ -44,13 +44,20 @@
 </template>
 
 <script lang="ts" setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import MarkdownIt from 'markdown-it'
 import { useTranslation } from 'i18next-vue'
 import { ArrowUpCircle, X } from '@lucide/vue'
 import AppIcon from '@/components/AppIcon.vue'
 import type { UpdateInfo } from '~/electron/updater'
 import { useAppStore } from '@/store'
+import { engineApi } from '@/lib/engine-api'
+
+/** 后台未配置时：中文 Gitee / 英文 GitHub */
+const FALLBACK_DOWNLOAD_ZH =
+  'https://gitee.com/zaokework/bn-short-video-factory/releases/latest'
+const FALLBACK_DOWNLOAD_EN =
+  'https://github.com/icovan/BnShortVideoFactory/releases/latest'
 
 const props = defineProps<{
   modelValue: boolean
@@ -65,10 +72,16 @@ const { t } = useTranslation()
 const appStore = useAppStore()
 const currentVersion = __APP_VERSION__
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
+const opening = ref(false)
 
 const dialogVisible = computed({
   get: () => props.modelValue,
   set: (value: boolean) => emit('update:modelValue', value),
+})
+
+const isZh = computed(() => {
+  const locale = (appStore.locale || '').toLowerCase()
+  return locale === 'zh' || locale.startsWith('zh-') || locale.startsWith('zh_')
 })
 
 const releaseNotes = computed(() => {
@@ -84,8 +97,28 @@ const formatDate = (dateString: string) => {
   return Number.isNaN(date.getTime()) ? dateString : date.toLocaleDateString()
 }
 
-const openWebsite = () => {
-  window.electron.openExternal({ url: 'https://www.biunow.cn/' })
+async function resolveDownloadUrl(): Promise<string> {
+  const lang = isZh.value ? 'zh-CN' : 'en'
+  const fallback = isZh.value ? FALLBACK_DOWNLOAD_ZH : FALLBACK_DOWNLOAD_EN
+  try {
+    const site = await engineApi.sitePublic(lang)
+    const fromAdmin = String(site?.downloadUrl || '').trim()
+    if (fromAdmin) return fromAdmin
+  } catch {
+    /* 引擎未就绪 / 后台不可达 → 固定仓库 Release */
+  }
+  return fallback
+}
+
+const openWebsite = async () => {
+  if (opening.value) return
+  opening.value = true
+  try {
+    const url = await resolveDownloadUrl()
+    window.electron.openExternal({ url })
+  } finally {
+    opening.value = false
+  }
 }
 </script>
 
