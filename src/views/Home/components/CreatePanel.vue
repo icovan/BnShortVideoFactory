@@ -4,15 +4,126 @@
       <div class="hero-top">
         <h1>{{ t('studio.create.title') }}</h1>
         <p class="engine-line" :class="{ on: studio.engineReady, bad: !!studio.engineError }">
-          {{
+          <span>{{
             studio.engineReady
               ? t('studio.create.engineReady')
               : studio.engineError || t('studio.create.engineStarting')
-          }}
+          }}</span>
+          <template v-if="studio.engineReady && licenseBadge">
+            <span class="eng-sep">|</span>
+            <button type="button" class="lic-chip" :class="licenseBadge.badge" @click="licenseOpen = true">
+              {{ licenseBadge.text }}
+            </button>
+          </template>
         </p>
       </div>
       <p>{{ t('studio.create.subtitle') }}</p>
     </header>
+
+    <ActivationDialog
+      v-model="licenseOpen"
+      :entitlement="license"
+      @activated="onLicenseActivated"
+    />
+
+    <div v-if="showTemplateShelf && remoteTemplates.length" class="workflows">
+      <div class="wf-head">
+        <strong>{{ t('studio.create.templates') }}</strong>
+        <span>{{ t('studio.create.templatesHint') }}</span>
+        <div class="wf-tools">
+          <div class="wf-cat aspect-wrap">
+            <button type="button" class="pill aspect wf-cat-trigger" @click="templateCatOpen = !templateCatOpen">
+              {{ templateCategoryLabel }}
+              <AppIcon :icon="ChevronDown" :size="14" :stroke-width="2" />
+            </button>
+            <div v-if="templateCatOpen" class="aspect-menu wf-cat-menu">
+              <button
+                type="button"
+                :class="{ on: templateCategory === 'all' }"
+                @click="templateCategory = 'all'; templateCatOpen = false"
+              >
+                {{ t('studio.create.templateCategoryAll') }}
+              </button>
+              <button
+                v-for="c in templateCategories"
+                :key="c.id"
+                type="button"
+                :class="{ on: templateCategory === c.id }"
+                @click="templateCategory = c.id; templateCatOpen = false"
+              >
+                {{ c.label }}
+              </button>
+            </div>
+          </div>
+          <div class="wf-pager">
+            <button type="button" class="wf-page-btn" :disabled="!canPagePrev" :aria-label="t('studio.create.templatePrev')" @click="pageTemplates(-1)">
+              <AppIcon :icon="ChevronLeft" :size="14" :stroke-width="2" />
+            </button>
+            <span class="wf-page-hint">↔</span>
+            <button type="button" class="wf-page-btn" :disabled="!canPageNext" :aria-label="t('studio.create.templateNext')" @click="pageTemplates(1)">
+              <AppIcon :icon="ChevronRight" :size="14" :stroke-width="2" />
+            </button>
+          </div>
+        </div>
+      </div>
+      <div ref="tplTrackRef" class="wf-track" @scroll="onTplScroll">
+        <button
+          v-for="tpl in filteredTemplates"
+          :key="tpl.id"
+          type="button"
+          class="wf-card"
+          :class="{ on: activeTemplateId === tpl.id }"
+          :data-aspect="tpl.aspect || '16:9'"
+          :data-cover="tpl.cover"
+          @click="applyTemplate(tpl)"
+        >
+          <em class="wf-aspect">{{ tpl.aspect || '16:9' }}</em>
+          <strong>{{ tpl.title }}</strong>
+          <span>{{ tpl.subtitle }}</span>
+          <i>{{ tpl.stylePack }} · {{ tpl.engine || 'remotion' }}</i>
+          <div class="wf-actions">
+            <button
+              v-if="tpl.previewVideo"
+              type="button"
+              class="wf-play"
+              :aria-label="t('studio.create.templatePlay')"
+              @click.stop="openTemplatePreview(tpl)"
+            >
+              <AppIcon :icon="Play" :size="12" :stroke-width="2.2" />
+            </button>
+            <button
+              v-if="activeTemplateId === tpl.id"
+              type="button"
+              class="wf-clear"
+              :aria-label="t('studio.create.plus.back')"
+              @click.stop="clearTemplate"
+            >
+              <AppIcon :icon="X" :size="12" :stroke-width="2" />
+            </button>
+          </div>
+        </button>
+      </div>
+    </div>
+
+    <div v-if="previewTpl" class="wf-preview-mask" @click="closeTemplatePreview">
+      <div class="wf-preview-dialog" @click.stop>
+        <header>
+          <strong>{{ previewTpl.title }}</strong>
+          <button type="button" class="wf-preview-close" @click="closeTemplatePreview">
+            <AppIcon :icon="X" :size="16" :stroke-width="2" />
+          </button>
+        </header>
+        <video
+          v-if="previewTpl.previewVideo"
+          class="wf-preview-video"
+          :src="previewTpl.previewVideo"
+          controls
+          autoplay
+          playsinline
+        />
+        <p v-else class="wf-preview-empty">{{ t('studio.create.templateNoVideo') }}</p>
+      </div>
+    </div>
 
     <div class="composer">
       <div class="mode-tabs">
@@ -366,7 +477,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTranslation } from 'i18next-vue'
 import {
@@ -375,6 +486,7 @@ import {
   Check,
   ChevronDown,
   ChevronLeft,
+  ChevronRight,
   FileText,
   FolderOpen,
   Image as ImageIcon,
@@ -388,9 +500,13 @@ import {
   X,
 } from '@lucide/vue'
 import AppIcon from '@/components/AppIcon.vue'
+import ActivationDialog from '@/components/ActivationDialog.vue'
 import {
   engineApi,
   engineAssetUrl,
+  type EntitlementSnapshot,
+  type PublicTemplate,
+  type PublicTemplateCategory,
   type StyleLook,
   type StyleRefItem,
   type UserAsset,
@@ -448,6 +564,73 @@ const TOPIC_IDS: Record<Exclude<FormMode, 'prompt'>, string[]> = {
 const prompt = ref('')
 const formMode = ref<FormMode>('prompt')
 const topicSheetOpen = ref(false)
+const license = ref<EntitlementSnapshot | null>(null)
+const licenseOpen = ref(false)
+const showTemplateShelf = ref(false)
+const remoteTemplates = ref<PublicTemplate[]>([])
+const templateCategories = ref<PublicTemplateCategory[]>([])
+const templateCategory = ref('all')
+const templateCatOpen = ref(false)
+const activeTemplateId = ref<string | null>(null)
+const boundStylePack = ref<string | null>(null)
+const boundSeedPrompt = ref('')
+const boundEngine = ref<string | undefined>(undefined)
+const previewTpl = ref<PublicTemplate | null>(null)
+const tplTrackRef = ref<HTMLElement | null>(null)
+const canPagePrev = ref(false)
+const canPageNext = ref(false)
+
+const filteredTemplates = computed(() => {
+  const rows = remoteTemplates.value
+  if (templateCategory.value === 'all') return rows
+  return rows.filter((t) => t.category === templateCategory.value)
+})
+
+const templateCategoryLabel = computed(() => {
+  if (templateCategory.value === 'all') return t('studio.create.templateCategoryAll')
+  return templateCategories.value.find((c) => c.id === templateCategory.value)?.label
+    || templateCategory.value
+})
+
+watch(filteredTemplates, async () => {
+  await nextTick()
+  onTplScroll()
+})
+watch(templateCategory, async () => {
+  await nextTick()
+  const el = tplTrackRef.value
+  if (el) el.scrollLeft = 0
+  onTplScroll()
+})
+
+const licenseBadge = computed(() => {
+  const e = license.value
+  if (!e) return null
+  if (e.activated && e.status === 'active') {
+    if (e.daysLeft == null) return { badge: 'pro', text: t('studio.license.badgeProLife') }
+    return { badge: 'pro', text: t('studio.license.badgeProDays', { n: e.daysLeft }) }
+  }
+  if (e.status === 'trial' && e.daysLeft != null) {
+    return { badge: 'trial', text: t('studio.license.badgeTrialDays', { n: e.daysLeft }) }
+  }
+  if (e.status === 'expired') {
+    return { badge: 'expired', text: t('studio.license.badgeExpired') }
+  }
+  return { badge: 'locked', text: t('studio.license.badgeLocked') }
+})
+
+async function refreshLicense() {
+  try {
+    license.value = await engineApi.licenseStatus()
+  } catch {
+    /* 引擎未就绪时忽略 */
+  }
+}
+
+function onLicenseActivated(ent: EntitlementSnapshot) {
+  license.value = ent
+  if (ent.activated) licenseOpen.value = false
+}
 const aspect = ref<Aspect>('16:9')
 const quality = ref<'1080p' | '720p'>('1080p')
 const mediaKind = ref<'animation' | 'ai-video'>('animation')
@@ -709,14 +892,15 @@ function removeAttach(id: string) {
   attachments.value = attachments.value.filter((a) => a.id !== id)
 }
 
-function applyMode(id: FormMode) {
+function applyMode(id: FormMode, opts?: { keepTemplate?: boolean }) {
   // 自由创作：无话题手册；其他形态：点开/再点关
   if (id === 'prompt') {
     if (formMode.value !== 'prompt') resetComposerForMode()
     formMode.value = 'prompt'
     topicSheetOpen.value = false
-  } else if (formMode.value === id && topicSheetOpen.value) {
+  } else if (formMode.value === id && topicSheetOpen.value && !opts?.keepTemplate) {
     topicSheetOpen.value = false
+    if (!opts?.keepTemplate && activeTemplateId.value) clearTemplate()
     return
   } else {
     if (formMode.value !== id) resetComposerForMode()
@@ -748,6 +932,114 @@ function applyMode(id: FormMode) {
     voMode.value = 'auto'
     scriptDrive.value = 'auto'
   }
+  // 手动切 Tab 时解除模板绑定（避免管线串味）
+  if (!opts?.keepTemplate && activeTemplateId.value) clearTemplate()
+}
+
+function isBoundToTemplate(text: string, seed: string) {
+  const t = text.trim()
+  const base = seed.trim()
+  if (!t || !base) return false
+  return t === base || t.startsWith(base) || t.includes(base)
+}
+
+/** 模板只绑自由创作（混剪除外，需素材文件夹 UI） */
+function applyTemplate(tpl: PublicTemplate) {
+  const pack = tpl.stylePack || 'skill-directed'
+  const mode: FormMode = pack === 'footage-remix' ? 'remix' : 'prompt'
+  applyMode(mode, { keepTemplate: true })
+  activeTemplateId.value = tpl.id
+  boundStylePack.value = pack
+  boundSeedPrompt.value = (tpl.prompt || '').trim()
+  boundEngine.value = tpl.engine
+  if (tpl.aspect === '16:9' || tpl.aspect === '9:16' || tpl.aspect === '1:1' || tpl.aspect === '3:4') {
+    aspect.value = tpl.aspect
+  }
+  if (boundSeedPrompt.value) prompt.value = boundSeedPrompt.value
+  topicSheetOpen.value = mode === 'remix'
+}
+
+function clearTemplate() {
+  activeTemplateId.value = null
+  boundStylePack.value = null
+  boundSeedPrompt.value = ''
+  boundEngine.value = undefined
+}
+
+function openTemplatePreview(tpl: PublicTemplate) {
+  if (!tpl.previewVideo) return
+  previewTpl.value = tpl
+}
+
+function closeTemplatePreview() {
+  previewTpl.value = null
+}
+
+function onTplScroll() {
+  const el = tplTrackRef.value
+  if (!el) {
+    canPagePrev.value = false
+    canPageNext.value = false
+    return
+  }
+  canPagePrev.value = el.scrollLeft > 4
+  canPageNext.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 4
+}
+
+function pageTemplates(dir: -1 | 1) {
+  const el = tplTrackRef.value
+  if (!el) return
+  const step = Math.max(220, Math.floor(el.clientWidth * 0.85))
+  el.scrollBy({ left: dir * step, behavior: 'smooth' })
+}
+
+const CAT_FALLBACK_LABEL: Record<string, string> = {
+  narrate: '口播解说',
+  promo: '宣传与发布',
+  tutorial: '教程干货',
+  commerce: '种草带货',
+  story: '剧情故事',
+  other: '其他',
+}
+
+async function refreshTemplates() {
+  try {
+    const shelf = await engineApi.listTemplates()
+    // 仅当后台明确打开时展示；默认关
+    showTemplateShelf.value = shelf?.showTemplateShelf === true
+    const cases = (shelf?.cases || [])
+      .filter((t) => t && t.published !== false && t.prompt)
+      .sort((a, b) => a.title.localeCompare(b.title, 'zh'))
+    remoteTemplates.value = cases
+
+    let cats = (shelf?.categories || [])
+      .filter((c) => c && c.id && c.id !== 'all')
+      .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
+    // 后台未下发分类时，从模板 category 推导，保证下拉可用
+    if (!cats.length && cases.length) {
+      const seen = new Set<string>()
+      cats = []
+      for (const t of cases) {
+        const id = String(t.category || 'other')
+        if (seen.has(id)) continue
+        seen.add(id)
+        cats.push({ id, label: CAT_FALLBACK_LABEL[id] || id, sort: cats.length })
+      }
+    }
+    // 只展示当前货架里实际有模板的分类
+    const used = new Set(cases.map((t) => t.category || 'other'))
+    cats = cats.filter((c) => used.has(c.id))
+    templateCategories.value = cats
+    if (templateCategory.value !== 'all' && !cats.some((c) => c.id === templateCategory.value)) {
+      templateCategory.value = 'all'
+    }
+    await nextTick()
+    onTplScroll()
+  } catch {
+    showTemplateShelf.value = false
+    remoteTemplates.value = []
+    templateCategories.value = []
+  }
 }
 
 function fillTopic(topicId: string) {
@@ -772,6 +1064,9 @@ function fillTopic(topicId: string) {
 function onPromptInput(next: string) {
   prompt.value = next
   briefHint.value = ''
+  if (activeTemplateId.value && boundSeedPrompt.value) {
+    if (!isBoundToTemplate(next, boundSeedPrompt.value)) clearTemplate()
+  }
 }
 
 function onPromptEv(ev: Event) {
@@ -1112,12 +1407,25 @@ async function submit() {
       }))
 
     const contentLang = detectContentLang(raw)
+    const stillBound = !!(
+      activeTemplateId.value
+      && boundSeedPrompt.value
+      && isBoundToTemplate(raw, boundSeedPrompt.value)
+    )
+    const stylePack = formMode.value === 'remix'
+      ? 'footage-remix'
+      : stillBound
+        ? (boundStylePack.value || 'skill-directed')
+        : 'skill-directed'
     const task = await studio.createAndMake({
       prompt: packPrompt(raw),
       formMode: formMode.value,
       aspect: aspect.value,
       quality: quality.value,
       mediaKind: mediaKind.value,
+      templateId: stillBound ? activeTemplateId.value || undefined : undefined,
+      stylePack,
+      engine: stillBound ? boundEngine.value : undefined,
       autoSfx: formMode.value === 'remix' ? false : autoSfx.value,
       voMode: sendVo,
       scriptDrive: sendDrive,
@@ -1141,18 +1449,36 @@ async function submit() {
       await router.push({ name: 'workbench', params: { id: task.id } })
     }
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    const msg = e?.message || String(e)
+    error.value = msg
+    await refreshLicense()
+    if (
+      !license.value?.canMake
+      || /激活|体验已结束|请先激活|402/i.test(msg)
+    ) {
+      licenseOpen.value = true
+    }
   } finally {
     busy.value = false
   }
 }
 
 function onDocClick(ev: MouseEvent) {
-  if (!plusOpen.value) return
-  const el = plusWrap.value
-  if (el && !el.contains(ev.target as Node)) {
-    plusOpen.value = false
-    plusView.value = 'main'
+  const target = ev.target as Node
+  if (plusOpen.value) {
+    const el = plusWrap.value
+    if (el && !el.contains(target)) {
+      plusOpen.value = false
+      plusView.value = 'main'
+    }
+  }
+  if (templateCatOpen.value) {
+    const host = (ev.target as HTMLElement | null)?.closest?.('.wf-cat')
+    if (!host) templateCatOpen.value = false
+  }
+  if (aspectOpen.value) {
+    const host = (ev.target as HTMLElement | null)?.closest?.('.aspect-wrap')
+    if (!host) aspectOpen.value = false
   }
 }
 
@@ -1174,11 +1500,27 @@ watch(
 )
 
 onMounted(() => {
-  void studio.ensureEngine().catch(() => {})
+  void studio
+    .ensureEngine()
+    .then(() => {
+      void refreshLicense()
+      void refreshTemplates()
+    })
+    .catch(() => {})
   if (footageFolder.value) void refreshFootageCount()
   document.addEventListener('click', onDocClick)
 })
 onUnmounted(() => document.removeEventListener('click', onDocClick))
+
+watch(
+  () => studio.engineReady,
+  (ok) => {
+    if (ok) {
+      void refreshLicense()
+      void refreshTemplates()
+    }
+  },
+)
 </script>
 
 <style lang="scss" scoped>
@@ -1222,6 +1564,9 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
     background: var(--paper-2);
     color: var(--muted);
     white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     &.on {
       background: var(--accent-soft);
       color: var(--ink);
@@ -1230,8 +1575,26 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
       background: #fdecea;
       color: var(--danger);
       white-space: normal;
-      max-width: 180px;
+      max-width: 220px;
       text-align: right;
+    }
+    .eng-sep {
+      opacity: 0.45;
+    }
+    .lic-chip {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      margin: 0;
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      &.locked,
+      &.expired {
+        color: var(--danger);
+      }
     }
   }
 }
@@ -1245,7 +1608,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
 
 .wf-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   flex-wrap: wrap;
   strong {
@@ -1253,29 +1616,90 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
     font-weight: 650;
     color: var(--ink);
   }
-  span {
+  > span {
     font-size: 12px;
     color: var(--muted);
   }
 }
 
-.wf-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.wf-tools {
+  display: flex;
+  align-items: center;
   gap: 10px;
-  @media (max-width: 1100px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-left: auto;
+}
+
+.wf-cat {
+  position: relative;
+}
+
+.wf-cat-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 96px;
+}
+
+.wf-cat-menu {
+  left: auto;
+  right: 0;
+  bottom: auto;
+  top: calc(100% + 6px);
+  min-width: 140px;
+  z-index: 12;
+}
+
+.wf-pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wf-page-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  &:disabled {
+    opacity: 0.35;
+    cursor: default;
   }
+}
+
+.wf-page-hint {
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 1.2em;
+  text-align: center;
+}
+
+.wf-track {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  padding-bottom: 4px;
+  min-width: 0;
+  scrollbar-width: thin;
 }
 
 .wf-card {
   position: relative;
+  flex: 0 0 220px;
+  scroll-snap-align: start;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
   min-height: 118px;
-  padding: 14px 14px 12px;
+  padding: 28px 14px 40px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background:
@@ -1331,10 +1755,33 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
   }
 }
 
+.wf-actions {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.wf-play,
+.wf-clear {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 99px;
+  background: rgb(0 0 0 / 8%);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
 .wf-aspect {
   position: absolute;
   top: 10px;
-  right: 10px;
+  left: 10px;
   padding: 2px 7px;
   border-radius: 999px;
   background: rgb(0 0 0 / 8%);
@@ -1342,6 +1789,62 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
   font-style: normal;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+.wf-preview-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgb(0 0 0 / 45%);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.wf-preview-dialog {
+  width: min(920px, 100%);
+  background: var(--surface);
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    strong {
+      font-size: 14px;
+    }
+  }
+}
+
+.wf-preview-close {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.wf-preview-video {
+  display: block;
+  width: 100%;
+  max-height: min(70vh, 560px);
+  background: #111;
+}
+
+.wf-preview-empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .composer {

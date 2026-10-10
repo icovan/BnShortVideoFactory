@@ -22,13 +22,14 @@ import {
   synthesizeScriptFromAsk,
   type ScriptDriveMode,
 } from './scriptDrive.ts';
-import type { Aspect, Project, Quality, Settings } from '../../../shared/src/index.ts';
+import type { Aspect, Project, Quality, Settings, StylePack } from '../../../shared/src/index.ts';
 import { isRemixFormMode, makeFootageRemix } from './footageRemix.ts';
 import {
   applyStickmanPhraseToBeats,
   asksForStickman,
   withStickmanMachineLock,
 } from './stickmanBrief.ts';
+import { makeExplainer } from './explainer.ts';
 
 type MakeOpts = {
   autoSfx?: boolean;
@@ -41,8 +42,8 @@ type MakeOpts = {
   forceRemotion?: boolean;
   /** 观众语言锁（UI 按原文检测；避免打包英文行污染） */
   contentLang?: ContentLang;
-  /** 仅 skill-directed | footage-remix（硬 SKU 模板已移除） */
-  stylePack?: 'skill-directed' | 'footage-remix';
+  /** 成片工作流配方 */
+  stylePack?: StylePack;
   /** 真实网页检索，结果注入 densify / skill plan */
   webSearch?: boolean;
   /** 出片分辨率 1080p | 720p */
@@ -327,6 +328,10 @@ async function planFromPrompt(
   return { plan, brief, machineBrief, styleSource };
 }
 
+function isHardStylePack(pack?: StylePack): pack is 'launch-showreel' | 'narrated-explainer' | 'next-word-loop' {
+  return pack === 'launch-showreel' || pack === 'narrated-explainer' || pack === 'next-word-loop';
+}
+
 export async function makeFromPrompt(
   prompt: string,
   settings: Settings,
@@ -349,6 +354,13 @@ export async function makeFromPrompt(
     });
   }
 
+  // 硬 SKU 工作流：直接走对应管线（种子提示词保质）
+  if (isHardStylePack(opts?.stylePack)) {
+    const pack = opts.stylePack;
+    resetPipeline(projectId, 'explainer-remotion', pack, { engine: 'explainer-remotion', aspect });
+    return makeExplainer(prompt, settings, pack, projectId);
+  }
+
   const { plan, brief, machineBrief, styleSource } = await planFromPrompt(
     prompt, settings, projectId, aspect, opts,
   );
@@ -369,7 +381,7 @@ export async function makeFromPrompt(
     });
   }
 
-  // 仅自由模式 skill-directed（四模板硬管线已移除）
+  // 自由 / 技能导向
   return makeDirectedHard(machineBrief, settings, projectId, plan, {
     sourcePrompt: prompt,
     factoryPrompt: machineBrief,

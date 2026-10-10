@@ -10,7 +10,7 @@ export type Kind =
 export type Aspect = '9:16' | '16:9' | '1:1' | '3:4';
 export type Quality = '1080p' | '720p';
 export type Engine = 'explainer-remotion' | 'manim' | 'footage-remix';
-/** 成片管线：自由 skill-directed / 混剪；旧硬 SKU 名仅兼容历史项目数据 */
+/** 成片管线配方（工作流 StylePack） */
 export type StylePack =
   | 'skill-directed'
   | 'footage-remix'
@@ -195,13 +195,68 @@ export const DEFAULT_SETTINGS: Settings = {
   webSearchApiKey: '',
 };
 
-/** 创作页工作流卡片已移除；保留空数组兼容 catalog / 旧引用 */
-export const WORKFLOW_CARDS: Template[] = [];
+/** 本地兜底模板卡片（优先拉管理后台模板货架） */
+export const WORKFLOW_CARDS: Template[] = [
+  {
+    id: 't-launch',
+    title: '发布秀卷',
+    subtitle: '宣传发布 · Launch',
+    kind: 'promo',
+    category: 'promo',
+    engine: 'explainer-remotion',
+    stylePack: 'launch-showreel',
+    aspect: '16:9',
+    cover: 'launch',
+    tall: 210,
+    prompt: '做一个约 20 秒动态发布秀卷：按我描述的产品走 hook→揭晓→能力切镜→品牌收束。少旁白、强画面。配色和材质跟主题走，不要默认做成 Linear 紫黑。',
+  },
+  {
+    id: 't-narrated',
+    title: '旁白解说片',
+    subtitle: '口播讲解 · Narrated',
+    kind: 'explainer',
+    category: 'narrate',
+    engine: 'explainer-remotion',
+    stylePack: 'narrated-explainer',
+    aspect: '16:9',
+    cover: 'present',
+    tall: 220,
+    prompt: '做一条约 30 秒旁白讲解：痛点、我是谁、怎么用、一个证明、收束。中文旁白像讲解不是硬广。画风跟随主题，不要默认白底紫 PageOn。证明点不要编造统计数字。',
+  },
+  {
+    id: 't-next-word',
+    title: '下一词回路',
+    subtitle: '竖屏口播 · Next-Word',
+    kind: 'explainer',
+    category: 'narrate',
+    engine: 'explainer-remotion',
+    stylePack: 'next-word-loop',
+    aspect: '9:16',
+    cover: 'next-word',
+    tall: 240,
+    prompt: '做一条约 26 秒竖屏口播：讲清大模型如何 READ→算概率→抽样→写入下一词并循环。例子、配色、界面文案都跟提示词走，不要锁死花生酱三明治橙黑。画面英文 UI、中文配音。',
+  },
+  {
+    id: 't-manim',
+    title: '数理公式动画',
+    subtitle: '数理 · Manim',
+    kind: 'explainer',
+    category: 'other',
+    engine: 'manim',
+    aspect: '16:9',
+    cover: 'data',
+    tall: 200,
+    prompt: '用 Manim 做一段公式变形：把欧拉公式 e^{iπ}+1=0 写上并逐项高亮。',
+  },
+];
 
 export function workflowLabel(t: Pick<Template, 'engine' | 'stylePack' | 'aspect'>): string {
   if (t.engine === 'manim') return `Manim · ${t.aspect}`;
   if (t.stylePack === 'footage-remix') return `混剪 · ${t.aspect}`;
-  return `自由创作 · ${t.aspect}`;
+  if (t.stylePack === 'launch-showreel') return `发布秀卷 · ${t.aspect}`;
+  if (t.stylePack === 'next-word-loop') return `下一词回路 · ${t.aspect}`;
+  if (t.stylePack === 'narrated-explainer') return `旁白解说 · ${t.aspect}`;
+  return `技能导向 · ${t.aspect}`;
 }
 
 export const TEMPLATE_CATEGORY_TABS: { id: 'all' | TemplateCategory; label: string }[] = [

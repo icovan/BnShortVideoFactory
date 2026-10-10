@@ -30,6 +30,15 @@ import { failPipeline, initialPipeline, remakePipeline } from './pipeline.ts';
 import { OUTPUTS_DIR } from './paths.ts';
 import { decorateProjects, withPoster } from './poster.ts';
 import { listStyleRefs, resolveStyleLook, resolveStyleRefFile } from './make/styleLook.ts';
+import { entitlement } from './license/entitlement.ts';
+import {
+  commerceBaseUrl,
+  defaultPublicSite,
+  remoteActivate,
+  remotePublicSite,
+  remotePublicWorkflows,
+  remotePublicCases,
+} from './license/remoteCommerce.ts';
 import { localOpenUser } from './shell/localOpen.ts';
 import { shellInfo } from './shell/role.ts';
 import { maskSettings, store } from './store.ts';
@@ -114,6 +123,65 @@ app.put('/api/settings', async (c) => {
   return c.json(maskSettings(store.saveSettings(body)));
 });
 
+/** 本机授权状态 */
+app.get('/api/license/status', (c) => {
+  const user = c.get('user');
+  return c.json(entitlement.status(user?.role));
+});
+
+/** 一机一码激活（转发管理后台商业化服务） */
+app.post('/api/license/activate', async (c) => {
+  const user = c.get('user');
+  const body = (await c.req.json().catch(() => ({}))) as { code?: string; machineId?: string };
+  const code = String(body.code || '').trim();
+  if (!code) return c.json({ error: '请输入激活码' }, 400);
+  const machineId = (body.machineId || '').trim() || entitlement.machineId();
+  if (!commerceBaseUrl()) {
+    return c.json({ error: '未配置商业化服务地址（环境变量 BN_COMMERCE_URL）' }, 503);
+  }
+  const out = await remoteActivate(code, machineId);
+  if (!out.ok) return c.json({ error: out.error }, out.status >= 400 && out.status < 600 ? out.status as 400 : 400);
+  entitlement.saveActivated(out.license);
+  return c.json({
+    ok: true,
+    license: out.license,
+    entitlement: entitlement.status(user?.role),
+  });
+});
+
+/** 公开站点配置（关于 / 版权 / 下载；按语言） */
+app.get('/api/site/public', async (c) => {
+  const lang = String(c.req.query('lang') || 'zh-CN');
+  const remote = await remotePublicSite(lang);
+  return c.json(remote || defaultPublicSite(lang));
+});
+
+/** 管理后台已发布工作流配方（StylePack） */
+app.get('/api/workflows/public', async (c) => {
+  const rows = await remotePublicWorkflows();
+  return c.json(rows);
+});
+
+/** 管理后台已发布模板货架 */
+app.get('/api/templates/public', async (c) => {
+  const shelf = await remotePublicCases();
+  const base = commerceBaseUrl();
+  const abs = (u?: string) => {
+    const s = String(u || '').trim();
+    if (!s || !base) return s;
+    if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('blob:')) return s;
+    if (s.startsWith('/')) return `${base}${s}`;
+    return s;
+  };
+  return c.json({
+    ...shelf,
+    cases: (shelf.cases || []).map((raw) => {
+      const t = raw as { cover?: string; previewVideo?: string };
+      return { ...t, cover: abs(t.cover), previewVideo: abs(t.previewVideo) };
+    }),
+  });
+});
+
 app.get('/api/projects', (c) => {
   return c.json(decorateProjects(store.projects()).map((p) => withQueueMeta(p)));
 });
@@ -190,6 +258,15 @@ app.post('/api/projects/:id/remake-beats', async (c) => {
       : body.mode === 'copy' || body.mode === 'voice'
         ? 'copy'
         : 'both';
+
+  const user = c.get('user');
+  try {
+    entitlement.beginMake(p.id, user?.role);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const status = (e as { status?: number })?.status === 402 ? 402 : 403;
+    return c.json({ error: msg, entitlement: entitlement.status(user?.role) }, status);
+  }
 
   store.patchProject(p.id, {
     status: 'queued',
@@ -338,6 +415,7 @@ app.post('/api/make', async (c) => {
     webSearch?: boolean;
     quality?: '1080p' | '720p';
     formMode?: string;
+    templateId?: string;
     footageFolder?: string;
     footagePaths?: string[];
     remixBrief?: {
@@ -351,8 +429,25 @@ app.post('/api/make', async (c) => {
   if (!prompt) return c.json({ error: '请先填写需求' }, 400);
 
   const formMode = typeof body.formMode === 'string' ? body.formMode : undefined;
-  const isRemix = formMode === 'remix' || formMode === 'footage-remix' || body.stylePack === 'footage-remix';
-  const aspect = parseAspect(body.aspect, isRemix ? '9:16' : '16:9');
+  const templateId = typeof body.templateId === 'string' && body.templateId.trim()
+    ? body.templateId.trim()
+    : undefined;
+  const requestedPack = typeof body.stylePack === 'string' ? body.stylePack.trim() : '';
+  const resolveStylePack = (raw?: string): StylePack => {
+    if (raw === 'footage-remix' || raw === 'launch-showreel' || raw === 'narrated-explainer'
+      || raw === 'next-word-loop' || raw === 'skill-directed') {
+      return raw;
+    }
+    return 'skill-directed';
+  };
+  const isRemix = formMode === 'remix' || formMode === 'footage-remix' || requestedPack === 'footage-remix';
+  const stylePack: StylePack = isRemix
+    ? 'footage-remix'
+    : resolveStylePack(requestedPack);
+  const aspect = parseAspect(
+    body.aspect,
+    stylePack === 'next-word-loop' || isRemix ? '9:16' : '16:9',
+  );
   const quality = body.quality === '720p' ? '720p' as const : '1080p' as const;
   const autoSfx = body.autoSfx === true;
   const webSearch = body.webSearch === true;
@@ -411,10 +506,11 @@ app.post('/api/make', async (c) => {
 
   const user = c.get('user');
   const settings = store.settings();
-  const stylePack: StylePack = isRemix || body.stylePack === 'footage-remix'
+  const engine: Engine = isRemix
     ? 'footage-remix'
-    : 'skill-directed';
-  const engine: Engine = isRemix ? 'footage-remix' : 'explainer-remotion';
+    : body.engine === 'manim'
+      ? 'manim'
+      : 'explainer-remotion';
 
   const project: Project = {
     id: newId(),
@@ -431,6 +527,15 @@ app.post('/api/make', async (c) => {
     userId: user.id,
     pipeline: initialPipeline(engine, stylePack),
   };
+
+  try {
+    entitlement.beginMake(project.id, user?.role);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const status = (e as { status?: number })?.status === 402 ? 402 : 403;
+    return c.json({ error: msg, entitlement: entitlement.status(user?.role) }, status);
+  }
+
   store.upsertProject(project);
 
   const enqueued = enqueueJob({
@@ -438,7 +543,7 @@ app.post('/api/make', async (c) => {
     kind: 'make',
     run: async () => {
       const { makeFromPrompt } = await import('./make/fromPrompt.ts');
-      await makeFromPrompt(prompt, settings, project.id, aspect, undefined, {
+      await makeFromPrompt(prompt, settings, project.id, aspect, templateId, {
         autoSfx,
         voMode: isRemix ? 'on' : voMode,
         scriptDrive: isRemix ? (scriptDrive === 'off' ? 'auto' : scriptDrive) : scriptDrive,

@@ -335,8 +335,16 @@
     "create": {
       "title": "把想法做成片子",
       "subtitle": "一站式AI动画创作工具：低成本、傻瓜式，满足您的多元化创作需求！",
-      "workflows": "默认工作流",
-      "workflowsHint": "点选锁动画管线；提示词可全改，点 ✕ 才取消",
+      "workflows": "工作流配方",
+      "workflowsHint": "成片 StylePack 配方（由模板货架绑定）",
+      "templates": "模板货架",
+      "templatesHint": "点选填入种子提示词并锁定成片配方；改主题即可同质出片",
+      "templateCategory": "分类",
+      "templateCategoryAll": "全部",
+      "templatePrev": "上一页",
+      "templateNext": "下一页",
+      "templatePlay": "播放预览",
+      "templateNoVideo": "该模板暂无预览视频",
       "engineReady": "引擎已就绪",
       "engineStarting": "引擎启动中…",
       "attachTitle": "添加素材与选项",
@@ -697,6 +705,29 @@
       "close": "关闭",
       "save": "保存",
       "menuTitle": "全局配置"
+    },
+    "license": {
+      "dialogTitle": "激活与授权",
+      "loading": "读取授权中…",
+      "trialDays": "体验剩余 {{n}} 天",
+      "proDays": "专业版剩余 {{n}} 天",
+      "proLife": "专业版 · 永久",
+      "locked": "未激活",
+      "badgeTrialDays": "体验剩余 {{n}} 天",
+      "badgeProDays": "专业版剩余 {{n}} 天",
+      "badgeProLife": "专业版 · 永久",
+      "badgeLocked": "未激活",
+      "badgeExpired": "已过期",
+      "expiresAt": "到期时间",
+      "lifetime": "永久",
+      "code": "激活码",
+      "codePlaceholder": "粘贴激活码",
+      "activate": "激活",
+      "activating": "激活中…",
+      "user": "使用者（机器码）",
+      "learnMore": "了解更多详情，请点击：",
+      "about": "关于{{name}}",
+      "copyrightFallback": "©2026 在线信息 版权所有。"
     }
   }
 }

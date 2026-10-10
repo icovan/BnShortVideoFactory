@@ -335,8 +335,16 @@
     "create": {
       "title": "Turn ideas into films",
       "subtitle": "All-in-one AI animation: low-cost, no-fuss — built for every creative need!",
-      "workflows": "Workflows",
-      "workflowsHint": "Locks animation pipeline · edit prompt freely · ✕ to clear",
+      "workflows": "Workflow packs",
+      "workflowsHint": "StylePack recipes bound by template shelf cards",
+      "templates": "Template shelf",
+      "templatesHint": "Pick to seed prompt and lock StylePack · edit the topic for same-quality films",
+      "templateCategory": "Category",
+      "templateCategoryAll": "All",
+      "templatePrev": "Previous",
+      "templateNext": "Next",
+      "templatePlay": "Play preview",
+      "templateNoVideo": "No preview video for this template",
       "engineReady": "Engine ready",
       "engineStarting": "Starting engine…",
       "attachTitle": "Add assets & options",
@@ -697,6 +705,29 @@
       "close": "Close",
       "save": "Save",
       "menuTitle": "Settings"
+    },
+    "license": {
+      "dialogTitle": "Activation",
+      "loading": "Loading license…",
+      "trialDays": "{{n}} days left in trial",
+      "proDays": "{{n}} days left in Pro",
+      "proLife": "Pro · Lifetime",
+      "locked": "Not activated",
+      "badgeTrialDays": "{{n}} days left in trial",
+      "badgeProDays": "{{n}} days left in Pro",
+      "badgeProLife": "Pro · Lifetime",
+      "badgeLocked": "Not activated",
+      "badgeExpired": "Expired",
+      "expiresAt": "Expires",
+      "lifetime": "Lifetime",
+      "code": "Activation code",
+      "codePlaceholder": "Paste activation code",
+      "activate": "Activate",
+      "activating": "Activating…",
+      "user": "Device (machine ID)",
+      "learnMore": "Learn more:",
+      "about": "About {{name}}",
+      "copyrightFallback": "©2026 Online Info. All rights reserved."
     }
   }
 }

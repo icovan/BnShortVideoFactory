@@ -3,12 +3,15 @@ export type UserStatus = 'active' | 'banned';
 export type PlanCycle = 'month' | 'year' | 'life';
 export type OtpPurpose = 'register' | 'login';
 
-/** 本机免费体验次数（成功开片计数；失败退回） */
-export const TRIAL_LIMIT = 5;
+/** 新机器免费体验天数（日历天） */
+export const TRIAL_DAYS = 3;
+
+/** @deprecated 已改为按天体验；保留别名避免旧引用报错 */
+export const TRIAL_LIMIT = TRIAL_DAYS;
 
 export type FactoryRuntime = 'pc' | 'web';
 
-/** 本机授权快照（激活页 / 侧栏 / 门禁共用） */
+/** 本机授权快照（激活弹窗 / 状态条 / 门禁共用） */
 export type EntitlementSnapshot = {
   runtime: FactoryRuntime;
   machineId: string;
@@ -18,12 +21,20 @@ export type EntitlementSnapshot = {
   planTitle?: string;
   code?: string;
   activatedAt?: string;
+  /** 专业版到期；缺省且已激活 = 终身 */
   expiresAt?: string;
-  trialLimit: number;
-  trialUsed: number;
-  trialLeft: number;
+  trialDays: number;
+  trialStartedAt?: string;
+  trialEndsAt?: string;
+  /**
+   * 体验或专业版剩余整天数（向上取整天展示用 floor）。
+   * 终身专业版为 null。
+   */
+  daysLeft: number | null;
   canMake: boolean;
   message: string;
+  /** 状态条徽章语义 */
+  badge: 'trial' | 'pro' | 'locked' | 'expired' | 'showcase';
 };
 
 export type PublicUser = {
@@ -105,24 +116,78 @@ export type LocalLicenseFile = {
   expiresAt?: string;
 };
 
+/** 本机体验窗（按天，非次数） */
 export type LocalTrialFile = {
-  limit: number;
-  used: number;
-  /** 已占用的 jobId → 便于失败退回 */
-  pendingJobs: string[];
+  days: number;
+  startedAt: string;
+  /** 防简单系统时钟回拨 */
+  lastSeenAt: string;
 };
 
+/** APP 创作页本地入口形态（非后台工作流） */
+export type AppFormMode =
+  | 'prompt'
+  | 'narrate'
+  | 'short'
+  | 'logo'
+  | 'showreel'
+  | 'launch'
+  | 'remix';
+
+export type AppEngine = 'explainer-remotion' | 'manim' | 'footage-remix';
+export type AspectRatio = '9:16' | '16:9' | '1:1' | '3:4';
+
+/** 成片工作流配方（老厂 StylePack） */
+export type CommerceStylePack =
+  | 'skill-directed'
+  | 'launch-showreel'
+  | 'narrated-explainer'
+  | 'next-word-loop'
+  | 'footage-remix';
+
+export const STYLE_PACK_OPTIONS: {
+  id: CommerceStylePack;
+  labelZh: string;
+  labelEn: string;
+  defaultAspect: AspectRatio;
+  defaultEngine: AppEngine;
+}[] = [
+  { id: 'skill-directed', labelZh: '技能导向', labelEn: 'Skill-directed', defaultAspect: '16:9', defaultEngine: 'explainer-remotion' },
+  { id: 'launch-showreel', labelZh: '发布秀卷', labelEn: 'Launch showreel', defaultAspect: '16:9', defaultEngine: 'explainer-remotion' },
+  { id: 'narrated-explainer', labelZh: '旁白解说', labelEn: 'Narrated explainer', defaultAspect: '16:9', defaultEngine: 'explainer-remotion' },
+  { id: 'next-word-loop', labelZh: '下一词回路', labelEn: 'Next-word loop', defaultAspect: '9:16', defaultEngine: 'explainer-remotion' },
+  { id: 'footage-remix', labelZh: '素材混剪', labelEn: 'Footage remix', defaultAspect: '9:16', defaultEngine: 'footage-remix' },
+];
+
+export function normalizeStylePack(raw?: string): CommerceStylePack {
+  const id = String(raw || '').trim() as CommerceStylePack;
+  if (STYLE_PACK_OPTIONS.some((o) => o.id === id)) return id;
+  if (raw === 'remix' || raw === 'footage-remix') return 'footage-remix';
+  if (raw === 'narrate') return 'narrated-explainer';
+  if (raw === 'short') return 'next-word-loop';
+  if (raw === 'launch' || raw === 'showreel' || raw === 'logo') return 'launch-showreel';
+  return 'skill-directed';
+}
+
+export function engineForStylePack(stylePack: CommerceStylePack, override?: AppEngine): AppEngine {
+  if (stylePack === 'footage-remix') return 'footage-remix';
+  if (override === 'manim') return 'manim';
+  if (override === 'footage-remix') return 'explainer-remotion';
+  return override || 'explainer-remotion';
+}
+
+/** 模板货架条目：种子提示词 + 绑定工作流 */
 export type CaseItem = {
   id: string;
   title: string;
   subtitle: string;
   prompt: string;
   category: string;
-  aspect: '9:16' | '16:9' | '1:1' | '3:4';
-  engine?: 'explainer-remotion' | 'manim';
-  stylePack?: string;
+  aspect: AspectRatio;
+  engine?: AppEngine | 'explainer-remotion' | 'manim';
+  stylePack: CommerceStylePack;
+  workflowId?: string;
   cover: string;
-  /** 可选成片预览；有则创作页可点击播放 */
   previewVideo?: string;
   tall: number;
   kind: string;
@@ -133,6 +198,27 @@ export type CaseCategory = {
   id: string;
   label: string;
   sort: number;
+};
+
+/** 管理后台下发的成片工作流配方（StylePack） */
+export type WorkflowItem = {
+  id: string;
+  titleZh: string;
+  titleEn: string;
+  subtitleZh?: string;
+  subtitleEn?: string;
+  stylePack: CommerceStylePack;
+  engine: AppEngine;
+  aspect?: AspectRatio;
+  voMode?: 'on' | 'off' | 'auto';
+  scriptDrive?: 'off' | 'auto' | 'polish' | 'verbatim';
+  cover?: string;
+  previewVideo?: string;
+  promptTemplateZh: string;
+  promptTemplateEn: string;
+  published: boolean;
+  sort: number;
+  updatedAt: string;
 };
 
 export type Announcement = {
@@ -156,6 +242,14 @@ export type Me = PublicUser & {
   machineId?: string;
 };
 
+/** 按语言的站点运营字段 */
+export type SiteLocalePack = {
+  aboutUrl: string;
+  downloadUrl: string;
+  updateCheckUrl: string;
+  copyright: string;
+};
+
 export type SiteSettings = {
   siteName: string;
   siteSubtitle: string;
@@ -166,9 +260,22 @@ export type SiteSettings = {
   faviconUrl: string;
   icpNumber: string;
   tutorialUrl: string;
+  /** @deprecated 使用 downloadUrlZh / downloadUrlEn */
   downloadUrl: string;
-  /** PC 更新检测：latest.json 完整 URL */
+  /** @deprecated 使用 updateCheckUrlZh / updateCheckUrlEn */
   updateCheckUrl: string;
+  aboutUrlZh: string;
+  aboutUrlEn: string;
+  downloadUrlZh: string;
+  downloadUrlEn: string;
+  updateCheckUrlZh: string;
+  updateCheckUrlEn: string;
+  copyrightZh: string;
+  copyrightEn: string;
+  /** 新机体验天数；默认 TRIAL_DAYS */
+  trialDays: number;
+  /** APP 是否展示模板货架（默认关） */
+  showTemplateShelf: boolean;
   contactWechat: string;
   /** 客服微信二维码图片 URL（/assets/…） */
   contactWechatQrUrl: string;
@@ -192,6 +299,20 @@ export type SiteSettings = {
 export type PublicSiteSettings = Omit<SiteSettings, 'smtpPass'> & {
   smtpConfigured: boolean;
   hasSmtpPass: boolean;
+};
+
+/** APP 拉取的公开站点配置（已按语言折叠） */
+export type PublicAppSite = {
+  lang: 'zh-CN' | 'en';
+  siteName: string;
+  aboutUrl: string;
+  downloadUrl: string;
+  updateCheckUrl: string;
+  copyright: string;
+  trialDays: number;
+  showTemplateShelf: boolean;
+  contactWechat: string;
+  contactWebsite: string;
 };
 
 export type StorageDriver = 'local' | 'tencent' | 'aliyun';
@@ -226,6 +347,8 @@ export type PublicBrand = {
   tutorialUrl: string;
   downloadUrl: string;
   updateCheckUrl: string;
+  aboutUrl: string;
+  copyright: string;
   contactWechat: string;
   contactWechatQrUrl: string;
   contactDouyin: string;
@@ -233,3 +356,33 @@ export type PublicBrand = {
   contactPhone: string;
   contactEmail: string;
 };
+
+export function siteLocalePack(settings: Pick<
+  SiteSettings,
+  | 'aboutUrlZh'
+  | 'aboutUrlEn'
+  | 'downloadUrlZh'
+  | 'downloadUrlEn'
+  | 'downloadUrl'
+  | 'updateCheckUrlZh'
+  | 'updateCheckUrlEn'
+  | 'updateCheckUrl'
+  | 'copyrightZh'
+  | 'copyrightEn'
+>, lang: string): SiteLocalePack {
+  const zh = lang === 'zh' || lang.toLowerCase().startsWith('zh');
+  return {
+    aboutUrl: (zh ? settings.aboutUrlZh : settings.aboutUrlEn) || '',
+    downloadUrl:
+      (zh ? settings.downloadUrlZh : settings.downloadUrlEn)
+      || settings.downloadUrl
+      || '',
+    updateCheckUrl:
+      (zh ? settings.updateCheckUrlZh : settings.updateCheckUrlEn)
+      || settings.updateCheckUrl
+      || '',
+    copyright:
+      (zh ? settings.copyrightZh : settings.copyrightEn)
+      || (zh ? '©2026 在线信息 版权所有。' : '©2026 Online Info. All rights reserved.'),
+  };
+}

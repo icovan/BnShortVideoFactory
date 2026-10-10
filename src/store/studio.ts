@@ -187,6 +187,9 @@ export const useStudioStore = defineStore(
       aspect: Aspect
       quality: '1080p' | '720p'
       mediaKind: 'animation' | 'ai-video'
+      templateId?: string
+      stylePack?: string
+      engine?: string
       autoSfx?: boolean
       voMode?: 'on' | 'off' | 'auto'
       scriptDrive?: 'off' | 'auto' | 'polish' | 'verbatim'
@@ -211,6 +214,9 @@ export const useStudioStore = defineStore(
         aspect: input.aspect,
         quality: input.quality,
         formMode: input.formMode,
+        templateId: input.templateId,
+        stylePack: input.stylePack,
+        engine: input.engine,
         autoSfx: input.autoSfx === true,
         voMode: input.voMode || voModeFor(input.formMode),
         scriptDrive: input.scriptDrive || scriptDriveFor(input.formMode),

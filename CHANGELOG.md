@@ -1,5 +1,9 @@
 ## Unreleased
 
+- 对齐老厂：工作流 = StylePack（skill-directed / launch-showreel / narrated-explainer / next-word-loop / footage-remix）；原案例货架改为模板货架，绑定工作流+种子提示词；APP 点选后改词同质出片；恢复硬 SKU 出片路由。
+- 模板货架：默认不展示（官网配置开关）；分类下拉 + 横向滚动与左右翻页；预览播放弹窗；点选只绑自由创作（混剪除外）。
+- （已纠正）此前误把工作流绑成 APP `formMode` 入口形态，已撤销。
+- 激活授权：新机免费体验 3 天（一机一码）；创作页「引擎已就绪 | 体验/专业版剩余 X 天」；点击弹窗激活；出片门禁；对接 `BN_COMMERCE_URL` 管理后台核销与公开站点配置（关于/版权/下载按语言）。
 - 产品标识：软件名 `BnShortVideoFactory`，包名 `bn-short-video-factory`，`appId` `com.bn.shortvideofactory`；更新检查按界面语言分流（中文 Gitee / 英文 GitHub）。
 - 火柴人 skill：姿态字母 + 动作短语库（sampleClip / 意图映射）；补 push/pull/carry/handoff/desk；SignBoard/PhoneSlab 场面道具；双人辩论短语；codegen 优先短语而非盲目加姿。
 - 工作台创作进度：步骤描述支持中英双语（默认 seed + 常见运行中文 detail 映射）；标题原有 `studio.steps.*`。

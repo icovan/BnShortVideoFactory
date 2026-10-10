@@ -106,6 +106,87 @@ export type EngineSettings = {
 
 export type RemakeMode = 'both' | 'visual' | 'copy'
 
+export type EntitlementSnapshot = {
+  runtime: 'pc' | 'web'
+  machineId: string
+  activated: boolean
+  status: 'trial' | 'active' | 'expired' | 'locked' | 'showcase'
+  planId?: string
+  planTitle?: string
+  code?: string
+  activatedAt?: string
+  expiresAt?: string
+  trialDays: number
+  trialStartedAt?: string
+  trialEndsAt?: string
+  daysLeft: number | null
+  canMake: boolean
+  message: string
+  badge: 'trial' | 'pro' | 'locked' | 'expired' | 'showcase'
+}
+
+export type PublicAppSite = {
+  lang: 'zh-CN' | 'en'
+  siteName: string
+  aboutUrl: string
+  downloadUrl: string
+  updateCheckUrl: string
+  copyright: string
+  trialDays: number
+  showTemplateShelf?: boolean
+  contactWechat: string
+  contactWebsite: string
+}
+
+export type PublicWorkflow = {
+  id: string
+  titleZh: string
+  titleEn: string
+  subtitleZh?: string
+  subtitleEn?: string
+  stylePack: string
+  engine?: string
+  aspect?: string
+  voMode?: 'on' | 'off' | 'auto'
+  scriptDrive?: 'off' | 'auto' | 'polish' | 'verbatim'
+  cover?: string
+  previewVideo?: string
+  promptTemplateZh: string
+  promptTemplateEn: string
+  published: boolean
+  sort: number
+}
+
+/** 模板货架（管理后台已发布 cases） */
+export type PublicTemplate = {
+  id: string
+  title: string
+  subtitle: string
+  prompt: string
+  category: string
+  aspect: string
+  engine?: string
+  stylePack: string
+  workflowId?: string
+  cover: string
+  previewVideo?: string
+  tall: number
+  kind: string
+  published: boolean
+}
+
+export type PublicTemplateCategory = {
+  id: string
+  label: string
+  sort?: number
+}
+
+export type PublicTemplateShelf = {
+  cases: PublicTemplate[]
+  categories: PublicTemplateCategory[]
+  showTemplateShelf: boolean
+}
+
 export type UserAsset = {
   name: string
   dataUrl: string
@@ -197,6 +278,9 @@ export const engineApi = {
     aspect?: string
     quality?: string
     formMode?: string
+    templateId?: string
+    stylePack?: string
+    engine?: string
     autoSfx?: boolean
     voMode?: 'on' | 'off' | 'auto'
     scriptDrive?: 'off' | 'auto' | 'polish' | 'verbatim'
@@ -244,6 +328,26 @@ export const engineApi = {
       method: 'POST',
       body: { versionId },
     }),
+  licenseStatus: () => req<EntitlementSnapshot>('/api/license/status'),
+  licenseActivate: (code: string) =>
+    req<{ ok: boolean; entitlement: EntitlementSnapshot; error?: string }>(
+      '/api/license/activate',
+      { method: 'POST', body: { code } },
+    ),
+  sitePublic: (lang?: string) =>
+    req<PublicAppSite>(`/api/site/public?lang=${encodeURIComponent(lang || 'zh-CN')}`),
+  listWorkflows: () => req<PublicWorkflow[]>('/api/workflows/public'),
+  listTemplates: async () => {
+    const raw = await req<PublicTemplateShelf | PublicTemplate[]>('/api/templates/public')
+    if (Array.isArray(raw)) {
+      return { cases: raw, categories: [], showTemplateShelf: false }
+    }
+    return {
+      cases: Array.isArray(raw?.cases) ? raw.cases : [],
+      categories: Array.isArray(raw?.categories) ? raw.categories : [],
+      showTemplateShelf: raw?.showTemplateShelf === true,
+    }
+  },
   videoUrl: async (project: EngineProject, bust?: number) => {
     const st = await window.electron.engineGetState()
     const root = (st.url || '').replace(/\/$/, '')
