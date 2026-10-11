@@ -14,22 +14,32 @@ import { DirectedSchema, defaultDirectedProps, type DirectedProps } from './dire
 
 const FPS = 30;
 
+/** Same formula as Series.Sequence: round each scene, then sum. */
+function sumSceneFrames(scenes: { durationSec: number }[] | undefined): number {
+  const list = scenes || [];
+  if (!list.length) return 1;
+  return Math.max(
+    1,
+    list.reduce((s, sc) => s + Math.max(1, Math.round((Number(sc.durationSec) || 0) * FPS)), 0),
+  );
+}
+
 const launchMeta: CalculateMetadataFunction<LaunchProps> = ({ props }) => ({
-  durationInFrames: Math.max(1, Math.round(props.scenes.reduce((s, sc) => s + Math.max(1, sc.durationSec), 0) * FPS)),
+  durationInFrames: sumSceneFrames(props.scenes),
   fps: FPS,
   width: 1920,
   height: 1080,
 });
 
 const narratedMeta: CalculateMetadataFunction<NarratedProps> = ({ props }) => ({
-  durationInFrames: Math.max(1, Math.round(props.scenes.reduce((s, sc) => s + Math.max(1, sc.durationSec), 0) * FPS)),
+  durationInFrames: sumSceneFrames(props.scenes),
   fps: FPS,
   width: 1920,
   height: 1080,
 });
 
 const nextWordMeta: CalculateMetadataFunction<NextWordProps> = ({ props }) => ({
-  durationInFrames: Math.max(1, Math.round(props.scenes.reduce((s, sc) => s + Math.max(1, sc.durationSec), 0) * FPS)),
+  durationInFrames: sumSceneFrames(props.scenes),
   fps: FPS,
   width: 1080,
   height: 1920,
@@ -46,7 +56,7 @@ function directedSize(aspect: DirectedProps['aspect'], quality?: DirectedProps['
 const directedMeta: CalculateMetadataFunction<DirectedProps> = ({ props }) => {
   const size = directedSize(props.aspect, props.quality);
   return {
-    durationInFrames: Math.max(1, Math.round(props.scenes.reduce((s, sc) => s + Math.max(1, sc.durationSec), 0) * FPS)),
+    durationInFrames: sumSceneFrames(props.scenes),
     fps: FPS,
     ...size,
   };

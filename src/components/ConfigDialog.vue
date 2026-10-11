@@ -282,6 +282,8 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { useTranslation } from 'i18next-vue'
 import { ChevronDown, X } from '@lucide/vue'
 import AppIcon from '@/components/AppIcon.vue'
+import { classifyTaskError } from '@/lib/notice-kind'
+import { pushNotice } from '@/lib/notice'
 import {
   detectVendor,
   LLM_VENDORS,
@@ -545,8 +547,11 @@ async function save() {
   try {
     const { syncSettingsToEngine } = await import('@/lib/sync-settings')
     await syncSettingsToEngine()
+    pushNotice('ok', t('notice.saved'))
   } catch (e) {
     console.warn('[config] sync engine settings failed', e)
+    const kind = classifyTaskError(e instanceof Error ? e.message : String(e))
+    pushNotice('attention', t(kind === 'network' ? 'notice.network' : 'notice.other'))
   }
   emit('update:modelValue', false)
 }

@@ -18,6 +18,7 @@ import { probeResFor } from '../skills/registry.ts';
 import { store } from '../store.ts';
 
 const key = process.argv[2] || '';
+const encodeOnly = process.argv.includes('--encode-only');
 
 function findProject() {
   const list = store.projects();
@@ -68,7 +69,7 @@ async function main() {
   }, null, 2));
 
   store.patchProject(project.id, { status: 'running', error: undefined });
-  setPipelineStep(project.id, 'stills', 'running', 'resume stills');
+  setPipelineStep(project.id, encodeOnly ? 'encode' : 'stills', 'running', encodeOnly ? 'resume encode' : 'resume stills');
 
   try {
     await withRemotionCodegenLock(async () => {
@@ -81,7 +82,7 @@ async function main() {
         stillsDir,
         scenes,
         probeRes: probeResFor(props.aspect || '16:9', props.quality === '720p' ? '720p' : '1080p'),
-        phases: ['stills', 'encode'],
+        phases: encodeOnly ? ['encode'] : ['stills', 'encode'],
         onPhase: (phase, detail) => {
           console.log(`[${phase}] ${detail || ''}`);
           setPipelineStep(

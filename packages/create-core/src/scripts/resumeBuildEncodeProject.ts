@@ -23,6 +23,7 @@ import { scoreSkillDepth } from '../skills/skillDepth.ts';
 import { writeSkillGateReport } from '../skills/hardPipeline.ts';
 import { lookLockLine } from '../make/look.ts';
 import { contentLangLockLine } from '../make/contentLang.ts';
+import { assetFilesFromProps } from '../make/craftFloor.ts';
 import { styleLookLockLine } from '../make/styleLook.ts';
 import type { Settings } from '../../../shared/src/index.ts';
 
@@ -95,8 +96,9 @@ async function main() {
   setPipelineStep(project.id, 'voice', 'done', `resume skip TTS · ${scenes.length} scenes`);
   setPipelineStep(project.id, 'build', 'running', `codegen · ${craftIds.join('+')}`);
 
+  const assetFiles = assetFilesFromProps(props.assets);
   const validateTsx = (src: string) =>
-    validateDirectedTsx(src, craftIds, contentLang, plan.aspect, sceneCount);
+    validateDirectedTsx(src, craftIds, contentLang, plan.aspect, sceneCount, assetFiles);
 
   let tsx = await generateDirectedTsx(settings, {
     prompt,

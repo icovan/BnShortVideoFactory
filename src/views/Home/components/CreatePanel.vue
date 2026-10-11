@@ -508,6 +508,8 @@ import {
   type UserAsset,
 } from '@/lib/engine-api'
 import { detectContentLang, estimateCreate } from '@/lib/content-lang'
+import { classifyTaskError } from '@/lib/notice-kind'
+import { pushNotice } from '@/lib/notice'
 import { useAppStore } from '@/store'
 import {
   defaultEdgeVoice,
@@ -1267,7 +1269,7 @@ function packPrompt(raw: string) {
         : (lang === 'en'
           ? 'Craft (16:9): one hero slam ≥72–140px; spring; depth layers; ≥6% safe pad; full-bleed subject; palette from THIS topic — forbid tiny centered micro-UI.'
           : '画面（宽屏）：一次主标题砸字 ≥72；弹簧与景深；四周至少 6% 安全区；满幅主体；配色跟主题走——禁止缩在画面中央的小控件。')
-  const stickmanAsk = /stickman|stick[\s-]?fig|火柴人|胶囊(?:人|火柴)/i.test(raw)
+  const stickmanAsk = /(?:用|做成|制作|请用|出片).{0,8}(?:火柴人|stickman|stick[\s-]?figure)|(?:火柴人|stickman).{0,6}(?:风格|出演|来演|来讲)|simply\s*animated|motivation\s*vs\s*discipline/i.test(raw)
   const stickmanLock = stickmanAsk
     ? (lang === 'en'
       ? 'Stickman actor lock: character beats use clip phrases (explain-board / compare-sides / hesitate / agree-cheer / desk-work / duo-debate…); do NOT list raw pose names; mix with diagram/kinetic on other beats.'
@@ -1356,6 +1358,11 @@ async function submit() {
   busy.value = true
   error.value = ''
   try {
+    await refreshLicense()
+    if (license.value && !license.value.canMake) {
+      licenseOpen.value = true
+      return
+    }
     await studio.ensureEngine()
     settings.updateSpeech({ voice: speechVoice.value, langHint: voiceLang.value })
     const { syncSettingsToEngine } = await import('@/lib/sync-settings')
@@ -1449,13 +1456,16 @@ async function submit() {
     }
   } catch (e: any) {
     const msg = e?.message || String(e)
-    error.value = msg
     await refreshLicense()
-    if (
+    const licenseBlocked =
       !license.value?.canMake
-      || /激活|体验已结束|请先激活|402/i.test(msg)
-    ) {
+      || /激活|体验已结束|请先激活/i.test(msg)
+    if (licenseBlocked) {
+      error.value = ''
       licenseOpen.value = true
+    } else {
+      error.value = t(`notice.${classifyTaskError(msg)}`)
+      pushNotice('attention', error.value)
     }
   } finally {
     busy.value = false

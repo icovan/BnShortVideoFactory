@@ -110,7 +110,7 @@
           <i :style="{ width: `${progressPct}%` }" />
         </div>
       </div>
-      <p v-if="task?.error" class="err">{{ task.error }}</p>
+      <p v-if="friendlyError" class="err">{{ friendlyError }}</p>
     </main>
 
     <aside class="right">
@@ -192,6 +192,8 @@ import {
   type RemakeMode,
 } from '@/lib/engine-api'
 import { localizeStepDetail } from '@/lib/pipeline-i18n'
+import { classifyTaskError } from '@/lib/notice-kind'
+import { pushNotice } from '@/lib/notice'
 import { useStudioStore, type PipelineStep } from '@/store/studio'
 
 const { t, i18next } = useTranslation()
@@ -201,6 +203,12 @@ const studio = useStudioStore()
 
 const taskId = computed(() => String(route.params.id || ''))
 const task = computed(() => studio.tasks.find((x) => x.id === taskId.value) || null)
+
+function friendlyOf(raw: string) {
+  return t(`notice.${classifyTaskError(raw)}`)
+}
+
+const friendlyError = computed(() => (task.value?.error ? friendlyOf(task.value.error) : ''))
 
 const beats = ref<EngineBeat[]>([])
 const versions = ref<EngineVersion[]>([])
@@ -332,6 +340,9 @@ function stepLabel(s: PipelineStep) {
 
 function stepDetail(s: PipelineStep) {
   void i18next.language
+  const err = task.value?.status === 'error' ? (task.value.error || '').trim() : ''
+  const raw = (s.detail || '').trim()
+  if (err && raw && (err === raw || err.startsWith(raw))) return friendlyOf(err)
   return localizeStepDetail(s, t, (key) => i18next.exists(key))
 }
 
@@ -456,10 +467,12 @@ async function doRemake() {
       await studio.refreshTask(taskId.value)
     }
     if (task.value?.status === 'error') {
-      remakeError.value = task.value.error || t('studio.workbench.remakeFailed')
+      remakeError.value = friendlyOf(task.value.error || '')
+      pushNotice('attention', remakeError.value)
     }
   } catch (e: any) {
-    remakeError.value = e?.message || String(e)
+    remakeError.value = friendlyOf(e?.message || String(e))
+    pushNotice('attention', remakeError.value)
     try {
       await studio.refreshTask(taskId.value)
     } catch {
@@ -488,7 +501,8 @@ async function restoreVersion(versionId: string) {
     await studio.refreshTask(taskId.value)
     await loadBoard()
   } catch (e: any) {
-    remakeError.value = e?.message || String(e)
+    remakeError.value = friendlyOf(e?.message || String(e))
+    pushNotice('attention', remakeError.value)
   } finally {
     busy.value = false
     hideVideo.value = false
@@ -534,6 +548,19 @@ watch(
   (s) => {
     if (s === 'ready' || s === 'error') void loadBoard()
   },
+)
+
+watch(
+  () => {
+    const cur = task.value
+    if (!cur || cur.status !== 'error' || !cur.error) return ''
+    return `${cur.id}:${cur.updatedAt}:${cur.error}`
+  },
+  (sig) => {
+    if (!sig) return
+    pushNotice('attention', friendlyOf(task.value?.error || ''))
+  },
+  { immediate: true },
 )
 
 </script>

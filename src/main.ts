@@ -5,9 +5,6 @@ import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
 import { aliases, mdi } from 'vuetify/iconsets/mdi'
 
-import Toast, { PluginOptions } from 'vue-toastification'
-import 'vue-toastification/dist/index.css'
-
 import 'virtual:uno.css'
 import './assets/base.scss'
 
@@ -19,6 +16,7 @@ import App from './App.vue'
 import i18next from 'i18next'
 import I18NextVue from 'i18next-vue'
 import i18nInitialized from './lib/i18n.ts'
+import { pushNotice, takeLanguageNotice } from './lib/notice.ts'
 
 function serializeLogArg(arg: unknown): unknown {
   if (arg instanceof Error) {
@@ -92,11 +90,6 @@ const vuetify = createVuetify({
 const app = createApp(App)
 
 app.use(vuetify)
-app.use(Toast, {
-  position: 'bottom-left',
-  pauseOnFocusLoss: false,
-  closeOnClick: false,
-} as PluginOptions)
 app.use(router)
 app.use(store)
 
@@ -111,8 +104,10 @@ i18nInitialized().then(() => {
 
     // 监听主进程切换语言
     window.ipcRenderer.on('i18n-changeLanguage', (_event, lng) => {
-      i18next.changeLanguage(lng)
-      useAppStore().updateLocale(lng)
+      void i18next.changeLanguage(lng).then(() => {
+        useAppStore().updateLocale(lng)
+        if (takeLanguageNotice()) pushNotice('ok', i18next.t('notice.switched'))
+      })
     })
   })
 })

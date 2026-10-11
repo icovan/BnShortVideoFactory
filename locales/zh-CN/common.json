@@ -98,6 +98,15 @@
     "copy": "复制版本号",
     "checkUpdate": "检查更新"
   },
+  "notice": {
+    "switched": "已切换为中文",
+    "saved": "已保存",
+    "network": "网络不稳定，这次没连上。检查网络后再试。",
+    "billing": "模型账户余额或额度不足。请到服务商处充值后再试。",
+    "voice": "配音没有生成。可以换一个声音，或稍后再试。",
+    "other": "这次没有完成。请再试一次。",
+    "dismiss": "关闭"
+  },
   "update": {
     "title": "发现新版本",
     "currentVersion": "当前版本",
@@ -714,6 +723,7 @@
       "proDays": "专业版剩余 {{n}} 天",
       "proLife": "专业版 · 永久",
       "locked": "未激活",
+      "expiredLead": "体验已结束。输入激活码即可继续创作。",
       "badgeTrialDays": "体验剩余 {{n}} 天",
       "badgeProDays": "专业版剩余 {{n}} 天",
       "badgeProLife": "专业版 · 永久",

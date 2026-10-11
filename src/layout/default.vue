@@ -65,6 +65,7 @@ import { Languages, Maximize2, Minus, Settings, X } from '@lucide/vue'
 import AppIcon from '@/components/AppIcon.vue'
 import { i18nLanguages } from '~/electron/i18n/common-options'
 import ConfigDialog from '@/components/ConfigDialog.vue'
+import { armLanguageNotice, disarmLanguageNotice } from '@/lib/notice'
 
 const { i18next, t } = useTranslation()
 
@@ -85,9 +86,10 @@ const windowIsMaxed = ref(false)
 const showConfig = ref(false)
 
 const handleChangeLanguage = (lng: unknown) => {
-  if ((lng as string[])[0]) {
-    window.i18n.changeLanguage((lng as string[])[0])
-  }
+  const code = (lng as string[])[0]
+  if (!code || code === i18next.language) return
+  armLanguageNotice()
+  void window.i18n.changeLanguage(code).catch(() => disarmLanguageNotice())
 }
 
 window.addEventListener('resize', async () => {

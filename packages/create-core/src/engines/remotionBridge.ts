@@ -14,6 +14,7 @@ import { createRequire } from 'node:module';
 import { join, dirname } from 'node:path';
 import { REMOTION_PKG } from '../paths.ts';
 import { probeMp4 } from '../probe.ts';
+import { sumSceneFrames } from '../make/sceneFrames.ts';
 
 const requireFromPkg = createRequire(join(REMOTION_PKG, 'package.json'));
 
@@ -150,9 +151,7 @@ export async function renderRemotionComposition(opts: {
   copyFileSync(propsForRender, join(REMOTION_PKG, 'public', 'props.render.json'));
 
   const FPS = 30;
-  const totalFrames = Math.max(1, Math.round(
-    opts.scenes.reduce((a, s) => a + Math.max(1, s.durationSec), 0) * FPS,
-  ));
+  const totalFrames = sumSceneFrames(opts.scenes, FPS);
 
   if (phases.includes('stills')) {
     // Drop stale f-*-frame*.png so remaps / shorter samples cannot ghost prior runs
@@ -171,9 +170,10 @@ export async function renderRemotionComposition(opts: {
       holds.push(Math.min(acc + dur - 1, mid));
       acc += dur;
     }
-    if (acc > 1) holds.push(Math.max(0, totalFrames - 1));
+    const seriesFrames = Math.min(totalFrames, acc || totalFrames);
+    if (seriesFrames > 1) holds.push(seriesFrames - 1);
 
-    const uniqueFrames = [...new Set(holds.filter((f) => f >= 0 && f < totalFrames))];
+    const uniqueFrames = [...new Set(holds.filter((f) => f >= 0 && f < seriesFrames))];
     const sample = uniqueFrames.length <= 8
       ? uniqueFrames
       : [uniqueFrames[0], ...uniqueFrames.filter((_, i) => i % 2 === 0).slice(1, -1), uniqueFrames[uniqueFrames.length - 1]];

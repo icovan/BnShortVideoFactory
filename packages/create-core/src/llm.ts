@@ -8,63 +8,66 @@ export function getVendorSkillsDir() {
   return resolveSkillsDir();
 }
 
-export type SkillName =
-  | 'explainer-video'
-  | 'manim'
-  | 'diagram-animation'
-  | 'kinetic-typography'
-  | 'launch-video'
-  | 'presentation-video'
-  | 'remotion-video'
-  | 'shot-composition'
-  | 'short-form-video'
-  | 'caption-animation'
-  | 'chart-animation'
-  | 'wrapped-video'
-  | 'whiteboard-animation'
-  | 'stickman-animation'
-  | 'isometric-animation'
-  | 'text-message-animation'
-  | 'promo-video'
-  | 'product-demo-video'
-  | 'photo-slideshow'
-  | 'ad-creative-video'
-  | 'testimonial-video'
-  | 'countdown-video'
-  | 'lower-thirds'
-  | 'animated-infographic'
-  | 'map-animation'
-  | 'logo-animation'
-  | 'motion-background'
-  | 'color-motion'
-  | 'animation-principles'
-  | 'beat-sync-editing'
-  | 'motion-art-direction'
-  | 'creative-brief'
-  | 'brand-motion-guidelines'
-  | 'video-delivery-specs'
-  | 'svg-animation'
-  | 'lottie-animation'
-  | 'generative-illustration'
-  | 'soundtrack'
-  | 'gsap-web'
-  | '60fps-animation'
-  | 'accessible-animation'
-  | 'after-effects'
-  | 'ascii-animation'
-  | 'client-revisions'
-  | 'glassmorphism'
-  | 'javascript-animation'
-  | 'micro-interaction'
-  | 'motion-pricing'
-  | 'page-transition-animation'
-  | 'particle-system'
-  | 'shader-glsl'
-  | 'threejs-animation'
-  | 'audiogram'
-  | 'youtube-intro-outro'
+export const SKILL_NAMES = [
+  'explainer-video',
+  'manim',
+  'diagram-animation',
+  'kinetic-typography',
+  'launch-video',
+  'presentation-video',
+  'remotion-video',
+  'shot-composition',
+  'short-form-video',
+  'caption-animation',
+  'chart-animation',
+  'wrapped-video',
+  'whiteboard-animation',
+  'stickman-animation',
+  'isometric-animation',
+  'text-message-animation',
+  'promo-video',
+  'product-demo-video',
+  'photo-slideshow',
+  'ad-creative-video',
+  'testimonial-video',
+  'countdown-video',
+  'lower-thirds',
+  'animated-infographic',
+  'map-animation',
+  'logo-animation',
+  'motion-background',
+  'color-motion',
+  'animation-principles',
+  'beat-sync-editing',
+  'motion-art-direction',
+  'creative-brief',
+  'brand-motion-guidelines',
+  'video-delivery-specs',
+  'svg-animation',
+  'lottie-animation',
+  'generative-illustration',
+  'soundtrack',
+  'gsap-web',
+  '60fps-animation',
+  'accessible-animation',
+  'after-effects',
+  'ascii-animation',
+  'client-revisions',
+  'glassmorphism',
+  'javascript-animation',
+  'micro-interaction',
+  'motion-pricing',
+  'page-transition-animation',
+  'particle-system',
+  'shader-glsl',
+  'threejs-animation',
+  'audiogram',
+  'youtube-intro-outro',
   /** Electron 本机混剪台（素材 + EdgeTTS + FFmpeg） */
-  | 'footage-remix';
+  'footage-remix',
+] as const;
+
+export type SkillName = (typeof SKILL_NAMES)[number];
 
 const SKILL_REFS: Partial<Record<SkillName, string[]>> = {
   'logo-animation': [

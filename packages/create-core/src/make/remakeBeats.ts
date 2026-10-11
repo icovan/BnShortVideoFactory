@@ -37,6 +37,7 @@ import {
   validateDirectedTsx,
 } from './remotionCodegen.ts';
 import { extractConstArray } from './surgicalBeats.ts';
+import { assetFilesFromProps } from './craftFloor.ts';
 import { chatJson } from '../llm.ts';
 import { projectOutputDir } from './storyboard.ts';
 import { VO_TAIL_SEC, buildContactSheet, writeSkillGateReport } from '../skills/hardPipeline.ts';
@@ -419,7 +420,8 @@ Selected beat intents: ${indexes.map((i) => props.scenes[i]?.visualIntent || '')
       scenes: props.scenes,
     });
     const sceneCount = Math.max(props.scenes?.length || 0, 1);
-    let codeIssues = validateDirectedTsx(tsx, skillIds, contentLang, undefined, sceneCount);
+    const assetFiles = assetFilesFromProps(props.assets);
+    let codeIssues = validateDirectedTsx(tsx, skillIds, contentLang, undefined, sceneCount, assetFiles);
     let skillGate = assertSkillsInTsx(skillIds, tsx, { hardIds });
     if (codeIssues.length || !skillGate.ok) {
       // BEATS 补丁路径禁止再走「整文件 fix」（否则又会整片重写）
@@ -441,7 +443,7 @@ Selected beat intents: ${indexes.map((i) => props.scenes[i]?.visualIntent || '')
           ].join('; '),
           propsJson: propsStr,
         });
-        codeIssues = validateDirectedTsx(tsx, skillIds, contentLang, undefined, sceneCount);
+        codeIssues = validateDirectedTsx(tsx, skillIds, contentLang, undefined, sceneCount, assetFiles);
         skillGate = assertSkillsInTsx(skillIds, tsx, { hardIds });
       }
     }

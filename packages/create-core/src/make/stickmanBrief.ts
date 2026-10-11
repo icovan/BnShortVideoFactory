@@ -112,7 +112,8 @@ export function applyStickmanPhraseToBeats<T extends PhraseBeat>(
 
 export function withStickmanMachineLock(machinePrompt: string, sourceAsk: string): string {
   const base = (machinePrompt || '').trim();
-  if (!asksForStickman(sourceAsk) && !asksForStickman(base)) return base;
+  // Only the user's own instruction counts. A machine brief that echoes「火柴人」from narration must not re-lock.
+  if (!asksForStickman(sourceAsk)) return base;
   if (/STICKMAN ACTOR LOCK/i.test(base)) return base;
   return `${base}\n\n${stickmanMachineLockBlock()}`;
 }

@@ -591,8 +591,9 @@ export async function prepareDirectedHard(
   const craftIds = craftSkillIds(plan);
   const codegenIds = codegenSkillIds(plan);
   const sceneCount = Math.max(props.scenes?.length || 0, plan.beats?.length || 0, 1);
+  const assetFiles = screenAssets.map((a) => a.file).filter((f) => Boolean(f));
   const validateTsx = (src: string) =>
-    validateDirectedTsx(src, craftIds, contentLang, plan.aspect, sceneCount);
+    validateDirectedTsx(src, craftIds, contentLang, plan.aspect, sceneCount, assetFiles);
   const revealFamilyBlocked = (issues: string[]) =>
     issues.some((i) => i.startsWith('reveal families'));
   setPipelineStep(projectId, 'build', 'running', `codegen · ${craftIds.join('+')} · ${contentLang}`);

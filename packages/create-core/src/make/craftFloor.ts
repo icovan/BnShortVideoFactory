@@ -1,4 +1,6 @@
 import type { Aspect } from '../../../shared/src/index.ts';
+import { SKILL_NAMES } from '../llm.ts';
+import { extractConstArray } from './surgicalBeats.ts';
 
 export type CraftKind = 'default' | 'logo' | 'showreel';
 
@@ -151,7 +153,10 @@ Goal: each beat has a DISTINCT graphic idea — not the same chrome skin with a 
 1. Anti-HUD spam: do NOT wrap every Sequence in the same REC / CAM / TC / LAB monitor chrome. At most 1–2 beats may use a surveillance frame as a STORY beat; others must change layout (diagram full-bleed, kinetic slam, caption bar, chart, archival card…).
 2. Per-beat craft: diagram beats → real SVG nodes/edges/strokeDash; kinetic beats → split/stagger words or lines; caption beats → active-word / karaoke highlight tied to VO.
 3. Density: ~${n} scenes need substantial ActiveDirected (≥~${minLen} chars of real components, not one shared HudShell). Prefer ≥3 interpolate() drivers on long films.
-4. Adjacent beats MUST change composition (layout / hero graphic / reveal family) — title-only swaps fail.`;
+4. Adjacent beats MUST change composition (layout / hero graphic / reveal family) — title-only swaps fail.
+5. ONE component per scene. Forbidden: BEATS[i % BEATS.length] or any shorter layout registry reused across the film. Registry length must be ≥${Math.ceil(n * 0.85)} for ~${n} scenes.
+6. If props.assets exist, every asset.file must be drawn with <Img src={staticFile('that file')} />. Passing a shots array without <Img> fails.
+7. Never put skill id strings (explainer-video, stickman-animation, …) in on-screen text or string arrays.`;
 }
 
 /** Static density + anti-chrome-spam gates (成片向). */
@@ -208,5 +213,112 @@ export function assertFilmCraftDensity(
   if (n >= 8 && interp < 3) {
     issues.push('craft density: need ≥3 interpolate() drivers for long explainers');
   }
+  issues.push(...assertBeatLayouts(src, n));
+  issues.push(...assertNoSkillIdCopy(src));
   return issues;
+}
+
+const SKILL_ID_SET = new Set<string>(SKILL_NAMES);
+
+function stripTsComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+}
+
+function componentRegistryLength(src: string, name: string): number | null {
+  const arr = extractConstArray(src, name);
+  if (!arr) return null;
+  const texts = arr.items.map((it) => it.text.trim()).filter(Boolean);
+  if (!texts.length) return 0;
+  const components = texts.filter((t) => /^[A-Z][A-Za-z0-9_]*$/.test(t)).length;
+  if (components < Math.ceil(texts.length * 0.6)) return null;
+  return texts.length;
+}
+
+/**
+ * Catch BEATS[i % BEATS.length] and any component registry much shorter than the film.
+ * Object-literal beat tables and numeric timing arrays are ignored.
+ */
+export function assertBeatLayouts(src: string, sceneCount?: number): string[] {
+  const n = Math.max(0, sceneCount ?? 0);
+  if (n < 8) return [];
+  const need = Math.ceil(n * 0.85);
+  const code = stripTsComments(src);
+  const names = new Set<string>();
+  for (const m of code.matchAll(/\bconst\s+(BEATS|beats|layouts|SCENES|BeatList)\b/g)) {
+    names.add(m[1]);
+  }
+  for (const m of code.matchAll(/\b([A-Za-z_]\w*)\s*\[\s*[A-Za-z_]\w*\s*%\s*(?:\1\.length|\d+)\s*\]/g)) {
+    names.add(m[1]);
+  }
+
+  const issues: string[] = [];
+  for (const name of names) {
+    const len = componentRegistryLength(code, name);
+    if (len == null) continue;
+    const modulo = new RegExp(`\\b${name}\\s*\\[\\s*[A-Za-z_]\\w*\\s*%`).test(code);
+    if (modulo && len < n) {
+      issues.push(
+        `beat recycle: ${name}[i % length] reuses ${len} layouts across ${n} scenes — write one component per scene`,
+      );
+      continue;
+    }
+    if (len < need) {
+      issues.push(
+        `beat recycle: ${name} has ${len} layouts for ${n} scenes — need ≥${need} distinct beat components`,
+      );
+    }
+  }
+  return issues;
+}
+
+/** Quoted skill-id lists and JSX text that paints internal skill names on the canvas. */
+export function assertNoSkillIdCopy(src: string): string[] {
+  const code = stripTsComments(src);
+  const issues: string[] = [];
+  const arrays = code.match(/\[[^\[\]]{0,1200}\]/g) || [];
+  for (const arr of arrays) {
+    const ids = [...arr.matchAll(/['"`]([a-z0-9]+(?:-[a-z0-9]+)+)['"`]/g)]
+      .map((m) => m[1])
+      .filter((id) => SKILL_ID_SET.has(id));
+    if (ids.length >= 2) {
+      issues.push(
+        `skill ids on screen: do not list skill names in the film (${ids.slice(0, 5).join(', ')})`,
+      );
+      break;
+    }
+  }
+  const jsx = [...code.matchAll(/>([a-z0-9]+(?:-[a-z0-9]+)+)</g)]
+    .map((m) => m[1])
+    .filter((id) => SKILL_ID_SET.has(id));
+  if (jsx.length) {
+    issues.push(`skill ids on screen: remove on-canvas skill labels (${[...new Set(jsx)].slice(0, 4).join(', ')})`);
+  }
+  return issues;
+}
+
+export function assetFilesFromProps(assets: unknown): string[] {
+  if (!Array.isArray(assets)) return [];
+  const out: string[] = [];
+  for (const a of assets) {
+    if (!a || typeof a !== 'object') continue;
+    const file = (a as { file?: unknown }).file;
+    if (typeof file === 'string' && file.trim()) out.push(file.replace(/\\/g, '/').trim());
+  }
+  return out;
+}
+
+/** Every uploaded screen file must be referenced beside an <Img>, not merely passed through props. */
+export function assertScreenAssetsDrawn(src: string, files: string[]): string[] {
+  const missing: string[] = [];
+  const hasImg = /<Img\b/.test(src);
+  for (const file of files) {
+    const base = file.split(/[/\\]/).pop() || file;
+    if (!base) continue;
+    if (hasImg && (src.includes(file) || src.includes(base))) continue;
+    missing.push(base);
+  }
+  if (!missing.length) return [];
+  return [
+    `screen assets: draw each upload with <Img src={staticFile('…')}> — missing ${missing.join(', ')}`,
+  ];
 }

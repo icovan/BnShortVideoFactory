@@ -24,7 +24,7 @@ import {
   asksForStickman,
   stickmanMachineLockBlock,
 } from './stickmanBrief.ts';
-import { promptForcesMix, promptForcesStickman } from './promptIntent.ts';
+import { promptForcesManim, promptForcesMix, promptForcesStickman } from './promptIntent.ts';
 
 function skillWhenCatalog(ids: SkillName[]): string {
   return ids
@@ -320,15 +320,25 @@ export function normalizeSkillPlan(
   if (promptForcesMix(opts?.sourcePrompt || '') || opts?.forcePrimary === 'footage-remix') {
     primary = 'footage-remix';
   }
-  // 火柴人 = 提示词驱动的可混用图层（不像 manim 独占）。不抢 Logo / 展片 / Manim / 混剪主 skill。
+  const ask = opts?.sourcePrompt || '';
+  const stickmanOrdered = promptForcesStickman(ask);
+  const manimOrdered = promptForcesManim(ask);
+  // 文稿/旁白里点到名字不是出场指令。模型若因此选了这两条，拉回讲解片。
+  if (primary === 'stickman-animation' && !stickmanOrdered) {
+    primary = hint && PRIMARY_SKILLS.includes(hint) && hint !== 'stickman-animation' && hint !== 'manim'
+      ? hint
+      : 'explainer-video';
+  }
+  if (primary === 'manim' && !manimOrdered) {
+    primary = aspect === '9:16' || aspect === '3:4' ? 'short-form-video' : 'explainer-video';
+  }
+  // 火柴人 = 用户明确要求才混用。不抢 Logo / 展片 / Manim / 混剪主 skill。
   const wantStickmanMix = filmKind !== 'logo'
     && filmKind !== 'showreel'
     && primary !== 'manim'
     && primary !== 'footage-remix'
     && primary !== 'logo-animation'
-    && (promptForcesStickman(opts?.sourcePrompt || '')
-      || (raw.support || []).includes('stickman-animation')
-      || primary === 'stickman-animation');
+    && stickmanOrdered;
 
   const voMode = filmKind === 'logo' || filmKind === 'showreel'
     ? 'off' as VoMode
@@ -343,7 +353,10 @@ export function normalizeSkillPlan(
     : primary === 'footage-remix'
       ? 'footage-remix'
       : 'explainer-remotion';
-  const llmSupport = (raw.support || []).filter(isSkillName).filter((s) => SUPPORT_SKILLS.includes(s));
+  const llmSupport = (raw.support || [])
+    .filter(isSkillName)
+    .filter((s) => SUPPORT_SKILLS.includes(s))
+    .filter((s) => stickmanOrdered || s !== 'stickman-animation');
   const companions = resolveCompanions(primary, llmSupport, {
     stickmanMix: wantStickmanMix,
     showreel: filmKind === 'showreel',
@@ -408,10 +421,11 @@ export function normalizeSkillPlan(
     }
   }
 
-  if (opts?.forceRemotion) {
-    const fallback: SkillName = support.includes('diagram-animation')
-      ? 'diagram-animation'
-      : primary;
+  if (!wantStickmanMix) {
+    beats = beats.map((b) => (b.skill === 'stickman-animation' ? { ...b, skill: primary } : b));
+  }
+  if (primary !== 'manim') {
+    const fallback: SkillName = support.includes('diagram-animation') ? 'diagram-animation' : primary;
     beats = beats.map((b) => (b.skill === 'manim' ? { ...b, skill: fallback } : b));
   }
 
@@ -467,9 +481,10 @@ export async function planSkills(
   const voHint = filmKind === 'logo' || filmKind === 'showreel'
     ? 'off' as VoMode
     : resolveVoMode({ ask: lockAsk, uiMode: uiVoMode });
-  const manimRule = opts?.forceRemotion
-    ? '- Formula / theorem / axes / geometry → explainer-video + diagram-animation (Remotion). NEVER pick manim.'
-    : '- Formula / theorem / axes / 3B1B → manim';
+  const manimOrdered = !opts?.forceRemotion && promptForcesManim(lockAsk);
+  const manimRule = manimOrdered
+    ? '- User asked for Manim / 3Blue1Brown. primary = manim. EXCLUSIVE: manim is the ONLY skill — never mix with Remotion skills.'
+    : '- Do NOT pick manim. Naming Manim inside narration, source docs, or a feature list is subject matter. Formula / theorem stays explainer-video + diagram-animation.';
   const primaryPool = PRIMARY_SKILLS.filter((s) => !(opts?.forceRemotion && s === 'manim'));
   // 路由只读技能「何时用」+ 正文摘要，不灌 CRAFT FLOOR
   const skillDigest = readSkill(
@@ -503,9 +518,7 @@ ${skillDigest}
 
 ROUTING (prompt wins):
 ${manimRule}
-  EXCLUSIVE: manim is the ONLY skill on that job — never mix manim with Remotion skills.
-- Stickman / 火柴人 → stickman-animation as MIXABLE support (not exclusive). Keep true primary; do not make every beat stickman; never steal logo-animation.
-  LOOK: invent canvas/ink from THIS brief — never force black for stickman.
+- Stickman ONLY when the user instruction asks to perform with stickman (用火柴人 / 火柴人风格 / stickman). A feature-list or narration mention is NOT an order. Do not add stickman-animation otherwise.
 ${asksForStickman(lockAsk) ? `\n${stickmanMachineLockBlock()}\n` : ''}
 - Raw footage / 混剪 → footage-remix
 - Chat / iMessage script → text-message-animation

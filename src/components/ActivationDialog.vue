@@ -116,10 +116,11 @@ const statusLine = computed(() => {
     if (ent.value.daysLeft == null) return t('studio.license.proLife')
     return t('studio.license.proDays', { n: ent.value.daysLeft })
   }
-  if (ent.value.status === 'trial' && ent.value.daysLeft != null) {
+  if (ent.value.canMake && ent.value.daysLeft != null) {
     return t('studio.license.trialDays', { n: ent.value.daysLeft })
   }
-  return ent.value.message || t('studio.license.locked')
+  if (!ent.value.canMake) return t('studio.license.expiredLead')
+  return t('studio.license.locked')
 })
 
 const expiresLabel = computed(() => {

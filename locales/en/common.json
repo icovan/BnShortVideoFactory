@@ -98,6 +98,15 @@
     "copy": "Copy version",
     "checkUpdate": "Check for updates"
   },
+  "notice": {
+    "switched": "Switched to English",
+    "saved": "Saved",
+    "network": "The network is unstable, so this didn't connect. Check your connection and try again.",
+    "billing": "The model account is out of balance or quota. Add credit with your provider, then try again.",
+    "voice": "The voice-over didn't generate. Try another voice, or try again later.",
+    "other": "This one didn't finish. Please try again.",
+    "dismiss": "Dismiss"
+  },
   "update": {
     "title": "Update available",
     "currentVersion": "Current version",
@@ -714,6 +723,7 @@
       "proDays": "{{n}} days left in Pro",
       "proLife": "Pro · Lifetime",
       "locked": "Not activated",
+      "expiredLead": "The trial has ended. Enter an activation code to keep creating.",
       "badgeTrialDays": "{{n}} days left in trial",
       "badgeProDays": "{{n}} days left in Pro",
       "badgeProLife": "Pro · Lifetime",

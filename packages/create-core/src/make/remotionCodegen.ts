@@ -13,6 +13,7 @@ import {
 import {
   assertFilmCraftDensity,
   assertRevealFamilyRotation,
+  assertScreenAssetsDrawn,
   cinematicFloorLine,
   cinematicMotionFloor,
   filmCraftDensityLaw,
@@ -56,6 +57,35 @@ export function parseTsxSyntaxIssues(src: string, fileName = 'Active.tsx'): stri
   } catch (e) {
     return [`syntax check failed: ${e instanceof Error ? e.message : String(e)}`];
   }
+}
+
+/**
+ * spring() fps must be the composition fps. Passing `frame` is 0 on the first
+ * frame of a Sequence, which still sampling skips and full encode hits.
+ */
+export function assertSpringFps(src: string): string[] {
+  const issues: string[] = [];
+  const springCalls = src.matchAll(/spring\s*\(\s*\{([\s\S]*?)\}\s*\)/g);
+  for (const m of springCalls) {
+    const body = m[1];
+    const fpsProp = body.match(/\bfps\s*:\s*([^,}\n]+)/);
+    if (fpsProp) {
+      const expr = fpsProp[1].trim();
+      if (expr === '0' || /\bframe\b/.test(expr)) {
+        issues.push(
+          `spring fps: got "${expr}" — pass useVideoConfig().fps, never frame or 0 (frame 0 crashes encode)`,
+        );
+      }
+    } else if (!/(?:^|[,\s])fps(?:\s*[,}])/m.test(body)) {
+      issues.push('spring fps: every spring() must pass fps from useVideoConfig()');
+    }
+  }
+  if (/\b\w+\s*\(\s*frame\s*,\s*frame\b/.test(src)) {
+    issues.push(
+      'spring fps: do not pass frame as the fps argument (helper(frame, frame, …) is 0 on the first frame)',
+    );
+  }
+  return issues;
 }
 
 export function extractTsx(text: string): string {
@@ -651,6 +681,7 @@ export function validateDirectedTsx(
   contentLang: 'zh' | 'en' | 'bilingual' = 'zh',
   aspect: Aspect = '16:9',
   sceneCount?: number,
+  assetFiles?: string[],
 ): string[] {
   const issues: string[] = [];
   const stickmanOn = skillIds?.includes('stickman-animation') === true;
@@ -719,6 +750,10 @@ export function validateDirectedTsx(
       craftKind: craft,
     }));
   }
+  if (assetFiles?.length) {
+    issues.push(...assertScreenAssetsDrawn(src, assetFiles));
+  }
+  issues.push(...assertSpringFps(src));
   // 语法错误优先：esbuild 会在 still 阶段炸，必须在 soft-accept 前拦住
   issues.push(...parseTsxSyntaxIssues(src, 'ActiveDirected.tsx'));
   return issues;
@@ -779,7 +814,9 @@ export async function generateDirectedTsx(
 Export: export const ActiveDirected: React.FC<DirectedProps> from '../directedSchema'
 Canvas from props.aspect. Series over props.scenes; Audio via staticFile(scene.narrationFile) only when set. Optional props.musicFile + props.dropSec.
 When props.autoSfx is on, play scene.sfxCues as timed hits (only files listed in props).
-If props.assets exist, use <Img src={staticFile(asset.file)} />. Never invent URLs.
+If props.assets exist, draw EVERY asset.file with <Img src={staticFile('assets/…file')} />. The filename string must appear in the file. Never invent URLs. Passing shots through props without <Img> fails.
+ONE beat component per scene. Forbidden: BEATS[i % BEATS.length] and any layout registry shorter than the scene list.
+Never put skill id strings (explainer-video, stickman-animation, diagram-animation, …) in on-screen text or string arrays.
 Use scene.headline / scene.vo / scene.line EXACTLY — do not translate. Empty headline → no invented title card.
 Fill each Sequence with real motion/graphics — no empty AbsoluteFill placeholders.
 Focus on the skills listed below (primary + technique supports, often 3 craft seats). Do NOT sprinkle fake markers for unselected skills.
@@ -804,6 +841,7 @@ ${floorHint}
 Prefer skill pacing and progressive disclosure over repeating "72px / safe area / full-bleed" in every beat.
 FORBIDDEN: re-export stock SKUs; fetch/timers; empty placeholders; default Linear/PageOn purple skins unless brief asks.
 FORBIDDEN: spring()+translateY as the only reveal for every beat — rotate mask/blur/clip/slam.
+FORBIDDEN: passing frame, 0, or a delay as spring fps. fps must be useVideoConfig().fps. Frame 0 is a real frame and encode throws if fps is 0.
 FORBIDDEN: one HudShell (REC/CAM/TC/LAB) reused on every beat with only the title changed.
 
 Skeleton:
@@ -838,6 +876,10 @@ Preserve the brief's staging / props / look (props.canvas, props.ink) — do NOT
 If error mentions hero type / scale / rotate / timid: on 16:9 enlarge ONE slam to ≥72–140px with spring scale/rotate depth; on 9:16 keep captions smaller and modest edge pad — do NOT put 72px on every line or keep tiny centered cards. If logo/motion: animate the mark, do not add explainer titles.
 If error mentions reveal families: ROTATE mask / blur / clip / slam across beats — add real clipPath, filter:blur, mask/RGB wipe, or scale-overshoot slam. Do NOT only retune spring+translateY.
 If error mentions chrome spam / craft density: DELETE per-beat REC/CAM/TC/LAB shells; give each Sequence a distinct layout (full-bleed diagram, kinetic slam, caption bar, chart). Deepen SVG/strokeDash/split/interpolate — do not shrink the file.
+If error mentions beat recycle: delete i % BEATS.length. Emit one distinct beat component per scene and list every one in order. Do not wrap a short registry around props.scenes.
+If error mentions screen assets: render every listed file with <Img src={staticFile('assets/…')} />. The filename must appear in source. Do not pass an unused shots array.
+If error mentions skill ids on screen: delete quoted skill-id arrays. Show the story headline, never explainer-video / stickman-animation / similar ids.
+If error mentions spring fps: every spring() must use fps from useVideoConfig(). Never write spring({ fps: frame }) or helper(frame, frame, delay). The first frame is 0.
 ${revealFamilyHardRules(sceneCount)}
 ${filmCraftDensityLaw(sceneCount)}
 If stickman / Series / pose errors:

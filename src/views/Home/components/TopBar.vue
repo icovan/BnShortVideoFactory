@@ -22,15 +22,15 @@
 <script lang="ts" setup>
 import { ref } from 'vue'
 import { useTranslation } from 'i18next-vue'
-import { useToast } from 'vue-toastification'
 import { ArrowUpCircle, Info } from '@lucide/vue'
 import AppIcon from '@/components/AppIcon.vue'
 import UpdateDialog from '@/components/UpdateDialog.vue'
 import type { UpdateInfo } from '~/electron/updater'
+import { classifyTaskError } from '@/lib/notice-kind'
+import { pushNotice } from '@/lib/notice'
 
 const version = __APP_VERSION__
 const { t } = useTranslation()
-const toast = useToast()
 const showUpdateDialog = ref(false)
 const updateInfo = ref<UpdateInfo | null>(null)
 const checking = ref(false)
@@ -48,12 +48,14 @@ const handleCheckUpdate = async () => {
       updateInfo.value = result.info
       showUpdateDialog.value = true
     } else if (result.status === 'up-to-date') {
-      toast.success(t('update.upToDate'))
+      pushNotice('ok', t('update.upToDate'))
     } else {
-      toast.error(result.message || t('update.updateError'))
+      const kind = classifyTaskError(result.message || '')
+      pushNotice('attention', t(kind === 'network' ? 'notice.network' : 'notice.other'))
     }
   } catch (e: any) {
-    toast.error(e?.message || t('update.updateError'))
+    const kind = classifyTaskError(e?.message || '')
+    pushNotice('attention', t(kind === 'network' ? 'notice.network' : 'notice.other'))
   } finally {
     checking.value = false
   }
