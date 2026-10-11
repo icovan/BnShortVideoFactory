@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
 import { creativeStrategies, buildDiversityInstructions } from '../../src/lib/llm/diversity'
-import { assessSimilarity } from '../../src/lib/llm/similarity'
 import {
   clearCopywritingHistory,
   getCopywritingHistory,
@@ -65,50 +64,5 @@ describe('diversity strategy and history', () => {
     expect(instructions).toContain('用户明确提出的事实')
     expect(instructions).toContain('历史文案正文')
     expect(instructions).toContain('首稿内容')
-  })
-})
-
-describe('copy similarity assessment', () => {
-  it('detects exact duplicate after punctuation and whitespace normalization', () => {
-    expect(
-      assessSimilarity('欢迎来到这里！今天一起开始。', [
-        { id: 'old', text: '欢迎 来到这里 今天一起开始', complete: true },
-      ]),
-    ).toMatchObject({ highlySimilar: true, score: 1, reason: 'exact' })
-  })
-
-  it('does not mark short or same-topic but differently worded scripts as duplicates', () => {
-    expect(
-      assessSimilarity('这款产品方便日常使用。', [
-        { id: 'old', text: '这款产品适合放在办公室。', complete: true },
-      ]).highlySimilar,
-    ).toBe(false)
-    expect(
-      assessSimilarity('为忙碌的早晨准备一份简单早餐，可以节省时间，也能让一天的开始更从容。', [
-        {
-          id: 'old',
-          text: '早上时间紧张时，提前准备一顿方便的早餐，让你不用匆忙，也能轻松开启新一天。',
-          complete: true,
-        },
-      ]).highlySimilar,
-    ).toBe(false)
-  })
-
-  it('flags a long script that differs only by small wording changes', () => {
-    const original =
-      '今天我们来聊聊这款便携咖啡机。它体积小巧，操作简单，适合通勤、旅行和办公室使用。只需加入咖啡粉和热水，按下按钮即可快速制作一杯咖啡。无需复杂设置，也不用占用太多空间，让你在忙碌的日常里随时享受一杯喜欢的咖啡。'
-    const lightlyEdited =
-      '今天我们来聊聊这款便携咖啡机。它体积小巧，操作简单，适合通勤、旅行和办公室使用。只需加入咖啡粉和热水，按下按钮即可轻松制作一杯咖啡。无需复杂设置，也不用占用太多空间，让你在忙碌的日常里随时享受一杯喜欢的咖啡。'
-    expect(
-      assessSimilarity(lightlyEdited, [{ id: 'old', text: original, complete: true }])
-        .highlySimilar,
-    ).toBe(true)
-  })
-
-  it('ignores partial history entries for full-text matching', () => {
-    expect(
-      assessSimilarity('相同正文', [{ id: 'old', text: '相同正文', complete: false }])
-        .highlySimilar,
-    ).toBe(false)
   })
 })

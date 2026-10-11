@@ -48,3 +48,7 @@ vendor/skills/**
 *.njsproj
 *.sln
 *.sw?
+
+# Local scratch / unrelated IDE remnants
+.tmp-mg-frames/
+.hbuilderx/

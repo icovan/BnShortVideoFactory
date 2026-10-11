@@ -1,7 +1,7 @@
-import { createAnthropic } from '@ai-sdk/anthropic'
-import { createOpenAI } from '@ai-sdk/openai'
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import type { LanguageModel } from 'ai'
+/**
+ * URL validation helpers for ConfigDialog / settings normalization.
+ * Model streaming (ai-sdk) was removed with the legacy TextGenerate stack.
+ */
 import type { LlmConfig, RequestUrlIssue } from './types'
 
 const normalizeUrl = (url: unknown) =>
@@ -27,17 +27,19 @@ export function getRequestUrlIssue(config: LlmConfig): RequestUrlIssue | undefin
   }
 
   if (
-    !['http:', 'https:'].includes(parsedUrl.protocol) ||
-    parsedUrl.search ||
-    parsedUrl.hash ||
-    parsedUrl.username ||
-    parsedUrl.password
-  )
+    !['http:', 'https:'].includes(parsedUrl.protocol)
+    || parsedUrl.search
+    || parsedUrl.hash
+    || parsedUrl.username
+    || parsedUrl.password
+  ) {
     return 'invalid'
+  }
 
   const path = parsedUrl.pathname.replace(/\/+$/, '').toLowerCase()
-  if (knownEndpointPaths.some((endpoint) => path === endpoint || path.endsWith(endpoint)))
+  if (knownEndpointPaths.some((endpoint) => path === endpoint || path.endsWith(endpoint))) {
     return 'full-endpoint'
+  }
 
   return undefined
 }
@@ -47,46 +49,4 @@ export function getRequestUrlHint(config: LlmConfig): string {
   if (!baseUrl) return ''
   if (getRequestUrlIssue(config)) return ''
   return `${baseUrl}${getEndpointPath(config)}`
-}
-
-export function createLanguageModel(config: LlmConfig): LanguageModel {
-  const baseURL = normalizeUrl(config.apiUrl)
-  const headers = Object.fromEntries(
-    config.customHeaders.map(({ name, value }) => [name.trim(), value]),
-  )
-
-  switch (config.protocol) {
-    case 'openai-compatible':
-      return createOpenAICompatible({
-        name: 'openai-compatible',
-        baseURL,
-        apiKey: config.apiKey || undefined,
-        headers,
-      }).chatModel(config.modelName)
-    case 'openai-chat': {
-      const provider = createOpenAI({
-        baseURL,
-        apiKey: config.apiKey || undefined,
-        headers,
-      })
-      return provider.chat(config.modelName)
-    }
-    case 'openai-responses': {
-      const provider = createOpenAI({
-        baseURL,
-        apiKey: config.apiKey || undefined,
-        headers,
-      })
-      return provider.responses(config.modelName)
-    }
-    case 'anthropic-messages': {
-      const provider = createAnthropic({
-        baseURL,
-        apiKey: config.anthropicAuthMode === 'api-key' ? config.apiKey || undefined : undefined,
-        authToken: config.anthropicAuthMode === 'bearer' ? config.apiKey || undefined : undefined,
-        headers,
-      })
-      return provider(config.modelName)
-    }
-  }
 }

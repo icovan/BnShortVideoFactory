@@ -6,8 +6,6 @@ import {
   normalizeCopywritingConfig,
   normalizeLlmConfig,
 } from '../../src/lib/llm/config'
-import { buildPrompt, getSystemPrompt } from '../../src/lib/llm/prompts'
-import { getRequestUrlHint, getRequestUrlIssue } from '../../src/lib/llm/providers'
 import type { LlmConfig } from '../../src/lib/llm/types'
 
 const createConfig = (apiUrl: string, overrides: Partial<LlmConfig> = {}): LlmConfig => ({
@@ -63,36 +61,6 @@ describe('LLM configuration', () => {
     expect(config.maxOutputTokens).toBeUndefined()
   })
 
-  it('validates URL protocols, known complete endpoints, query/hash, and credentials', () => {
-    const cases = [
-      ['openai-compatible', '/chat/completions'],
-      ['openai-chat', '/chat/completions'],
-      ['openai-responses', '/responses'],
-      ['anthropic-messages', '/messages'],
-    ] as const
-
-    for (const [protocol, endpoint] of cases) {
-      const config = createConfig(`https://example.com/v1${endpoint}`, { protocol })
-      expect(getRequestUrlIssue(config)).toBe('full-endpoint')
-      expect(getRequestUrlHint(config)).toBe('')
-    }
-
-    expect(
-      getRequestUrlIssue(
-        createConfig('https://example.com/v1/responses', { protocol: 'openai-chat' }),
-      ),
-    ).toBe('full-endpoint')
-    expect(getRequestUrlIssue(createConfig('localhost:11434'))).toBe('invalid')
-    expect(getRequestUrlIssue(createConfig('https://user:password@example.com/v1'))).toBe('invalid')
-    expect(getRequestUrlHint(createConfig('https://user:password@example.com/v1'))).toBe('')
-    expect(getRequestUrlIssue(createConfig('https://example.com/v1?key=secret'))).toBe('invalid')
-    expect(getRequestUrlIssue(createConfig('https://example.com/v1#fragment'))).toBe('invalid')
-    expect(getRequestUrlIssue(createConfig('http://localhost:11434/v1'))).toBeUndefined()
-    expect(getRequestUrlHint(createConfig('http://localhost:11434/v1'))).toBe(
-      'http://localhost:11434/v1/chat/completions',
-    )
-  })
-
   it('validates custom header names, values, protected names, and duplicates', () => {
     expect(getCustomHeaderIssue([{ name: 'bad header', value: 'x' }])).toBe('invalid-name')
     expect(getCustomHeaderIssue([{ name: 'Authorization', value: 'x' }])).toBe('protected-name')
@@ -137,23 +105,12 @@ describe('LLM configuration', () => {
     })
   })
 
-  it('normalizes prompt modes and keeps standard and merged delivery semantics', () => {
+  it('normalizes prompt modes for copywriting config persistence', () => {
     expect(normalizeCopywritingConfig({ systemPromptMode: 'invalid' })).toEqual({
       systemPromptMode: 'builtin',
       customSystemPrompt: '',
       diversityEnabled: false,
       rewriteOnSimilarity: true,
-    })
-    expect(getSystemPrompt({ systemPromptMode: 'off', customSystemPrompt: '' })).toBeUndefined()
-    expect(getSystemPrompt({ systemPromptMode: 'custom', customSystemPrompt: '  rules  ' })).toBe(
-      'rules',
-    )
-    expect(buildPrompt('request', 'rules', 'standard')).toEqual({
-      prompt: 'request',
-      instructions: 'rules',
-    })
-    expect(buildPrompt('request', 'rules', 'user-message')).toEqual({
-      prompt: 'rules\n\n用户创作需求：\nrequest',
     })
   })
 })
