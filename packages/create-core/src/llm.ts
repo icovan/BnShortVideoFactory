@@ -41,12 +41,36 @@ export type SkillName =
   | 'beat-sync-editing'
   | 'motion-art-direction'
   | 'creative-brief'
+  | 'brand-motion-guidelines'
+  | 'video-delivery-specs'
+  | 'svg-animation'
+  | 'lottie-animation'
+  | 'generative-illustration'
+  | 'soundtrack'
+  | 'gsap-web'
+  | '60fps-animation'
+  | 'accessible-animation'
+  | 'after-effects'
+  | 'ascii-animation'
+  | 'client-revisions'
+  | 'glassmorphism'
+  | 'javascript-animation'
+  | 'micro-interaction'
+  | 'motion-pricing'
+  | 'page-transition-animation'
+  | 'particle-system'
+  | 'shader-glsl'
+  | 'threejs-animation'
   | 'audiogram'
   | 'youtube-intro-outro'
   /** Electron 本机混剪台（素材 + EdgeTTS + FFmpeg） */
   | 'footage-remix';
 
 const SKILL_REFS: Partial<Record<SkillName, string[]>> = {
+  'logo-animation': [
+    'references/logo-patterns.md',
+    'references/remotion-logo-craft.md',
+  ],
   'explainer-video': [
     'references/script-to-screen-workflow.md',
     'references/diagram-and-chart-recipes.md',
@@ -82,22 +106,85 @@ function skillRefs(n: SkillName): string[] {
   return readdirSync(dir).filter((f) => f.endsWith('.md')).map((f) => `references/${f}`);
 }
 
+function loadSkillRaw(n: SkillName): string {
+  const root = resolveSkillsDir();
+  const skill = join(root, n, 'SKILL.md');
+  if (!existsSync(skill)) return '';
+  const parts = [`# SKILL: ${n}\n\n` + readFileSync(skill, 'utf8')];
+  for (const ref of skillRefs(n)) {
+    const p = join(root, n, ref);
+    if (existsSync(p)) parts.push(readFileSync(p, 'utf8'));
+  }
+  return parts.join('\n\n');
+}
+
+/** Keep core craft sections when budgeting (P1 chunked read). */
+function extractCraftCore(md: string, maxChars: number): string {
+  if (!md || md.length <= maxChars) return md;
+  const blocks = md.split(/(?=^#{1,3}\s)/m);
+  const prefer = /when to use|core |technique|output checklist|deliver|timing|pattern|remotion|must|non-negotiable|logo|diagram|caption|kinetic/i;
+  const picked: string[] = [];
+  let used = 0;
+  for (const b of blocks) {
+    if (!b.trim()) continue;
+    const take = prefer.test(b.slice(0, 80)) || picked.length < 2;
+    if (!take && used > maxChars * 0.55) continue;
+    if (used + b.length > maxChars) {
+      picked.push(b.slice(0, Math.max(200, maxChars - used)) + '\n\n[…section truncated…]');
+      break;
+    }
+    picked.push(b);
+    used += b.length;
+  }
+  if (!picked.length) return md.slice(0, maxChars) + '\n\n[…skill truncated…]';
+  return picked.join('');
+}
+
 /** Load one or more vendored skills; optional char budget (default 28k). */
 export function readSkill(name: SkillName | SkillName[], maxChars = 28000) {
-  const root = resolveSkillsDir();
   const names = Array.isArray(name) ? name : [name];
   const parts: string[] = [];
   for (const n of names) {
-    const skill = join(root, n, 'SKILL.md');
-    if (!existsSync(skill)) continue;
-    parts.push(`# SKILL: ${n}\n\n` + readFileSync(skill, 'utf8'));
-    for (const ref of skillRefs(n)) {
-      const p = join(root, n, ref);
-      if (existsSync(p)) parts.push(readFileSync(p, 'utf8'));
-    }
+    const raw = loadSkillRaw(n);
+    if (raw) parts.push(raw);
   }
   const joined = parts.join('\n\n---\n\n');
   return joined.length > maxChars ? joined.slice(0, maxChars) + '\n\n[…skill truncated…]' : joined;
+}
+
+/**
+ * P1: Budgeted pack read — primary full-priority, technique cores, brand last.
+ * Never starve primary for soft companions.
+ */
+export function readSkillPack(opts: {
+  primary: SkillName;
+  technique: SkillName[];
+  brand?: SkillName[];
+  extra?: SkillName[];
+  budget?: number;
+}): string {
+  const budget = opts.budget ?? 36000;
+  const primaryBudget = Math.floor(budget * 0.42);
+  const techBudgetEach = Math.floor((budget * 0.40) / Math.max(1, opts.technique.length));
+  const brandBudget = Math.floor(budget * 0.12);
+  const extraBudget = Math.floor(budget * 0.06);
+
+  const parts: string[] = [];
+  parts.push(extractCraftCore(loadSkillRaw(opts.primary), primaryBudget));
+  for (const t of opts.technique) {
+    if (t === opts.primary) continue;
+    parts.push(extractCraftCore(loadSkillRaw(t), techBudgetEach));
+  }
+  // remotion chassis always (own slice — do not steal brand budget)
+  parts.push(extractCraftCore(loadSkillRaw('remotion-video'), Math.min(5500, Math.floor(budget * 0.14))));
+  for (const b of opts.brand || []) {
+    parts.push(extractCraftCore(loadSkillRaw(b), Math.floor(brandBudget / Math.max(1, (opts.brand || []).length))));
+  }
+  for (const e of opts.extra || []) {
+    parts.push(extractCraftCore(loadSkillRaw(e), Math.floor(extraBudget / Math.max(1, (opts.extra || []).length))));
+  }
+  const joined = parts.filter(Boolean).join('\n\n---\n\n');
+  return joined.length > budget ? joined.slice(0, budget) + '\n\n[…pack truncated…]' : joined;
 }
 
 export class LlmError extends Error {

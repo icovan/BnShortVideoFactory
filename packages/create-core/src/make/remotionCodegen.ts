@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
-import { chatJson, chatText, readSkill } from '../llm.ts';
+import { chatJson, chatText, readSkill, readSkillPack, type SkillName } from '../llm.ts';
+import { craftDepthBrief, type BeatSkillRef } from '../skills/skillDepth.ts';
 import type { Aspect, Settings } from '../../../shared/src/index.ts';
 import {
   collectBeatKinds,
@@ -10,9 +11,11 @@ import {
   syncBeatsCopyFromScenes,
 } from './surgicalBeats.ts';
 import {
+  assertFilmCraftDensity,
   assertRevealFamilyRotation,
   cinematicFloorLine,
   cinematicMotionFloor,
+  filmCraftDensityLaw,
   revealFamilyHardRules,
   type CraftKind,
 } from './craftFloor.ts';
@@ -69,6 +72,32 @@ function parseSceneCountFromProps(propsJson: string): number {
   }
   const n = (propsJson.match(/"durationSec"\s*:/g) || []).length;
   return n > 0 ? n : 4;
+}
+
+function parseBeatSkillsFromProps(propsJson: string): BeatSkillRef[] {
+  try {
+    const j = JSON.parse(propsJson) as {
+      scenes?: Array<{
+        job?: string;
+        skill?: string;
+        visualIntent?: string;
+        keyMotion?: string;
+        craftMust?: string[];
+      }>;
+    };
+    if (!Array.isArray(j.scenes)) return [];
+    return j.scenes
+      .filter((s) => s?.skill)
+      .map((s) => ({
+        job: s.job,
+        skill: s.skill as SkillName,
+        visualIntent: s.visualIntent,
+        keyMotion: s.keyMotion,
+        craftMust: s.craftMust,
+      }));
+  } catch {
+    return [];
+  }
 }
 
 export function validateNarratedTsx(src: string, sceneCount?: number): string[] {
@@ -682,6 +711,14 @@ export function validateDirectedTsx(
     sceneCount,
     stickmanLed: stickmanOn,
   }));
+  // 成片密度：禁每镜同一套 REC/CAM HUD，技法要够厚
+  if (!logoOn && !showreelOn) {
+    issues.push(...assertFilmCraftDensity(src, {
+      sceneCount,
+      skillIds: skillIds || [],
+      craftKind: craft,
+    }));
+  }
   // 语法错误优先：esbuild 会在 still 阶段炸，必须在 soft-accept 前拦住
   issues.push(...parseTsxSyntaxIssues(src, 'ActiveDirected.tsx'));
   return issues;
@@ -701,16 +738,41 @@ export async function generateDirectedTsx(
     lookLine?: string;
     contentLang?: 'zh' | 'en' | 'bilingual';
     aspect?: Aspect;
+    /** Beat-level skill refs for CRAFT DEPTH LAW */
+    beats?: BeatSkillRef[];
+    /** P1: pack-aware skill load */
+    primary?: SkillName;
+    technique?: SkillName[];
+    brandSkills?: SkillName[];
   },
 ): Promise<string> {
-  // 正文只灌选中技能（通常 primary+≤2 support+remotion），预算留给技法而非截断堆叠
-  const skill = readSkill(opts.skillIds as Parameters<typeof readSkill>[0], 36000);
+  const primary = (opts.primary || opts.skillIds[0] || 'explainer-video') as SkillName;
+  const technique = (opts.technique?.length
+    ? opts.technique
+    : opts.skillIds.filter((id) => id !== primary && id !== 'remotion-video')) as SkillName[];
+  const brandSkills = (opts.brandSkills || []) as SkillName[];
+  // P1: chunked full-skill pack — primary prioritized, never one-pot truncate
+  const skill = readSkillPack({
+    primary,
+    technique,
+    brand: brandSkills,
+    extra: opts.skillIds.includes('lottie-animation') || opts.skillIds.includes('gsap-web')
+      ? (['lottie-animation', 'gsap-web'] as SkillName[]).filter((id) => opts.skillIds.includes(id))
+      : [],
+    budget: 42000,
+  });
   const stickmanOn = opts.skillIds.includes('stickman-animation');
   const contentLang = opts.contentLang || 'zh';
   const aspect = opts.aspect || parseAspectFromProps(opts.propsJson);
   const craftKind = craftKindFromSkills(opts.skillIds);
   const floorHint = cinematicMotionFloor(aspect, craftKind);
   const sceneCount = parseSceneCountFromProps(opts.propsJson);
+  const depthLaw = craftDepthBrief(
+    [primary, ...technique] as SkillName[],
+    opts.beats?.length
+      ? opts.beats
+      : parseBeatSkillsFromProps(opts.propsJson),
+  );
   const raw = await chatText(
     settings,
     `You are a Remotion AUTHOR. Implement the SELECTED skills deeply — story + technique from SKILL text below.
@@ -720,7 +782,8 @@ When props.autoSfx is on, play scene.sfxCues as timed hits (only files listed in
 If props.assets exist, use <Img src={staticFile(asset.file)} />. Never invent URLs.
 Use scene.headline / scene.vo / scene.line EXACTLY — do not translate. Empty headline → no invented title card.
 Fill each Sequence with real motion/graphics — no empty AbsoluteFill placeholders.
-Focus on the skills listed below (usually 1 primary + ≤2 supports). Do NOT sprinkle fake markers for unselected skills.
+Focus on the skills listed below (primary + technique supports, often 3 craft seats). Do NOT sprinkle fake markers for unselected skills.
+Each scene.skill + scene.craftMust is LAW for THAT beat — implement that technique in that Sequence.
 ${stickmanOn ? stickmanDirectedHint(contentLang) : ''}
 ${craftKind === 'logo' ? logoCodegenHint() : ''}
 ${craftKind === 'showreel' ? showreelCodegenHint() : ''}
@@ -730,13 +793,18 @@ ${stickmanOn ? '\nSTICKMAN MIX: actor layer only; keep other selected skills vis
 === SELECTED SKILLS (LAW — implement their craft, not factory slogans) ===
 ${skill}
 
+${depthLaw}
+
 ${craftKind === 'logo' ? '' : revealFamilyHardRules(sceneCount)}
+
+${craftKind === 'logo' || craftKind === 'showreel' ? '' : filmCraftDensityLaw(sceneCount)}
 
 === SOFT HINT (optional quality, NOT a pass/fail checklist) ===
 ${floorHint}
 Prefer skill pacing and progressive disclosure over repeating "72px / safe area / full-bleed" in every beat.
 FORBIDDEN: re-export stock SKUs; fetch/timers; empty placeholders; default Linear/PageOn purple skins unless brief asks.
 FORBIDDEN: spring()+translateY as the only reveal for every beat — rotate mask/blur/clip/slam.
+FORBIDDEN: one HudShell (REC/CAM/TC/LAB) reused on every beat with only the title changed.
 
 Skeleton:
 \`\`\`tsx
@@ -769,7 +837,9 @@ export async function fixDirectedTsx(
 Preserve the brief's staging / props / look (props.canvas, props.ink) — do NOT replace the film with a generic pose demo.
 If error mentions hero type / scale / rotate / timid: on 16:9 enlarge ONE slam to ≥72–140px with spring scale/rotate depth; on 9:16 keep captions smaller and modest edge pad — do NOT put 72px on every line or keep tiny centered cards. If logo/motion: animate the mark, do not add explainer titles.
 If error mentions reveal families: ROTATE mask / blur / clip / slam across beats — add real clipPath, filter:blur, mask/RGB wipe, or scale-overshoot slam. Do NOT only retune spring+translateY.
+If error mentions chrome spam / craft density: DELETE per-beat REC/CAM/TC/LAB shells; give each Sequence a distinct layout (full-bleed diagram, kinetic slam, caption bar, chart). Deepen SVG/strokeDash/split/interpolate — do not shrink the file.
 ${revealFamilyHardRules(sceneCount)}
+${filmCraftDensityLaw(sceneCount)}
 If stickman / Series / pose errors:
 - import { Stickman, sampleClip, sampleClipForIntent, POSES, lerpPose, idleBob, walkPose, resolveStickInk, ensurePose } from '../stickman' — never redefine Stickman locally.
 - Prefer sampleClip(clipId, tLocal, { frame, fps }) / sampleClipForIntent(intent, tLocal, { frame, fps }); apply dx/dy/face onto Stickman.

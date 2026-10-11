@@ -31,14 +31,16 @@
         <strong>{{ t('studio.create.templates') }}</strong>
         <span>{{ t('studio.create.templatesHint') }}</span>
         <div class="wf-tools">
-          <div class="wf-cat aspect-wrap">
+          <div class="wf-cat">
             <button type="button" class="pill aspect wf-cat-trigger" @click="templateCatOpen = !templateCatOpen">
               {{ templateCategoryLabel }}
               <AppIcon :icon="ChevronDown" :size="14" :stroke-width="2" />
             </button>
-            <div v-if="templateCatOpen" class="aspect-menu wf-cat-menu">
+            <div v-if="templateCatOpen" class="wf-cat-menu" role="listbox">
               <button
                 type="button"
+                role="option"
+                :aria-selected="templateCategory === 'all'"
                 :class="{ on: templateCategory === 'all' }"
                 @click="templateCategory = 'all'; templateCatOpen = false"
               >
@@ -48,6 +50,8 @@
                 v-for="c in templateCategories"
                 :key="c.id"
                 type="button"
+                role="option"
+                :aria-selected="templateCategory === c.id"
                 :class="{ on: templateCategory === c.id }"
                 @click="templateCategory = c.id; templateCatOpen = false"
               >
@@ -59,7 +63,6 @@
             <button type="button" class="wf-page-btn" :disabled="!canPagePrev" :aria-label="t('studio.create.templatePrev')" @click="pageTemplates(-1)">
               <AppIcon :icon="ChevronLeft" :size="14" :stroke-width="2" />
             </button>
-            <span class="wf-page-hint">↔</span>
             <button type="button" class="wf-page-btn" :disabled="!canPageNext" :aria-label="t('studio.create.templateNext')" @click="pageTemplates(1)">
               <AppIcon :icon="ChevronRight" :size="14" :stroke-width="2" />
             </button>
@@ -78,29 +81,21 @@
           @click="applyTemplate(tpl)"
         >
           <em class="wf-aspect">{{ tpl.aspect || '16:9' }}</em>
+          <span
+            class="wf-play"
+            :class="{ disabled: !tpl.previewVideo }"
+            role="button"
+            :tabindex="tpl.previewVideo ? 0 : -1"
+            :aria-disabled="!tpl.previewVideo"
+            :aria-label="t('studio.create.templatePlay')"
+            @click.stop="openTemplatePreview(tpl)"
+            @keydown.enter.stop.prevent="openTemplatePreview(tpl)"
+          >
+            <AppIcon :icon="Play" :size="12" :stroke-width="2.2" />
+          </span>
           <strong>{{ tpl.title }}</strong>
-          <span>{{ tpl.subtitle }}</span>
+          <span class="wf-sub">{{ tpl.subtitle }}</span>
           <i>{{ tpl.stylePack }} · {{ tpl.engine || 'remotion' }}</i>
-          <div class="wf-actions">
-            <button
-              v-if="tpl.previewVideo"
-              type="button"
-              class="wf-play"
-              :aria-label="t('studio.create.templatePlay')"
-              @click.stop="openTemplatePreview(tpl)"
-            >
-              <AppIcon :icon="Play" :size="12" :stroke-width="2.2" />
-            </button>
-            <button
-              v-if="activeTemplateId === tpl.id"
-              type="button"
-              class="wf-clear"
-              :aria-label="t('studio.create.plus.back')"
-              @click.stop="clearTemplate"
-            >
-              <AppIcon :icon="X" :size="12" :stroke-width="2" />
-            </button>
-          </div>
         </button>
       </div>
     </div>
@@ -503,7 +498,8 @@ import AppIcon from '@/components/AppIcon.vue'
 import ActivationDialog from '@/components/ActivationDialog.vue'
 import {
   engineApi,
-  engineAssetUrl,
+  engineAssetUrlSync,
+  rememberEngineRoot,
   type EntitlementSnapshot,
   type PublicTemplate,
   type PublicTemplateCategory,
@@ -1102,21 +1098,24 @@ function styleThumb(r: StyleRefItem) {
 
 async function openStyle() {
   plusView.value = 'style'
-  styleBusy.value = true
+  // Re-open with cache: show immediately, refresh in background if needed
+  const hadCache = styleRefs.value.length > 0
+  if (!hadCache) styleBusy.value = true
   try {
-    await studio.ensureEngine()
+    const st = await studio.ensureEngine()
+    rememberEngineRoot(st?.url)
     const list = await engineApi.listStyleRefs()
     styleRefs.value = list
     const map: Record<string, string> = {}
-    await Promise.all(
-      list.map(async (r) => {
-        map[r.id] = await engineAssetUrl(r.url)
-      }),
-    )
+    for (const r of list) {
+      map[r.id] = engineAssetUrlSync(r.url)
+    }
     styleThumbMap.value = map
   } catch {
-    styleRefs.value = []
-    styleThumbMap.value = {}
+    if (!hadCache) {
+      styleRefs.value = []
+      styleThumbMap.value = {}
+    }
   } finally {
     styleBusy.value = false
   }
@@ -1631,6 +1630,7 @@ watch(
 
 .wf-cat {
   position: relative;
+  z-index: 20;
 }
 
 .wf-cat-trigger {
@@ -1638,21 +1638,52 @@ watch(
   align-items: center;
   gap: 4px;
   min-width: 96px;
+  max-width: 160px;
 }
 
 .wf-cat-menu {
-  left: auto;
-  right: 0;
-  bottom: auto;
+  position: absolute;
   top: calc(100% + 6px);
-  min-width: 140px;
-  z-index: 12;
+  right: 0;
+  left: auto;
+  min-width: 148px;
+  max-width: 220px;
+  max-height: min(280px, 50vh);
+  overflow-x: hidden;
+  overflow-y: auto;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
+  button {
+    border: 0;
+    background: transparent;
+    text-align: left;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1.35;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    &.on,
+    &:hover {
+      background: var(--accent-soft);
+    }
+  }
 }
 
 .wf-pager {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .wf-page-btn {
@@ -1672,22 +1703,23 @@ watch(
   }
 }
 
-.wf-page-hint {
-  font-size: 12px;
-  color: var(--muted);
-  min-width: 1.2em;
-  text-align: center;
-}
-
 .wf-track {
   display: flex;
   gap: 10px;
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x proximity;
-  padding-bottom: 4px;
+  /* room for selected ring + hover lift; overflow-y:hidden otherwise clips top/bottom */
+  padding: 4px 2px 6px;
+  margin: -4px -2px -6px;
   min-width: 0;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
 }
 
 .wf-card {
@@ -1699,7 +1731,7 @@ watch(
   align-items: flex-start;
   gap: 4px;
   min-height: 118px;
-  padding: 28px 14px 40px;
+  padding: 28px 14px 14px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background:
@@ -1713,8 +1745,9 @@ watch(
     font-size: 14px;
     font-weight: 700;
     letter-spacing: -0.02em;
+    padding-right: 28px;
   }
-  span {
+  .wf-sub {
     font-size: 12px;
     color: var(--muted);
     line-height: 1.35;
@@ -1744,38 +1777,46 @@ watch(
   &[data-aspect='9:16'] {
     min-height: 132px;
   }
-  &:hover {
+  &:hover,
+  &:focus-within {
     border-color: rgb(0 0 0 / 22%);
     transform: translateY(-1px);
     box-shadow: var(--shadow);
+    .wf-play {
+      opacity: 1;
+      pointer-events: auto;
+    }
   }
   &.on {
     border-color: var(--ink);
-    box-shadow: 0 0 0 1px var(--ink);
+    box-shadow: 0 0 0 1px var(--ink), var(--shadow);
   }
 }
 
-.wf-actions {
+.wf-play {
   position: absolute;
+  top: 8px;
   right: 8px;
-  bottom: 8px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.wf-play,
-.wf-clear {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   border: 0;
   border-radius: 99px;
-  background: rgb(0 0 0 / 8%);
+  background: rgb(255 255 255 / 92%);
   color: var(--ink);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 12%);
   display: grid;
   place-items: center;
   cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  z-index: 2;
+  &.disabled {
+    color: rgb(0 0 0 / 28%);
+    background: rgb(245 245 245 / 92%);
+    cursor: not-allowed;
+    box-shadow: none;
+  }
 }
 
 .wf-aspect {

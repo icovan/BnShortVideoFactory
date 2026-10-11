@@ -155,6 +155,13 @@ export async function renderRemotionComposition(opts: {
   ));
 
   if (phases.includes('stills')) {
+    // Drop stale f-*-frame*.png so remaps / shorter samples cannot ghost prior runs
+    for (const f of readdirSync(opts.stillsDir)) {
+      if (/^f-\d+-frame\d+\.png$/i.test(f)) {
+        try { unlinkSync(join(opts.stillsDir, f)); } catch { /* ignore */ }
+      }
+    }
+
     const holds: number[] = [];
     let acc = 0;
     for (let si = 0; si < opts.scenes.length; si++) {

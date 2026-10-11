@@ -269,8 +269,27 @@ export const SKILL_CONTRACTS: Record<SkillName, SkillContract> = {
     engine: 'explainer-remotion',
     when: 'Brand mark sting (mg-logo craft): geo tease → accent motion → assemble → overshoot → settle. Mark is hero, not a corner bug. Not a multi-chapter showreel.',
     gates: [
-      { id: 'logo', re: /logo|Img|strokeDash|pathLength|assemble|wordmark/i, message: 'logo-animation: missing logo sting / mark assemble' },
+      { id: 'logo', re: /logo|Img|strokeDash|pathLength|assemble|wordmark|clipPath|clip-path/i, message: 'logo-animation: missing logo sting / mark assemble' },
+      { id: 'draw-or-mask', re: /strokeDash|pathLength|clipPath|clip-path|WebkitClipPath/i, message: 'logo-animation: need stroke draw-on or clip/mask reveal (see remotion-logo-craft)' },
+      { id: 'spring-settle', re: /spring\s*\(/, message: 'logo-animation: need spring settle / overshoot on assemble' },
     ],
+  },
+  'brand-motion-guidelines': {
+    id: 'brand-motion-guidelines',
+    role: 'support',
+    engine: 'explainer-remotion',
+    when: 'Brand timing/easing tokens + logo do/don\'t. Injected into logo/launch/promo craft — not a film primary.',
+    gates: [
+      // Soft craft fingerprints when selected; hard gate skipped in assertSkillsInTsx
+      { id: 'token-easing', re: /spring\s*\(|Easing\.|config:\s*\{/, message: 'brand-motion-guidelines: missing named easing / spring token feel' },
+    ],
+  },
+  'video-delivery-specs': {
+    id: 'video-delivery-specs',
+    role: 'chassis',
+    engine: 'either',
+    when: 'Delivery / verify checklist for encoded film. Injected for brand films; not a visual primary.',
+    gates: [],
   },
   audiogram: {
     id: 'audiogram',
@@ -347,6 +366,136 @@ export const SKILL_CONTRACTS: Record<SkillName, SkillContract> = {
     when: 'Prompt optimizer only. Never a film primary.',
     gates: [],
   },
+  'svg-animation': {
+    id: 'svg-animation',
+    role: 'support',
+    engine: 'explainer-remotion',
+    when: 'Vector stroke draw-on / path reveal for marks & icons. Remotion: pathLength+strokeDashoffset (see remotion-bridge).',
+    gates: [
+      { id: 'stroke', re: /strokeDash|pathLength|clipPath|clip-path/i, message: 'svg-animation: missing stroke/clip vector reveal' },
+    ],
+  },
+  'lottie-animation': {
+    id: 'lottie-animation',
+    role: 'support',
+    engine: 'explainer-remotion',
+    when: 'Lottie-style trim/opacity reveals rebuilt in Remotion. Not a film primary.',
+    gates: [],
+  },
+  'generative-illustration': {
+    id: 'generative-illustration',
+    role: 'support',
+    engine: 'explainer-remotion',
+    when: 'Code-drawn geometric illustration language for explainers / diagrams. Support craft only.',
+    gates: [],
+  },
+  'soundtrack': {
+    id: 'soundtrack',
+    role: 'support',
+    engine: 'explainer-remotion',
+    when: 'Music-led films: bed / drop / duck under VO. Launch & showreel craft.',
+    gates: [
+      { id: 'bed', re: /musicFile|dropSec|Audio|staticFile\s*\(/i, message: 'soundtrack: missing musicFile/dropSec/Audio bed lock' },
+    ],
+  },
+  'gsap-web': {
+    id: 'gsap-web',
+    role: 'support',
+    engine: 'explainer-remotion',
+    when: 'Easing/stagger taste only — map to Remotion spring/interpolate. Never import gsap in ActiveDirected.',
+    gates: [],
+  },
+  '60fps-animation': {
+    id: '60fps-animation',
+    role: 'support',
+    engine: 'explainer-remotion',
+    when: 'Performance: prefer transform/opacity; avoid layout thrash. Remotion: cheap per-frame style updates.',
+    gates: [],
+  },
+  'accessible-animation': {
+    id: 'accessible-animation',
+    role: 'support',
+    engine: 'explainer-remotion',
+    when: 'Reduced-motion / no flash >3Hz. Soft craft for brand films.',
+    gates: [],
+  },
+  'after-effects': {
+    id: 'after-effects',
+    role: 'support',
+    engine: 'either',
+    when: 'AE export / Lottie handoff reference. Not a Remotion primary.',
+    gates: [],
+  },
+  'ascii-animation': {
+    id: 'ascii-animation',
+    role: 'support',
+    engine: 'explainer-remotion',
+    when: 'ASCII / terminal aesthetic fields. Rare support craft.',
+    gates: [],
+  },
+  'client-revisions': {
+    id: 'client-revisions',
+    role: 'support',
+    engine: 'either',
+    when: 'Freelance revision workflow docs. Never a film primary.',
+    gates: [],
+  },
+  'glassmorphism': {
+    id: 'glassmorphism',
+    role: 'support',
+    engine: 'explainer-remotion',
+    when: 'Frosted glass panels (backdrop-filter / translucent cards) for product UI beats.',
+    gates: [],
+  },
+  'javascript-animation': {
+    id: 'javascript-animation',
+    role: 'support',
+    engine: 'explainer-remotion',
+    when: 'Zero-asset canvas / code-drawn motion language. Map to Remotion shapes, not DOM rAF.',
+    gates: [],
+  },
+  'micro-interaction': {
+    id: 'micro-interaction',
+    role: 'support',
+    engine: 'explainer-remotion',
+    when: 'Hover/press/toggle feedback taste for UI demo beats. Frame-driven only.',
+    gates: [],
+  },
+  'motion-pricing': {
+    id: 'motion-pricing',
+    role: 'support',
+    engine: 'either',
+    when: 'Freelance pricing docs. Never a film primary.',
+    gates: [],
+  },
+  'page-transition-animation': {
+    id: 'page-transition-animation',
+    role: 'support',
+    engine: 'explainer-remotion',
+    when: 'Enter/exit scene transitions — map to Sequence wipes, not Next.js router.',
+    gates: [],
+  },
+  'particle-system': {
+    id: 'particle-system',
+    role: 'support',
+    engine: 'explainer-remotion',
+    when: 'Particle accents for launch/logo. Prefer lightweight div/svg particles in Remotion; no Three.js required.',
+    gates: [],
+  },
+  'shader-glsl': {
+    id: 'shader-glsl',
+    role: 'support',
+    engine: 'explainer-remotion',
+    when: 'Shader aesthetics as reference. Remotion: approximate with gradients/noise CSS unless WebGL runtime exists.',
+    gates: [],
+  },
+  'threejs-animation': {
+    id: 'threejs-animation',
+    role: 'support',
+    engine: 'explainer-remotion',
+    when: '3D motion reference. Soft craft only — do not require three.js in ActiveDirected.',
+    gates: [],
+  },
 };
 
 export const PRIMARY_SKILLS: SkillName[] = [
@@ -385,9 +534,91 @@ export const SUPPORT_SKILLS: SkillName[] = [
   'beat-sync-editing',
   'motion-art-direction',
   'motion-background',
+  'brand-motion-guidelines',
+  'svg-animation',
+  'lottie-animation',
+  'generative-illustration',
+  'soundtrack',
+  'gsap-web',
+  '60fps-animation',
+  'accessible-animation',
+  'after-effects',
+  'ascii-animation',
+  'client-revisions',
+  'glassmorphism',
+  'javascript-animation',
+  'micro-interaction',
+  'motion-pricing',
+  'page-transition-animation',
+  'particle-system',
+  'shader-glsl',
+  'threejs-animation',
 ];
 
-export const CHASSIS_SKILLS: SkillName[] = ['remotion-video', 'shot-composition', 'animation-principles'];
+export const CHASSIS_SKILLS: SkillName[] = [
+  'remotion-video',
+  'shot-composition',
+  'animation-principles',
+  'video-delivery-specs',
+];
+
+/** Brand films auto-pull these into codegen (not LLM-picked primaries). */
+export const BRAND_CRAFT_SKILLS: SkillName[] = [
+  'brand-motion-guidelines',
+  'video-delivery-specs',
+  'accessible-animation',
+];
+
+/** Logo sting: vector craft stack (injected; hard gates soft-skipped except via logo primary). */
+export const LOGO_CRAFT_SKILLS: SkillName[] = [
+  'svg-animation',
+  'lottie-animation',
+  'gsap-web',
+  'particle-system',
+  '60fps-animation',
+];
+
+/** Music-led films. */
+export const LAUNCH_CRAFT_SKILLS: SkillName[] = [
+  'soundtrack',
+  'gsap-web',
+  'particle-system',
+  'page-transition-animation',
+];
+
+/** Product / UI demo polish. */
+export const UI_CRAFT_SKILLS: SkillName[] = [
+  'glassmorphism',
+  'micro-interaction',
+  'accessible-animation',
+  '60fps-animation',
+];
+
+/**
+ * Soft docs / web-origin references — never hard-fail.
+ * P0: technique companions (svg/caption/diagram/kinetic/soundtrack/…) are NOT soft.
+ */
+export const SOFT_CRAFT_SKILLS: SkillName[] = [
+  'brand-motion-guidelines',
+  'video-delivery-specs',
+  'accessible-animation',
+  'creative-brief',
+  'lottie-animation',
+  'gsap-web',
+  'generative-illustration',
+  'javascript-animation',
+  '60fps-animation',
+  'after-effects',
+  'ascii-animation',
+  'client-revisions',
+  'glassmorphism',
+  'micro-interaction',
+  'motion-pricing',
+  'page-transition-animation',
+  'particle-system',
+  'shader-glsl',
+  'threejs-animation',
+];
 
 export function isSkillName(v: unknown): v is SkillName {
   return typeof v === 'string' && v in SKILL_CONTRACTS;
@@ -414,8 +645,10 @@ export function assertSkillsInTsx(
   }
 
   const hardIds = (opts?.hardIds?.length ? opts.hardIds : skillIds).filter((id) => {
-    if (id === 'manim' || id === 'creative-brief') return false;
+    if (id === 'manim') return false;
     if (id === 'shot-composition' || id === 'animation-principles') return false;
+    // Injected craft docs / web-origin skills: deepen via prompt, not hard-fail
+    if (SOFT_CRAFT_SKILLS.includes(id)) return false;
     return true;
   });
   if (!hardIds.includes('remotion-video')) hardIds.unshift('remotion-video');

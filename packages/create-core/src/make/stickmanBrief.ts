@@ -3,6 +3,7 @@
  * 观众原文一旦点名 stickman，就把「意图→短语」写进交给机器的提示词，避免乱点姿态名。
  */
 import type { SkillName } from '../llm.ts';
+import { promptForcesStickman } from './promptIntent.ts';
 
 type PhraseBeat = {
   job: string;
@@ -17,9 +18,9 @@ type PhraseBeat = {
   stat?: { label: string; value: number };
 };
 
+/** Affirmed stickman ask only — 「不要火柴人」 does not count. */
 export function asksForStickman(text: string): boolean {
-  return /stickman|stick[\s-]?fig(?:ure|ural)?|火柴人|胶囊(?:人|火柴)|motivation\s*vs\s*discipline|discipline\s*vs\s*motivation|simply\s*animated/i
-    .test(text || '');
+  return promptForcesStickman(text);
 }
 
 /** English block appended to machinePrompt / planSkills router brief */

@@ -138,3 +138,75 @@ export function craftFloorForOptimize(aspect: Aspect): string {
   }
   return `CRAFT (landscape, soft): one hero slam welcome; rotate mask/blur/clip/slam; modest safe pad; full-bleed subject OK — not tiny centered micro-UI.`;
 }
+
+/**
+ * Hard craft-density law for directed explainers — beats cookie-cutter HUD films.
+ * Injected into codegen; validated by assertFilmCraftDensity.
+ */
+export function filmCraftDensityLaw(sceneCount?: number): string {
+  const n = Math.max(1, sceneCount ?? 6);
+  const minLen = Math.min(48000, Math.max(2000, 900 + n * 220));
+  return `=== FILM CRAFT DENSITY (HARD — statically validated) ===
+Goal: each beat has a DISTINCT graphic idea — not the same chrome skin with a new title.
+1. Anti-HUD spam: do NOT wrap every Sequence in the same REC / CAM / TC / LAB monitor chrome. At most 1–2 beats may use a surveillance frame as a STORY beat; others must change layout (diagram full-bleed, kinetic slam, caption bar, chart, archival card…).
+2. Per-beat craft: diagram beats → real SVG nodes/edges/strokeDash; kinetic beats → split/stagger words or lines; caption beats → active-word / karaoke highlight tied to VO.
+3. Density: ~${n} scenes need substantial ActiveDirected (≥~${minLen} chars of real components, not one shared HudShell). Prefer ≥3 interpolate() drivers on long films.
+4. Adjacent beats MUST change composition (layout / hero graphic / reveal family) — title-only swaps fail.`;
+}
+
+/** Static density + anti-chrome-spam gates (成片向). */
+export function assertFilmCraftDensity(
+  src: string,
+  opts: {
+    sceneCount?: number;
+    skillIds?: string[];
+    craftKind?: CraftKind;
+  } = {},
+): string[] {
+  if (opts.craftKind === 'logo' || opts.craftKind === 'showreel') return [];
+  const n = Math.max(1, opts.sceneCount ?? 4);
+  const skills = opts.skillIds || [];
+  const issues: string[] = [];
+
+  const chromeHits = (src.match(/\bREC\b|CAM\s*\d+|TC\s*[\d:]+|LAB\s*-/gi) || []).length;
+  const sharedHud =
+    n >= 6
+    && /const\s+\w*(Hud|Monitor|CamChrome|RecFrame|LabChrome)\w*\s*[:=]/i.test(src)
+    && /<\w*(Hud|Monitor|CamChrome|RecFrame|LabChrome)\w*\b/i.test(src)
+    && /(scenes\s*\|\||props\.scenes|BEATS)\s*\.map|Series\.Sequence/.test(src);
+  if (sharedHud || (n >= 6 && chromeHits >= Math.ceil(n * 1.15))) {
+    issues.push(
+      'chrome spam: REC/CAM/TC/LAB must not wrap most beats — vary composition (diagram/kinetic/caption layouts)',
+    );
+  }
+
+  const minLen = Math.min(48000, Math.max(2000, 900 + n * 220));
+  if (src.length < minLen) {
+    issues.push(
+      `craft density: ActiveDirected too thin (${src.length} chars, need ≥${minLen} for ${n} beats) — deepen per-beat graphics`,
+    );
+  }
+
+  if (skills.includes('diagram-animation')) {
+    const svgN = (src.match(/<svg\b|strokeDash|pathLength|\bnodes?\b|\bedges?\b/gi) || []).length;
+    const need = Math.min(10, 3 + Math.floor(n / 5));
+    if (svgN < need) {
+      issues.push(`diagram-animation: need richer SVG/nodes/strokeDash (hits ${svgN}, want ≥${need})`);
+    }
+  }
+  if (skills.includes('kinetic-typography')) {
+    if (!/split\(|stagger|Kinetic/i.test(src)) {
+      issues.push('kinetic-typography: need word/line split stagger — not only whole-title fade');
+    }
+  }
+  if (skills.includes('caption-animation')) {
+    if (!/caption|karaoke|activeWord|words\.map/i.test(src)) {
+      issues.push('caption-animation: need per-word / active caption highlight');
+    }
+  }
+  const interp = (src.match(/interpolate\s*\(/g) || []).length;
+  if (n >= 8 && interp < 3) {
+    issues.push('craft density: need ≥3 interpolate() drivers for long explainers');
+  }
+  return issues;
+}

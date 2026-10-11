@@ -27,6 +27,12 @@ import {
   writeSkillGateReport,
 } from '../skills/hardPipeline.ts';
 import { assertSkillsInTsx, probeResFor } from '../skills/registry.ts';
+import { scoreSkillDepth } from '../skills/skillDepth.ts';
+import {
+  beatsForStillVerify,
+  stillIssuesNeedCodeRepair,
+  verifyStillSkillBeats,
+} from '../skills/skillStillVerify.ts';
 import {
   lookLockLine,
   promptForcesMono,
@@ -288,6 +294,7 @@ export type DirectedPrepared = {
     visualIntent: string;
     keyMotion: string;
     skill: string;
+    craftMust?: string[];
     items?: string[];
     stat?: { label: string; value: number };
     narrationFile?: string;
@@ -413,6 +420,7 @@ export async function prepareDirectedHard(
     visualIntent: string;
     keyMotion: string;
     skill: string;
+    craftMust?: string[];
     items?: string[];
     stat?: { label: string; value: number };
     narrationFile?: string;
@@ -469,6 +477,7 @@ export async function prepareDirectedHard(
       visualIntent: beat.visualIntent,
       keyMotion: beat.keyMotion,
       skill: beat.skill,
+      craftMust: beat.craftMust,
       items: beat.items,
       stat: beat.stat,
       ...(narrationFile ? { narrationFile } : {}),
@@ -591,8 +600,12 @@ export async function prepareDirectedHard(
     prompt,
     propsJson: propsStr,
     skillIds: codegenIds,
+    primary: plan.primary,
+    technique: plan.support,
+    brandSkills: plan.brandSkills || [],
     aspect: plan.aspect,
     contentLang,
+    beats: plan.beats,
     lookLine: [
       lookLockLine(plan.look),
       contentLangLockLine(contentLang),
@@ -607,6 +620,7 @@ export async function prepareDirectedHard(
   });
   let codeIssues = validateTsx(tsx);
   let skillGate = assertSkillsInTsx(codegenIds, tsx, { hardIds: craftIds });
+  let depthGate = scoreSkillDepth(tsx, craftIds, plan.beats);
   if (codeIssues.length || !skillGate.ok) {
     tsx = await fixDirectedTsx(settings, {
       source: tsx,
@@ -615,6 +629,22 @@ export async function prepareDirectedHard(
     });
     codeIssues = validateTsx(tsx);
     skillGate = assertSkillsInTsx(codegenIds, tsx, { hardIds: craftIds });
+    depthGate = scoreSkillDepth(tsx, craftIds, plan.beats);
+  }
+  // P1: depth below bar → one repair; still failing blocks soft-accept later
+  if (!codeIssues.length && skillGate.ok && !depthGate.ok && depthGate.issues.length) {
+    tsx = await fixDirectedTsx(settings, {
+      source: tsx,
+      error: [
+        'CRAFT DEPTH repair — implement assigned scene.skill techniques deeply:',
+        ...depthGate.issues,
+        'Rotate reveal families; honor each beat craftMust',
+      ].join('; '),
+      propsJson: propsStr,
+    });
+    codeIssues = validateTsx(tsx);
+    skillGate = assertSkillsInTsx(codegenIds, tsx, { hardIds: craftIds });
+    depthGate = scoreSkillDepth(tsx, craftIds, plan.beats);
   }
   const stickmanJob = craftIds.includes('stickman-animation') || plan.primary === 'stickman-animation';
   const stickmanContractOk = (src: string) =>
@@ -623,8 +653,9 @@ export async function prepareDirectedHard(
     && /(Series|Sequence)/.test(src)
     && !/const\s+Stickman\s*[:=]|function\s+Stickman\b/.test(src);
 
-  // 质量地板：校验+门禁都过才算 codegen；有叙事合同时禁止用 stock 冲掉 brief
-  let usedCodegen = codeIssues.length === 0 && skillGate.ok;
+  // 质量地板：校验+门禁+深度都过才算 codegen（stickman 仍可 soft）
+  let usedCodegen = codeIssues.length === 0 && skillGate.ok
+    && (craftIds.includes('stickman-animation') || plan.primary === 'stickman-animation' || depthGate.ok);
   let usedStickmanPoseFloor = false;
   let softAccepted = false;
   if (!usedCodegen) {
@@ -672,12 +703,13 @@ export async function prepareDirectedHard(
         }
       }
     } else {
-      // 非 stickman：再修一轮；叙事合同仍在则 soft-accept，绝不退 DirectedFilm stock
+      // P0: 非 stickman — 技法/深度失败禁止 soft-accept；只允许修语法后仍须过门禁
       tsx = await fixDirectedTsx(settings, {
         source: tsx,
         error: [
           ...codeIssues,
           ...skillGate.issues,
+          ...depthGate.issues,
           'final repair: keep THIS brief narrative and selected skill techniques — do NOT re-export DirectedFilm',
           'rotate reveal families mask/blur/clip/slam across beats — forbid spring+translateY-only',
         ].join('; '),
@@ -685,48 +717,48 @@ export async function prepareDirectedHard(
       });
       codeIssues = validateTsx(tsx);
       skillGate = assertSkillsInTsx(codegenIds, tsx, { hardIds: craftIds });
-      usedCodegen = codeIssues.length === 0 && skillGate.ok;
-      if (!usedCodegen && directedNarrativeContractOk(tsx)) {
-        let syn = parseTsxSyntaxIssues(tsx);
-        if (syn.length) {
-          tsx = await fixDirectedTsx(settings, {
-            source: tsx,
-            error: `${syn.join('; ')}; FIX SYNTAX — complete JSX/braces/template literals; keep THIS brief narrative`,
-            propsJson: propsStr,
-          });
-          syn = parseTsxSyntaxIssues(tsx);
-          codeIssues = validateTsx(tsx);
-        }
+      depthGate = scoreSkillDepth(tsx, craftIds, plan.beats);
+      usedCodegen = codeIssues.length === 0 && skillGate.ok && depthGate.ok;
+      if (!usedCodegen) {
         if (revealFamilyBlocked(codeIssues)) {
           throw new Error(
             `ActiveDirected 揭示族不足（禁止 soft-accept / stock）：${codeIssues.filter((i) => i.startsWith('reveal families')).join('; ')}`,
           );
         }
-        if (syn.length === 0 && directedNarrativeContractOk(tsx)) {
-          usedCodegen = true;
-          softAccepted = true;
-          writeFileSync(
-            join(dir, 'ActiveDirected.soft-accept.json'),
-            JSON.stringify({
-              reason: 'keep brief-faithful ActiveDirected; skip DirectedFilm stock',
-              codeIssues,
-              skillIssues: skillGate.issues,
-            }, null, 2),
-            'utf8',
-          );
-        } else if (syn.length) {
+        const syn = parseTsxSyntaxIssues(tsx);
+        if (syn.length) {
           throw new Error(`ActiveDirected 语法错误（禁止 soft-accept）：${syn.slice(0, 3).join('; ')}`);
-        } else {
-          tsx = STOCK;
         }
-      } else if (!usedCodegen) {
-        // 仅当 TSX 残缺到无法叙事时才 stock
-        tsx = STOCK;
+        if (!skillGate.ok || !depthGate.ok) {
+          throw new Error(
+            `技能技法未落地（禁止 soft-accept）：${[...skillGate.issues, ...depthGate.issues].slice(0, 6).join('; ')}`,
+          );
+        }
+        if (!directedNarrativeContractOk(tsx)) {
+          tsx = STOCK;
+        } else {
+          throw new Error(
+            `ActiveDirected 校验未通过（禁止 soft-accept）：${codeIssues.slice(0, 4).join('; ') || 'validate failed'}`,
+          );
+        }
       }
     }
   }
+  // P1: depth must pass for skill-directed (stickman soft path may still skip)
+  depthGate = scoreSkillDepth(tsx, craftIds, plan.beats);
+  if (!stickmanJob && usedCodegen && !usedStickmanPoseFloor && !depthGate.ok) {
+    throw new Error(
+      `技能深度不足（禁止出片）：${depthGate.score}/${depthGate.max} · ${depthGate.issues.slice(0, 4).join('; ')}`,
+    );
+  }
   writeFileSync(join(dir, 'ActiveDirected.tsx'), tsx, 'utf8');
   writeSkillGateReport(dir, 'gate-skills.json', skillGate);
+  writeSkillGateReport(dir, 'skill-depth.json', {
+    ...depthGate,
+    craftIds,
+    brandSkills: plan.brandSkills || [],
+    beatSkills: plan.beats.map((b) => ({ job: b.job, skill: b.skill, craftMust: b.craftMust })),
+  });
   setPipelineStep(
     projectId,
     'build',
@@ -734,9 +766,9 @@ export async function prepareDirectedHard(
     usedStickmanPoseFloor
       ? `stickman-pose-floor · ${contentLang} · vo:${plan.voMode}`
       : softAccepted
-        ? `ActiveDirected · soft-accept · ${contentLang} · vo:${plan.voMode}`
+        ? `ActiveDirected · soft-accept · depth ${depthGate.score}/${depthGate.max} · ${contentLang}`
         : usedCodegen
-          ? `ActiveDirected · ${contentLang} · vo:${plan.voMode}`
+          ? `ActiveDirected · depth ${depthGate.score}/${depthGate.max} · ${contentLang}`
           : `stock · ${codeIssues[0] || skillGate.issues[0] || 'fallback'}`,
   );
 
@@ -843,16 +875,91 @@ export async function renderPreparedDirected(
       }
       if (!rendered) throw new Error('remotion stills failed after repairs');
       buildContactSheet(stillsDir, join(dir, 'contact-sheet.png'));
+
+      // P2: map stills with render scene durations (not plan 2.5s defaults)
+      const craftIds = craftSkillIds(plan);
+      const softStill = stickmanJob || usedStickmanPoseFloor;
+      const stillBeats = beatsForStillVerify(plan.beats, scenes);
+      let stillReport = verifyStillSkillBeats({
+        stillsDir,
+        tsx,
+        beats: stillBeats,
+        craftIds,
+        soft: softStill,
+      });
+      // Only fingerprint misses need LLM repair — coverage/sampling cannot be fixed by rewriting TSX
+      if (
+        !stillReport.ok
+        && stillIssuesNeedCodeRepair(stillReport)
+        && allowLlmRepair
+        && settings
+        && usedCodegen
+        && !usedStickmanPoseFloor
+      ) {
+        setPipelineStep(projectId, 'inspect', 'running', 'still skill repair');
+        tsx = await fixDirectedTsx(settings, {
+          source: tsx,
+          error: [
+            'STILL SKILL GATE — implement assigned beat skills so fingerprints appear in ActiveDirected:',
+            ...stillReport.hardIssues,
+            'Keep THIS brief narrative; rotate reveal families; do NOT re-export DirectedFilm',
+          ].join('; '),
+          propsJson: propsStr,
+        });
+        writeFileSync(join(dir, 'ActiveDirected.tsx'), tsx, 'utf8');
+        writeFileSync(join(dir, 'ActiveDirected.still-repair.tsx'), tsx, 'utf8');
+        installActiveComponent('directed', tsx);
+        await renderRemotionComposition({
+          compositionId: 'GeneratedDirected',
+          propsPath,
+          outMp4: finalMp4,
+          publicDir,
+          stillsDir,
+          scenes,
+          probeRes: probeResFor(plan.aspect, quality),
+          phases: ['stills'],
+          onPhase: (phase, detail) => setPipelineStep(projectId, phase === 'stills' ? 'stills' : 'encode', 'running', detail),
+        });
+        buildContactSheet(stillsDir, join(dir, 'contact-sheet.png'));
+        stillReport = verifyStillSkillBeats({
+          stillsDir,
+          tsx,
+          beats: stillBeats,
+          craftIds,
+          soft: softStill,
+        });
+      }
+      writeSkillGateReport(dir, 'inspect-stills-skill.json', stillReport);
+      if (!stillReport.ok && !softStill) {
+        throw new Error(
+          `抽帧技能未落地（禁止出片）：${stillReport.hardIssues.slice(0, 5).join('; ') || stillReport.issues.slice(0, 5).join('; ')}`,
+        );
+      }
+
       const stillFiles = existsSync(stillsDir) ? readdirSync(stillsDir).filter((f) => f.endsWith('.png')) : [];
       writeSkillGateReport(dir, 'inspect-1.json', {
-        ok: stillFiles.length >= 3,
-        issues: stillFiles.length >= 3 ? [] : [`too few stills (${stillFiles.length})`],
+        ok: stillFiles.length >= 3 && (softStill || stillReport.ok),
+        issues: [
+          ...(stillFiles.length >= 3 ? [] : [`too few stills (${stillFiles.length})`]),
+          ...stillReport.issues,
+        ],
         skills: plan.skills,
         usedCodegen,
         usedStickmanPoseFloor,
+        stillSkillOk: stillReport.ok,
+        mappedBeats: stillReport.mapped?.length ?? 0,
       });
       setPipelineStep(projectId, 'stills', 'done', `${stillFiles.length} stills`);
-      setPipelineStep(projectId, 'inspect', 'done', usedStickmanPoseFloor ? 'pose-floor' : skillGate.ok ? 'skills pass' : skillGate.issues[0]);
+      setPipelineStep(
+        projectId,
+        'inspect',
+        'done',
+        usedStickmanPoseFloor
+          ? 'pose-floor'
+          : stillReport.ok
+            ? (skillGate.ok ? 'skills+stills pass' : skillGate.issues[0])
+            : stillReport.issues[0],
+      );
       await renderRemotionComposition({
         compositionId: 'GeneratedDirected',
         propsPath,

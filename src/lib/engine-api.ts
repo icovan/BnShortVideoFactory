@@ -227,20 +227,50 @@ async function req<T>(path: string, init?: { method?: string; body?: unknown }):
   return data as T
 }
 
+let cachedEngineRoot = ''
+
+/** Prefer ensure()/state() result so callers avoid N× IPC for asset URLs. */
+export function rememberEngineRoot(url?: string | null) {
+  const root = (url || '').replace(/\/$/, '')
+  if (root) cachedEngineRoot = root
+}
+
+function joinEngineAsset(root: string, relOrAbs: string) {
+  if (!root) return relOrAbs
+  return relOrAbs.startsWith('/') ? `${root}${relOrAbs}` : `${root}/${relOrAbs}`
+}
+
 export async function engineAssetUrl(relOrAbs: string): Promise<string> {
   if (!relOrAbs) return ''
   if (relOrAbs.startsWith('http') || relOrAbs.startsWith('file:') || relOrAbs.startsWith('data:')) {
     return relOrAbs
   }
+  if (cachedEngineRoot) return joinEngineAsset(cachedEngineRoot, relOrAbs)
   const st = await window.electron.engineGetState()
-  const root = (st.url || '').replace(/\/$/, '')
-  if (!root) return relOrAbs
-  return relOrAbs.startsWith('/') ? `${root}${relOrAbs}` : `${root}/${relOrAbs}`
+  rememberEngineRoot(st.url)
+  return joinEngineAsset(cachedEngineRoot, relOrAbs)
+}
+
+/** Sync when root already known (e.g. after ensure). */
+export function engineAssetUrlSync(relOrAbs: string, root = cachedEngineRoot): string {
+  if (!relOrAbs) return ''
+  if (relOrAbs.startsWith('http') || relOrAbs.startsWith('file:') || relOrAbs.startsWith('data:')) {
+    return relOrAbs
+  }
+  return joinEngineAsset(root, relOrAbs)
 }
 
 export const engineApi = {
-  state: () => window.electron.engineGetState() as Promise<EngineState>,
-  ensure: () => window.electron.engineEnsure() as Promise<EngineState>,
+  state: async () => {
+    const st = (await window.electron.engineGetState()) as EngineState
+    rememberEngineRoot(st.url)
+    return st
+  },
+  ensure: async () => {
+    const st = (await window.electron.engineEnsure()) as EngineState
+    rememberEngineRoot(st.url)
+    return st
+  },
   health: () => req<{ ok: boolean; llmConfigured?: boolean }>('/api/health'),
   getSettings: () => req<EngineSettings>('/api/settings'),
   saveSettings: (patch: Partial<EngineSettings>) =>

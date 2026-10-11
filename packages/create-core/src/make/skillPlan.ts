@@ -8,6 +8,8 @@ import {
   SUPPORT_SKILLS,
   isSkillName,
 } from '../skills/registry.ts';
+import { ensureBeatSkillCoverage } from '../skills/skillDepth.ts';
+import { resolveCompanions, techniqueCraftIds } from '../skills/skillCompanion.ts';
 import {
   isContentLang,
   planLanguageRules,
@@ -22,6 +24,7 @@ import {
   asksForStickman,
   stickmanMachineLockBlock,
 } from './stickmanBrief.ts';
+import { promptForcesMix, promptForcesStickman } from './promptIntent.ts';
 
 function skillWhenCatalog(ids: SkillName[]): string {
   return ids
@@ -40,6 +43,8 @@ export type DirectedBeat = {
   visualIntent: string;
   keyMotion: string;
   skill: SkillName;
+  /** Codegen MUST lines for this beat's skill (filled in normalize). */
+  craftMust?: string[];
   durationSec?: number;
   items?: string[];
   stat?: { label: string; value: number };
@@ -49,7 +54,10 @@ export type SkillPlan = {
   aspect: Aspect;
   engine: Engine;
   primary: SkillName;
+  /** Technique companions (hard craft seats) */
   support: SkillName[];
+  /** Brand / delivery seats — never steal technique slots */
+  brandSkills: SkillName[];
   skills: SkillName[];
   coreIdea: string;
   look: JobLook;
@@ -107,10 +115,6 @@ function applyVoMode(beats: DirectedBeat[], voMode: VoMode, muteTitles?: boolean
   return beats;
 }
 
-function promptForcesMix(text: string): boolean {
-  return /混剪|素材混剪|批量剪辑|footage\s*remix|batch\s*cut|raw\s*footage|分镜素材成片/i.test(text || '');
-}
-
 const LAUNCH_LIKE: SkillName[] = [
   'launch-video', 'promo-video', 'ad-creative-video', 'product-demo-video',
   'youtube-intro-outro', 'countdown-video', 'logo-animation',
@@ -146,39 +150,33 @@ function lookFamily(
   return 'narrated';
 }
 
-/** 每个主 skill 最多补 1 个叶技法；总数在 normalize 里再砍到 ≤2。不做 motion-art 堆叠。 */
-function supportForPrimary(primary: SkillName, support: SkillName[]): SkillName[] {
-  const add = (id: SkillName) => {
-    if (support.length >= 2) return;
-    if (!support.includes(id) && SUPPORT_SKILLS.includes(id)) support.push(id);
-  };
-  if (primary === 'explainer-video') add('diagram-animation');
-  else if (primary === 'presentation-video' || primary === 'launch-video') add('kinetic-typography');
-  else if (primary === 'text-message-animation') add('kinetic-typography');
-  else if (primary === 'whiteboard-animation') add('diagram-animation');
-  else if (primary === 'stickman-animation') add('beat-sync-editing');
-  else if (primary === 'wrapped-video' || primary === 'animated-infographic') add('chart-animation');
-  else if (primary === 'promo-video' || primary === 'ad-creative-video') add('kinetic-typography');
-  else if (primary === 'product-demo-video') add('kinetic-typography');
-  else if (primary === 'photo-slideshow') add('caption-animation');
-  else if (primary === 'testimonial-video') add('lower-thirds');
-  else if (primary === 'countdown-video' || primary === 'youtube-intro-outro') add('kinetic-typography');
-  else if (primary === 'isometric-animation' || primary === 'map-animation') add('diagram-animation');
-  else if (primary === 'audiogram') add('caption-animation');
-  else if (primary === 'short-form-video') add('kinetic-typography');
-  return support;
+/** Codegen / 硬门禁用：primary + technique support（品牌槽不进硬门禁） */
+export function craftSkillIds(plan: {
+  primary: SkillName;
+  support: SkillName[];
+}): SkillName[] {
+  return techniqueCraftIds(plan.primary, plan.support);
 }
 
-/** Codegen / 硬门禁用：primary + support（不含 chassis 堆叠） */
-export function craftSkillIds(plan: { primary: SkillName; support: SkillName[] }): SkillName[] {
-  return uniqueSkills([plan.primary, ...plan.support]);
-}
-
-/** Codegen 正文：选中技能 + remotion-video API 底盘（单一 chassis，避免 8～9 技能截断） */
-export function codegenSkillIds(plan: { primary: SkillName; support: SkillName[] }): SkillName[] {
+/** Codegen 正文：技法 + 品牌槽 + remotion；不再灌无关 soft 大包挤爆 token */
+export function codegenSkillIds(plan: {
+  primary: SkillName;
+  support: SkillName[];
+  brandSkills?: SkillName[];
+}): SkillName[] {
   if (plan.primary === 'manim') return ['manim'];
   if (plan.primary === 'footage-remix') return ['footage-remix'];
-  return uniqueSkills([plan.primary, ...plan.support, 'remotion-video']);
+  const brand = plan.brandSkills || [];
+  const logoSoft = plan.primary === 'logo-animation'
+    ? (['lottie-animation', 'gsap-web'] as SkillName[])
+    : [];
+  return uniqueSkills([
+    plan.primary,
+    ...plan.support,
+    ...brand,
+    'remotion-video',
+    ...logoSoft,
+  ]);
 }
 
 function uniqueSkills(ids: SkillName[]): SkillName[] {
@@ -193,9 +191,93 @@ function uniqueSkills(ids: SkillName[]): SkillName[] {
   return out;
 }
 
-/** prompt 硬锁：火柴人题材（与 stickmanBrief.asksForStickman 同义） */
-export function promptForcesStickman(text: string): boolean {
-  return asksForStickman(text);
+/** prompt 硬锁：路由关键词（否定句不计入） */
+export { promptForcesStickman, promptForcesMix };
+
+/** Pad thin LLM plans so directed pipeline never dies on beat count. */
+export function ensureMinimumBeats(
+  beats: DirectedBeat[],
+  primary: SkillName,
+  support: SkillName[],
+  contentLang: ContentLang,
+  min = 5,
+): DirectedBeat[] {
+  if (beats.length >= min) return beats;
+  const out = [...beats];
+  const zh = contentLang === 'zh' || contentLang === 'bilingual';
+  const fillers: Array<Pick<DirectedBeat, 'job' | 'vo' | 'headline' | 'visualIntent' | 'keyMotion'>> = [
+    {
+      job: 'hook',
+      vo: zh ? '先看这个问题' : 'Start with the problem',
+      headline: zh ? '问题' : 'Hook',
+      visualIntent: 'full-frame kinetic hook card',
+      keyMotion: 'spring slam',
+    },
+    {
+      job: 'how',
+      vo: zh ? '关键在于这一步' : 'Here is the key step',
+      headline: zh ? '关键' : 'How',
+      visualIntent: 'progressive diagram nodes then edges',
+      keyMotion: 'stagger reveal',
+    },
+    {
+      job: 'proof',
+      vo: zh ? '这样一来就清楚了' : 'That makes it clear',
+      headline: zh ? '清楚了' : 'Proof',
+      visualIntent: 'kinetic line stagger payoff',
+      keyMotion: 'word stagger',
+    },
+    {
+      job: 'payoff',
+      vo: zh ? '记住这个结论' : 'Remember this takeaway',
+      headline: zh ? '结论' : 'Takeaway',
+      visualIntent: 'seal the core idea on screen',
+      keyMotion: 'scale settle',
+    },
+    {
+      job: 'end',
+      vo: zh ? '就是这样' : 'That is it',
+      headline: zh ? '收束' : 'End',
+      visualIntent: 'clean end card settle',
+      keyMotion: 'fade settle',
+    },
+  ];
+  let i = 0;
+  while (out.length < min && i < fillers.length * 2) {
+    const f = fillers[i % fillers.length];
+    // skip filler jobs already present
+    if (out.some((b) => b.job === f.job)) {
+      i += 1;
+      continue;
+    }
+    const skill = (support.length && i % 2 === 1)
+      ? support[i % support.length]
+      : primary;
+    out.push({
+      job: f.job,
+      vo: f.vo,
+      headline: f.headline,
+      visualIntent: f.visualIntent,
+      keyMotion: f.keyMotion,
+      skill,
+      durationSec: 2.4,
+    });
+    i += 1;
+  }
+  // if still short (all jobs collided), append numbered pads
+  while (out.length < min) {
+    const n = out.length + 1;
+    out.push({
+      job: `beat-${n}`,
+      vo: zh ? `看第${n}点` : `Point ${n}`,
+      headline: zh ? `要点${n}` : `Point ${n}`,
+      visualIntent: 'full-frame kinetic beat with clear subject',
+      keyMotion: 'spring slam',
+      skill: primary,
+      durationSec: 2.4,
+    });
+  }
+  return out;
 }
 
 export function normalizeSkillPlan(
@@ -261,34 +343,26 @@ export function normalizeSkillPlan(
     : primary === 'footage-remix'
       ? 'footage-remix'
       : 'explainer-remotion';
-  const supportCap = filmKind === 'showreel' ? 3 : 2;
-  let support = (raw.support || []).filter(isSkillName).filter((s) => SUPPORT_SKILLS.includes(s)).slice(0, supportCap);
+  const llmSupport = (raw.support || []).filter(isSkillName).filter((s) => SUPPORT_SKILLS.includes(s));
+  const companions = resolveCompanions(primary, llmSupport, {
+    stickmanMix: wantStickmanMix,
+    showreel: filmKind === 'showreel',
+  });
+  let support = companions.technique;
+  const brandSkills = companions.brand;
   if (primary === 'logo-animation' || filmKind === 'logo') {
     support = support.filter((s) => s !== 'stickman-animation');
   }
-  if (filmKind === 'showreel') {
-    for (const s of ['kinetic-typography', 'diagram-animation', 'color-motion'] as SkillName[]) {
-      if (!support.includes(s) && support.length < supportCap) support.push(s);
-    }
-    support = support.filter((s) => s !== 'stickman-animation').slice(0, supportCap);
-  }
-  if (wantStickmanMix && primary !== 'stickman-animation' && !support.includes('stickman-animation')) {
-    // 火柴人占一个 support 名额，挤掉末位
-    support = ['stickman-animation', ...support.filter((s) => s !== 'stickman-animation')].slice(0, supportCap);
-  }
-  // 竖屏短视频：动能优先；字幕可选，不强制双开占满 2 槽
-  if (aspect === '9:16' && primary === 'short-form-video') {
-    if (!support.includes('kinetic-typography') && support.length < supportCap) {
-      support.push('kinetic-typography');
-    }
-  }
-  support = uniqueSkills(supportForPrimary(primary, support)).slice(0, supportCap);
 
   const chassis = engine === 'explainer-remotion'
     ? [...CHASSIS_SKILLS, ...(aspect === '9:16' && primary !== 'stickman-animation' ? ['short-form-video' as SkillName] : [])]
     : [];
   const skills = uniqueSkills(
-    engine === 'manim' ? ['manim'] : engine === 'footage-remix' ? ['footage-remix'] : [primary, ...support, ...chassis],
+    engine === 'manim'
+      ? ['manim']
+      : engine === 'footage-remix'
+        ? ['footage-remix']
+        : [primary, ...support, ...brandSkills, ...chassis],
   );
 
   const surfaceHint = raw.look?.surface === 'light' || raw.look?.surface === 'dark'
@@ -341,11 +415,18 @@ export function normalizeSkillPlan(
     beats = beats.map((b) => (b.skill === 'manim' ? { ...b, skill: fallback } : b));
   }
 
+  // Pad thin LLM plans before craft coverage (avoids "too few beats" hard fail)
+  if (engine === 'explainer-remotion') {
+    beats = ensureMinimumBeats(beats, primary, support, contentLang, 5);
+    beats = ensureBeatSkillCoverage(beats, primary, support);
+  }
+
   let plan: SkillPlan = {
     aspect,
     engine,
     primary,
     support,
+    brandSkills,
     skills,
     coreIdea: (raw.coreIdea || '').toString().slice(0, 120),
     look,
@@ -393,11 +474,11 @@ export async function planSkills(
   // 路由只读技能「何时用」+ 正文摘要，不灌 CRAFT FLOOR
   const skillDigest = readSkill(
     filmKind === 'logo'
-      ? ['logo-animation', 'remotion-video']
+      ? ['logo-animation', 'brand-motion-guidelines', 'svg-animation', 'remotion-video']
       : filmKind === 'showreel'
-        ? ['launch-video', 'kinetic-typography', 'remotion-video']
+        ? ['launch-video', 'kinetic-typography', 'soundtrack', 'brand-motion-guidelines', 'remotion-video']
         : ['explainer-video', 'diagram-animation', 'kinetic-typography', 'short-form-video', 'launch-video'],
-    14000,
+    18000,
   );
   const raw = await chatJson<Partial<SkillPlan>>(settings, `You are the SKILL ROUTER for a video factory.
 Match the brief to skill REQUIREMENTS (story/technique), then write beats. Do NOT invent skill names.
@@ -503,7 +584,7 @@ Return:
     surface: (str('surface') === 'light' || str('surface') === 'dark') ? str('surface') as 'dark' | 'light' : undefined,
     motionNotes: str('motionNotes'),
   };
-  const plan = normalizeSkillPlan({ ...raw, look: lookRaw, contentLang }, aspect, undefined, {
+  let plan = normalizeSkillPlan({ ...raw, look: lookRaw, contentLang }, aspect, undefined, {
     sourcePrompt: lockAsk,
     forcePrimary: opts?.filmKind === 'logo'
       ? 'logo-animation'
@@ -515,7 +596,18 @@ Return:
     uiVoMode,
     forceRemotion: opts?.forceRemotion,
   });
-  if (plan.engine !== 'manim' && plan.beats.length < 4) {
+  // footage-remix is handled by the mix bench (folder required) — do not fail on beat count
+  if (plan.engine === 'explainer-remotion' && plan.beats.length < 4) {
+    plan = {
+      ...plan,
+      beats: ensureBeatSkillCoverage(
+        ensureMinimumBeats(plan.beats, plan.primary, plan.support, plan.contentLang, 5),
+        plan.primary,
+        plan.support,
+      ),
+    };
+  }
+  if (plan.engine === 'explainer-remotion' && plan.beats.length < 4) {
     throw new Error('skill plan: too few beats');
   }
   return plan;

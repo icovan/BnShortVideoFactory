@@ -21,6 +21,7 @@ type MgBeat = {
 type MgPlan = {
   primary: SkillName;
   support: SkillName[];
+  brandSkills?: SkillName[];
   skills: SkillName[];
   beats: MgBeat[];
   voMode: 'on' | 'off' | 'auto';
@@ -166,11 +167,26 @@ export function applyMgFilmRecipe<T extends MgPlan>(plan: T, kind: MgFilmKind): 
         durationSec: r.durationSec,
       };
     });
+    const support = unique([
+      'svg-animation',
+      ...plan.support.filter((s) => s !== 'stickman-animation' && s !== 'brand-motion-guidelines'),
+    ]).slice(0, 2);
+    const brandSkills = unique([
+      'brand-motion-guidelines',
+      'video-delivery-specs',
+      ...(plan.brandSkills || []),
+    ]);
     return {
       ...plan,
       primary: 'logo-animation',
-      support: plan.support.filter((s) => s !== 'stickman-animation'),
-      skills: unique(['logo-animation', ...plan.skills.filter((s) => s !== 'stickman-animation')]),
+      support,
+      brandSkills,
+      skills: unique([
+        'logo-animation',
+        ...support,
+        ...brandSkills,
+        ...plan.skills.filter((s) => s !== 'stickman-animation'),
+      ]),
       voMode: 'off',
       beats,
     };
@@ -225,12 +241,14 @@ function unique(ids: SkillName[]): SkillName[] {
 
 export function logoCodegenHint(): string {
   return `
-LOGO STING HARD LOCK (mg-logo craft):
+LOGO STING HARD LOCK (mg-logo + brand-motion-guidelines + remotion-logo-craft):
 - Mark is the ONLY hero. Use props.assets logo Img when present; else geometric wordmark from the brief name — never a second invented brand.
-- Beat recipe on screen: (1) geometric tease (2) accent bounce/path (3) stroke-draw or assemble mark (4) overshoot + hotspot glow/particles (5) settle; optional one-line URL only if brief asks.
+- Beat recipe on screen: (1) geometric tease (2) accent bounce/path (3) stroke-draw OR clipPath mask assemble (4) spring overshoot (5) settle hold ≥0.4s.
 - EVERY scene.vo empty; do NOT invent explainer headlines. Empty headline → no title card.
-- Motion: spring overshoot; strokeDash / progressive reveal; graphic change in first 8 frames of each Sequence.
-- FORBIDDEN: stickman, caption bars, KineticWords slamming full sentences, showreel corner HUD, timid centered micro-UI.
+- Brand tokens: entrances decelerate (spring settle); brand moment = emphasized spring; no linear fade-only reveals; uniform scale on final lockup.
+- Remotion craft: pathLength+strokeDashoffset draw-on, or clipPath wipe, or staggered piece assemble — pick ONE primary technique and commit.
+- Clearspace: do not crop the settled mark with particles/wipes.
+- FORBIDDEN: stickman, caption bars, KineticWords slamming full sentences, showreel corner HUD, non-uniform squash on final mark, recolour outside palette mid-reveal.
 `;
 }
 
