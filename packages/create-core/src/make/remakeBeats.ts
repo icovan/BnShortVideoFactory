@@ -34,6 +34,7 @@ import { contentLangLockLine } from './contentLang.ts';
 import {
   fixDirectedTsx,
   remakeSelectedDirectedTsx,
+  repairUnsafeGoogleFonts,
   validateDirectedTsx,
 } from './remotionCodegen.ts';
 import { extractConstArray } from './surgicalBeats.ts';
@@ -466,6 +467,7 @@ Selected beat intents: ${indexes.map((i) => props.scenes[i]?.visualIntent || '')
       throw new Error('画面代码未产生有效改动，请把修改写得更具体后重试（例如：换成浅色小清新背景、强调色改为薄荷绿）');
     }
 
+    tsx = repairUnsafeGoogleFonts(tsx);
     writeFileSync(join(dir, 'ActiveDirected.tsx'), tsx, 'utf8');
     writeSkillGateReport(dir, 'gate-skills.json', skillGate);
     setPipelineStep(projectId, 'build', 'done', 'ActiveDirected');
@@ -495,11 +497,11 @@ Selected beat intents: ${indexes.map((i) => props.scenes[i]?.visualIntent || '')
             const msg = err instanceof Error ? err.message : String(err);
             writeFileSync(join(dir, `remake-error-${attempt + 1}.txt`), msg, 'utf8');
             if (attempt >= maxAttempts - 1) throw err;
-            tsx = await fixDirectedTsx(settings, {
+            tsx = repairUnsafeGoogleFonts(await fixDirectedTsx(settings, {
               source: tsx,
               error: `${msg}\nFIX: Series→Series.Sequence; keep props.canvas/ink. SURGICAL: only beats [${indexes.join(', ')}] may change — do not restyle other sequences.`,
               propsJson: propsStr,
-            });
+            }));
             writeFileSync(join(dir, 'ActiveDirected.tsx'), tsx, 'utf8');
             installActiveComponent('directed', tsx);
           }

@@ -1,0 +1,34 @@
+{
+ "type": "swish",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\swish\\fs-388003-double-swish-1.wav",
+ "verdict": "ok",
+ "build_db": -7.5,
+ "start_db": -13.3,
+ "end_db": -16.6,
+ "spikiness": 1.56,
+ "dur_s": 0.208,
+ "peak_offset_s": 0.0376,
+ "rise_ms": 28.9,
+ "centroid_hz": 1202,
+ "below150": 0.009,
+ "above6k": 0.003,
+ "flatness": 0.013,
+ "note": null,
+ "start_floor_db": -26.2,
+ "source": {
+  "id": "388003",
+  "type": "swish",
+  "title": "Double Swish",
+  "creator": "deleted_user_6479820",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/388/388003_6479820-hq.mp3",
+  "landing": "https://freesound.org/people/deleted_user_6479820/sounds/388003",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "swish"
+  ]
+ }
+}

@@ -1,0 +1,37 @@
+{
+ "type": "glitch",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\glitch\\fs-27436-fm-voices-01-wav-1.wav",
+ "verdict": "ok",
+ "build_db": -9.3,
+ "start_db": -0.0,
+ "end_db": -10.3,
+ "spikiness": 1.38,
+ "dur_s": 0.419,
+ "peak_offset_s": 0.0514,
+ "rise_ms": 18.2,
+ "centroid_hz": 769,
+ "below150": 0.188,
+ "above6k": 0.018,
+ "flatness": 0.015,
+ "note": null,
+ "start_floor_db": -11.4,
+ "source": {
+  "id": "27436",
+  "type": "glitch",
+  "title": "FM_Voices_01.wav",
+  "creator": "hello_flowers",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/27/27436_199517-hq.mp3",
+  "landing": "https://freesound.org/people/hello_flowers/sounds/27436",
+  "k": 3,
+  "keep": [
+   0,
+   1,
+   2
+  ],
+  "tags": [
+   "static",
+   "burst"
+  ]
+ }
+}

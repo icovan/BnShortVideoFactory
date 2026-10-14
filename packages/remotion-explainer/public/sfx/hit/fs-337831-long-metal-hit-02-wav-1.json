@@ -1,0 +1,35 @@
+{
+ "type": "hit",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\hit\\fs-337831-long-metal-hit-02-wav-1.wav",
+ "verdict": "ok",
+ "build_db": -17.0,
+ "start_db": -0.0,
+ "end_db": -43.5,
+ "spikiness": 1.54,
+ "dur_s": 1.235,
+ "peak_offset_s": 0.0114,
+ "rise_ms": 5.8,
+ "centroid_hz": 174,
+ "below150": 0.836,
+ "above6k": 0.002,
+ "flatness": 0.012,
+ "note": null,
+ "start_floor_db": -26.3,
+ "source": {
+  "id": "337831",
+  "type": "hit",
+  "title": "long-metal-hit-02.wav",
+  "creator": "newagesoup",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/337/337831_4067257-hq.mp3",
+  "landing": "https://freesound.org/people/newagesoup/sounds/337831",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "metal",
+   "hit"
+  ]
+ }
+}

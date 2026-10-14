@@ -106,7 +106,7 @@ export type Project = {
   /** 出片分辨率档：影响 Remotion 宽高 */
   quality?: Quality;
   favorite?: boolean;
-  status?: 'queued' | 'running' | 'ready' | 'error';
+  status?: 'queued' | 'running' | 'paused' | 'ready' | 'error';
   dir?: string;
   files?: ProjectFile[];
   error?: string;
@@ -279,3 +279,4 @@ export const QUICK_KINDS: { id: Kind; label: string }[] = [
 ];
 
 export * from './commerce.ts';
+export * from './createCatalog.ts';

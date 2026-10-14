@@ -1,0 +1,30 @@
+{
+ "type": "click",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\click\\fs-399443-mouse-clicks.wav",
+ "verdict": "ok",
+ "build_db": -29.9,
+ "start_db": -0.1,
+ "end_db": -39.9,
+ "spikiness": 3.19,
+ "dur_s": 0.093,
+ "peak_offset_s": 0.0074,
+ "rise_ms": 1.6,
+ "centroid_hz": 1771,
+ "below150": 0.0,
+ "above6k": 0.083,
+ "flatness": 0.107,
+ "note": 78.1,
+ "start_floor_db": -35.2,
+ "source": {
+  "id": "399443",
+  "type": "click",
+  "title": "mouse clicks",
+  "creator": "chestnutjam",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/399/399443_2955613-hq.mp3",
+  "landing": "https://freesound.org/people/chestnutjam/sounds/399443",
+  "tags": [
+   "classic"
+  ]
+ }
+}

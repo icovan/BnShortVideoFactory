@@ -1,0 +1,35 @@
+{
+ "type": "reverse",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\reverse\\fs-244862-rev-cymb-15-reverb-wav-1.wav",
+ "verdict": "ok",
+ "build_db": 11.7,
+ "start_db": -24.2,
+ "end_db": -0.0,
+ "spikiness": 1.46,
+ "dur_s": 1.174,
+ "peak_offset_s": 1.1538,
+ "rise_ms": 962.4,
+ "centroid_hz": 4689,
+ "below150": 0.0,
+ "above6k": 0.192,
+ "flatness": 0.092,
+ "note": 103.1,
+ "start_floor_db": -37.9,
+ "source": {
+  "id": "244862",
+  "type": "reverse",
+  "title": "Rev Cymb 15 reverb.wav",
+  "creator": "JarredGibb",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/244/244862_4056007-hq.mp3",
+  "landing": "https://freesound.org/people/JarredGibb/sounds/244862",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "reverse",
+   "cymbal"
+  ]
+ }
+}

@@ -1,0 +1,34 @@
+{
+ "type": "glitch",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\glitch\\fs-319612-dub-dnb-glitch-hop-koan-styl-1.wav",
+ "verdict": "ok",
+ "build_db": -29.8,
+ "start_db": -0.0,
+ "end_db": -35.1,
+ "spikiness": 1.14,
+ "dur_s": 0.273,
+ "peak_offset_s": 0.0298,
+ "rise_ms": 16.5,
+ "centroid_hz": 2984,
+ "below150": 0.001,
+ "above6k": 0.183,
+ "flatness": 0.205,
+ "note": 60.4,
+ "start_floor_db": -6.2,
+ "source": {
+  "id": "319612",
+  "type": "glitch",
+  "title": "Dub/Dnb/Glitch-Hop Koan Style Snare",
+  "creator": "Hybrid_V",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/319/319612_5436764-hq.mp3",
+  "landing": "https://freesound.org/people/Hybrid_V/sounds/319612",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "glitch"
+  ]
+ }
+}

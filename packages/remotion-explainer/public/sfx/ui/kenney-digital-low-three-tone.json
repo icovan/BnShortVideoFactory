@@ -1,0 +1,22 @@
+{
+ "type": "ui",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\ui\\kenney-digital-low-three-tone.wav",
+ "verdict": "ok",
+ "build_db": -27.8,
+ "start_db": -0.0,
+ "end_db": -34.0,
+ "spikiness": 1.24,
+ "dur_s": 0.332,
+ "peak_offset_s": 0.0078,
+ "rise_ms": 6.9,
+ "centroid_hz": 294,
+ "below150": 0.094,
+ "above6k": 0.0,
+ "flatness": 0.001,
+ "note": 63.4,
+ "start_floor_db": -3.8,
+ "source": {
+  "pack": "digital",
+  "file": "Audio/lowThreeTone.ogg"
+ }
+}

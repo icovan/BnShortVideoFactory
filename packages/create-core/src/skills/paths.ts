@@ -1,26 +1,29 @@
 /**
- * Skills 目录解析：优先环境变量（Electron 注入 userData / 打包路径），
- * 否则回落产品根 vendor/skills。
+ * Skills 目录解析：BIUNOW_SKILLS_DIR → 仓库根 skills/ → vendor/skills。
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
+const ROOT = (process.env.BIUNOW_ROOT || '').trim()
+  || join(dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 export type SkillsStatus = {
   ready: boolean;
   dir: string;
-  source: 'env' | 'vendor' | 'missing';
+  source: 'env' | 'skills' | 'vendor' | 'missing';
   present: string[];
   missingRequired: string[];
   required: string[];
 };
 
 function loadManifest(): { required: string[] } {
+  const envDir = (process.env.BIUNOW_SKILLS_DIR || '').trim();
   const candidates = [
     join(ROOT, 'vendor', 'skills-manifest.json'),
-    join(process.env.BIUNOW_SKILLS_DIR || '', '..', 'skills-manifest.json'),
+    join(ROOT, 'skills-manifest.json'),
+    envDir ? join(envDir, '..', 'skills-manifest.json') : '',
+    envDir ? join(envDir, 'skills-manifest.json') : '',
   ];
   for (const p of candidates) {
     if (!p || !existsSync(p)) continue;
@@ -44,7 +47,7 @@ function loadManifest(): { required: string[] } {
 }
 
 function dirLooksLikeSkills(dir: string): boolean {
-  if (!existsSync(dir)) return false;
+  if (!dir || !existsSync(dir)) return false;
   try {
     const names = readdirSync(dir);
     return names.some((n) => existsSync(join(dir, n, 'SKILL.md')));
@@ -53,13 +56,22 @@ function dirLooksLikeSkills(dir: string): boolean {
   }
 }
 
-export function resolveSkillsDir(): string {
+function resolveEnvSkillsDir(): string {
   const env = (process.env.BIUNOW_SKILLS_DIR || '').trim();
-  if (env && dirLooksLikeSkills(env)) return env;
+  if (!env) return '';
+  if (isAbsolute(env)) return env;
+  return join(ROOT, env);
+}
+
+export function resolveSkillsDir(): string {
+  const envDir = resolveEnvSkillsDir();
+  if (envDir && dirLooksLikeSkills(envDir)) return envDir;
+  const rootSkills = join(ROOT, 'skills');
+  if (dirLooksLikeSkills(rootSkills)) return rootSkills;
   const vendor = join(ROOT, 'vendor', 'skills');
   if (dirLooksLikeSkills(vendor)) return vendor;
-  if (env) return env;
-  return vendor;
+  if (envDir) return envDir;
+  return rootSkills;
 }
 
 export function probeSkills(): SkillsStatus {
@@ -77,11 +89,13 @@ export function probeSkills(): SkillsStatus {
   }
   const missingRequired = required.filter((id) => !present.includes(id));
   const envSet = Boolean((process.env.BIUNOW_SKILLS_DIR || '').trim());
-  const source: SkillsStatus['source'] = !present.length
-    ? 'missing'
-    : envSet
-      ? 'env'
-      : 'vendor';
+  const norm = dir.replace(/\\/g, '/');
+  let source: SkillsStatus['source'] = 'missing';
+  if (present.length) {
+    if (envSet) source = 'env';
+    else if (norm.includes('/vendor/skills')) source = 'vendor';
+    else source = 'skills';
+  }
   return {
     ready: missingRequired.length === 0,
     dir,

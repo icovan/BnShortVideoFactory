@@ -1,0 +1,36 @@
+{
+ "type": "riser",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\riser\\fs-503799-reverse-fx-9-wav-1.wav",
+ "verdict": "ok",
+ "build_db": 18.7,
+ "start_db": -27.1,
+ "end_db": -0.0,
+ "spikiness": 1.74,
+ "dur_s": 1.239,
+ "peak_offset_s": 1.2012,
+ "rise_ms": 735.0,
+ "centroid_hz": 566,
+ "below150": 0.061,
+ "above6k": 0.0,
+ "flatness": 0.002,
+ "note": null,
+ "start_floor_db": -42.0,
+ "source": {
+  "id": "503799",
+  "type": "riser",
+  "title": "reverse fx 9.wav",
+  "creator": "neezen.",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/503/503799_9637845-hq.mp3",
+  "landing": "https://freesound.org/people/neezen./sounds/503799",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "build",
+   "up",
+   "riser"
+  ]
+ }
+}

@@ -45,22 +45,34 @@ function ensureWinIcon() {
   if (r.status !== 0) throw new Error('gen-icons.mjs failed')
 }
 
-function cleanDistElectron() {
+/**
+ * 历史 hashed 碎片由 build 开头的 clean-dist-electron.mjs 清理。
+ * 切勿在 beforePack 再删 main-*.js / Parser-*.js：
+ * vite 打出的 main.js 会 require("./main-HASH.js")，删掉后安装包启动会弹
+ * 「A JavaScript error occurred in the main process / Cannot find module」。
+ * （0.1.x 瘦身包踩过这个坑。）
+ */
+function assertMainChunkPresent() {
   const dir = path.join(__dirname, '../../dist-electron')
-  if (!fs.existsSync(dir)) return
-  // 只保留当前入口：main.js / preload.js（及同目录非哈希碎片）
-  const keep = new Set(['main.js', 'preload.js', 'main.js.map', 'preload.js.map'])
-  for (const name of fs.readdirSync(dir)) {
-    if (keep.has(name)) continue
-    // 清掉历史 hashed chunks：main-XXXX.js / MpegParser-*.js 等
-    if (
-      /^main-[A-Za-z0-9_-]+\.js(\.map)?$/.test(name)
-      || /^(Mpeg|MP4|Matroska|Wave|WavPack|Musepack|Ogg|Asf|Aiff|Dsdiff|Dsf|Flac|ID3|AbstractID3)Parser-/.test(name)
-    ) {
-      fs.rmSync(path.join(dir, name), { force: true })
+  const mainJs = path.join(dir, 'main.js')
+  if (!fs.existsSync(mainJs)) {
+    throw new Error('[beforePack] missing dist-electron/main.js — run vite build first')
+  }
+  const src = fs.readFileSync(mainJs, 'utf8')
+  const refs = [...src.matchAll(/require\(["']\.\/(main-[^"']+\.js)["']\)/g)].map((m) => m[1])
+  for (const rel of refs) {
+    const p = path.join(dir, rel)
+    if (!fs.existsSync(p)) {
+      throw new Error(
+        `[beforePack] main.js requires ./${rel} but file is missing — refuse to pack a broken app`,
+      )
     }
   }
-  console.log('[beforePack] cleaned stale dist-electron artifacts')
+  if (refs.length) {
+    console.log('[beforePack] main chunk ok:', refs.join(', '))
+  } else {
+    console.log('[beforePack] main.js is self-contained (no hashed chunk)')
+  }
 }
 
 module.exports = function beforePack(context) {
@@ -73,6 +85,6 @@ module.exports = function beforePack(context) {
   )
 
   if (platform === 'win32') ensureWinIcon()
-  cleanDistElectron()
+  assertMainChunkPresent()
   stageEngine()
 }

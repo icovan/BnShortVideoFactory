@@ -5,10 +5,11 @@ import {
   CHASSIS_SKILLS,
   PRIMARY_SKILLS,
   SKILL_CONTRACTS,
+  SOFT_CRAFT_SKILLS,
   SUPPORT_SKILLS,
   isSkillName,
 } from '../skills/registry.ts';
-import { ensureBeatSkillCoverage } from '../skills/skillDepth.ts';
+import { attachCraftMust, ensureBeatSkillCoverage } from '../skills/skillDepth.ts';
 import { resolveCompanions, techniqueCraftIds } from '../skills/skillCompanion.ts';
 import {
   isContentLang,
@@ -20,11 +21,24 @@ import {
 } from './contentLang.ts';
 import { applyMgFilmRecipe, mgFilmLockPrompt, type MgFilmKind } from './mgFilm.ts';
 import {
+  applyFormModeSkillBudget,
+  poolForFormMode,
+  resolveBrandSubtype,
+} from './formModePools.ts';
+import {
   applyStickmanPhraseToBeats,
   asksForStickman,
   stickmanMachineLockBlock,
 } from './stickmanBrief.ts';
 import { promptForcesManim, promptForcesMix, promptForcesStickman } from './promptIntent.ts';
+import {
+  diversifyBeatSkills,
+  lockTechniquesFromIntent,
+  mergeBeatSkills,
+  montageBeatCap,
+  numberedShotCount,
+} from './beatTechnique.ts';
+import { applyDirectorToolkit, type MotifLock } from './directorToolkit.ts';
 
 function skillWhenCatalog(ids: SkillName[]): string {
   return ids
@@ -43,6 +57,8 @@ export type DirectedBeat = {
   visualIntent: string;
   keyMotion: string;
   skill: SkillName;
+  /** a2e narration-storyboard §4 镜头模式 id（横屏硬挂） */
+  layoutMode?: string;
   /** Codegen MUST lines for this beat's skill (filled in normalize). */
   craftMust?: string[];
   durationSec?: number;
@@ -67,8 +83,18 @@ export type SkillPlan = {
   contentLang: ContentLang;
   /** Hard VO policy after resolve. */
   voMode: VoMode;
-  /** 旁白驱动：off 或 polish/verbatim（有文稿时） */
+  /** 旁白驱动：off 或 polish/verbatim（有文稿时）——只锁 VO，不决定画面管线 */
   scriptDrive?: 'off' | 'polish' | 'verbatim';
+  /** 旁白驱动软门禁（结构/切句）；不阻断出片，写入 gate-drive.json */
+  driveIssues?: string[];
+  /** UI 形态：prompt=自由；六类内容 + brand/remix */
+  formMode?: string;
+  /** brand 子型：logo | showreel */
+  brandSubtype?: string;
+  /** 导演工具箱：本片主技法（连占打满） */
+  mainTechnique?: SkillName;
+  /** 连续同页母题锁 */
+  motifLock?: MotifLock;
 };
 
 function scrubBeatLanguage(beat: DirectedBeat, contentLang: ContentLang): DirectedBeat {
@@ -166,16 +192,13 @@ export function codegenSkillIds(plan: {
 }): SkillName[] {
   if (plan.primary === 'manim') return ['manim'];
   if (plan.primary === 'footage-remix') return ['footage-remix'];
-  const brand = plan.brandSkills || [];
-  const logoSoft = plan.primary === 'logo-animation'
-    ? (['lottie-animation', 'gsap-web'] as SkillName[])
-    : [];
+  // 软文档只加深 brief，不进 codegen 大包（防 threejs/shader 等把 TSX 写炸）
+  const brand = (plan.brandSkills || []).filter((s) => !SOFT_CRAFT_SKILLS.includes(s)).slice(0, 2);
   return uniqueSkills([
     plan.primary,
     ...plan.support,
     ...brand,
     'remotion-video',
-    ...logoSoft,
   ]);
 }
 
@@ -297,16 +320,23 @@ export function normalizeSkillPlan(
     forceRemotion?: boolean;
     /** logo = Logo 片；showreel = 动效展片（均无旁白） */
     filmKind?: MgFilmKind;
+    formMode?: string;
+    brandSubtype?: string;
   },
 ): SkillPlan {
   const contentLang: ContentLang = isContentLang(opts?.contentLang)
     ? opts!.contentLang!
     : (isContentLang(raw.contentLang) ? raw.contentLang : 'zh');
-  const filmKind = opts?.filmKind;
+  const formMode = (opts?.formMode || raw.formMode || 'prompt').trim() || 'prompt';
+  const brandSubtype = opts?.brandSubtype || raw.brandSubtype
+    || resolveBrandSubtype(formMode, opts?.brandSubtype);
+  const poolFilm = poolForFormMode(formMode, brandSubtype)?.filmKind;
+  const filmKind = opts?.filmKind || poolFilm;
 
-  let primary = isSkillName(raw.primary) && PRIMARY_SKILLS.includes(raw.primary)
+  // Agent 对齐：primary 认任何合法 skill 名；仅 UI 快捷形态 / 引擎约束才硬改
+  let primary: SkillName = isSkillName(raw.primary)
     ? raw.primary
-    : (hint && PRIMARY_SKILLS.includes(hint) ? hint : 'explainer-video');
+    : (hint && isSkillName(hint) ? hint : 'explainer-video');
   if (aspect === '9:16' && primary === 'manim') primary = 'short-form-video';
   if (opts?.forceRemotion && primary === 'manim') {
     primary = aspect === '9:16' || aspect === '3:4' ? 'short-form-video' : 'explainer-video';
@@ -323,22 +353,51 @@ export function normalizeSkillPlan(
   const ask = opts?.sourcePrompt || '';
   const stickmanOrdered = promptForcesStickman(ask);
   const manimOrdered = promptForcesManim(ask);
-  // 文稿/旁白里点到名字不是出场指令。模型若因此选了这两条，拉回讲解片。
+  // stickman / manim 仍需用户创作指令（避免文稿点名误路由）；其余 primary 信模型
   if (primary === 'stickman-animation' && !stickmanOrdered) {
-    primary = hint && PRIMARY_SKILLS.includes(hint) && hint !== 'stickman-animation' && hint !== 'manim'
-      ? hint
-      : 'explainer-video';
+    primary = 'explainer-video';
   }
   if (primary === 'manim' && !manimOrdered) {
     primary = aspect === '9:16' || aspect === '3:4' ? 'short-form-video' : 'explainer-video';
   }
-  // 火柴人 = 用户明确要求才混用。不抢 Logo / 展片 / Manim / 混剪主 skill。
   const wantStickmanMix = filmKind !== 'logo'
     && filmKind !== 'showreel'
     && primary !== 'manim'
     && primary !== 'footage-remix'
     && primary !== 'logo-animation'
     && stickmanOrdered;
+
+  // support：任意合法 skill，不再 SUPPORT_SKILLS 白名单过滤；不强制 companion 补全
+  const llmSupport = (raw.support || [])
+    .filter(isSkillName)
+    .filter((s) => s !== primary)
+    .filter((s) => stickmanOrdered || s !== 'stickman-animation');
+  const companions = resolveCompanions(primary, llmSupport, {
+    stickmanMix: wantStickmanMix,
+    showreel: filmKind === 'showreel',
+  });
+  let support = companions.technique;
+  let brandSkills = companions.brand;
+  if (primary === 'logo-animation' || filmKind === 'logo') {
+    support = support.filter((s) => s !== 'stickman-animation');
+  }
+
+  // 面板技法池 + 1 primary + ≤3 leaf；软文档进 brandSkills
+  const budgeted = applyFormModeSkillBudget({
+    primary,
+    support,
+    brandSkills,
+    formMode,
+    brandSubtype,
+  });
+  if (budgeted.primary !== primary || budgeted.support.length !== support.length) {
+    console.info(
+      `[skillPlan] formMode budget ${formMode}/${brandSubtype || '-'} → primary=${budgeted.primary} support=${budgeted.support.join(',') || '(none)'}`,
+    );
+  }
+  primary = budgeted.primary;
+  support = budgeted.support;
+  brandSkills = budgeted.brandSkills;
 
   const voMode = filmKind === 'logo' || filmKind === 'showreel'
     ? 'off' as VoMode
@@ -353,22 +412,9 @@ export function normalizeSkillPlan(
     : primary === 'footage-remix'
       ? 'footage-remix'
       : 'explainer-remotion';
-  const llmSupport = (raw.support || [])
-    .filter(isSkillName)
-    .filter((s) => SUPPORT_SKILLS.includes(s))
-    .filter((s) => stickmanOrdered || s !== 'stickman-animation');
-  const companions = resolveCompanions(primary, llmSupport, {
-    stickmanMix: wantStickmanMix,
-    showreel: filmKind === 'showreel',
-  });
-  let support = companions.technique;
-  const brandSkills = companions.brand;
-  if (primary === 'logo-animation' || filmKind === 'logo') {
-    support = support.filter((s) => s !== 'stickman-animation');
-  }
 
   const chassis = engine === 'explainer-remotion'
-    ? [...CHASSIS_SKILLS, ...(aspect === '9:16' && primary !== 'stickman-animation' ? ['short-form-video' as SkillName] : [])]
+    ? [...CHASSIS_SKILLS]
     : [];
   const skills = uniqueSkills(
     engine === 'manim'
@@ -385,8 +431,12 @@ export function normalizeSkillPlan(
     raw.look as Partial<JobLook> | undefined,
     lookFamily(primary, aspect, { sourcePrompt: opts?.sourcePrompt, surface: surfaceHint }),
   );
-  let beats = (raw.beats || []).slice(0, 10).map((b, i) => {
-    let skill: SkillName = isSkillName(b.skill) ? b.skill : (support[i % Math.max(support.length, 1)] || primary);
+  const beatCap = montageBeatCap(opts?.sourcePrompt || '');
+  let beats = (raw.beats || []).slice(0, beatCap).map((b, i) => {
+    // 镜级 skill：信模型；非法名才回落 primary/support
+    let skill: SkillName = isSkillName(b.skill)
+      ? b.skill
+      : (support[i % Math.max(support.length, 1)] || primary);
     if (primary === 'logo-animation' && skill === 'stickman-animation') {
       skill = 'logo-animation';
     }
@@ -432,6 +482,7 @@ export function normalizeSkillPlan(
   // Pad thin LLM plans before craft coverage (avoids "too few beats" hard fail)
   if (engine === 'explainer-remotion') {
     beats = ensureMinimumBeats(beats, primary, support, contentLang, 5);
+    // Agent：不再因「分镜文案没点名技法」删掉 support；镜 skill 覆盖只做软补齐
     beats = ensureBeatSkillCoverage(beats, primary, support);
   }
 
@@ -448,9 +499,35 @@ export function normalizeSkillPlan(
     hint,
     contentLang,
     voMode,
+    formMode,
+    brandSubtype,
   };
   if (filmKind === 'logo' || filmKind === 'showreel') {
     plan = applyMgFilmRecipe(plan, filmKind);
+    // 配方之后再套一次预算，防止 showreel 硬塞超 leaf
+    const after = applyFormModeSkillBudget({
+      primary: plan.primary,
+      support: plan.support,
+      brandSkills: plan.brandSkills,
+      formMode,
+      brandSubtype,
+    });
+    plan = {
+      ...plan,
+      primary: after.primary,
+      support: after.support,
+      brandSkills: after.brandSkills,
+      skills: uniqueSkills([
+        after.primary,
+        ...after.support,
+        ...after.brandSkills,
+        ...(engine === 'explainer-remotion' ? chassis : []),
+      ]),
+      beats: plan.beats.map((b) => {
+        const ok = b.skill === after.primary || after.support.includes(b.skill);
+        return ok ? b : { ...b, skill: after.support[0] || after.primary };
+      }),
+    };
   }
   if (wantStickmanMix || plan.skills.includes('stickman-animation')) {
     plan = {
@@ -459,6 +536,21 @@ export function normalizeSkillPlan(
         sourceAsk: opts?.sourcePrompt,
       }),
     };
+  }
+  if (filmKind !== 'logo' && filmKind !== 'showreel' && plan.engine === 'explainer-remotion') {
+    plan = mergeBeatSkills(plan, { allowStickman: wantStickmanMix });
+    // 导演工具箱：画面优先挂技 + 主技法打满 + 分层召回 + motif
+    plan = applyDirectorToolkit(plan, opts?.sourcePrompt || '');
+  } else if (
+    plan.engine === 'explainer-remotion'
+    && (plan.primary === 'logo-animation' || plan.primary === 'launch-video' || filmKind === 'logo')
+  ) {
+    // logo/showreel 快捷形态也跑主技锁定，避免否定句误挂 map
+    const keep =
+      plan.primary === 'launch-video' ? plan.primary : ('logo-animation' as const);
+    let beats = diversifyBeatSkills(plan.beats, { primary: keep });
+    beats = lockTechniquesFromIntent(beats, { keep });
+    plan = { ...plan, beats: attachCraftMust(beats) };
   }
   return plan;
 }
@@ -473,11 +565,19 @@ export async function planSkills(
   uiVoMode?: VoMode,
   /** Original audience ask — used for stickman / VO keyword locks. */
   sourceAsk?: string,
-  opts?: { forceRemotion?: boolean; filmKind?: MgFilmKind },
+  opts?: {
+    forceRemotion?: boolean;
+    filmKind?: MgFilmKind;
+    formMode?: string;
+    brandSubtype?: string;
+  },
 ): Promise<SkillPlan> {
   const seed = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const lockAsk = (sourceAsk || prompt).trim();
-  const filmKind = opts?.filmKind;
+  const formMode = (opts?.formMode || 'prompt').trim() || 'prompt';
+  const brandSubtype = opts?.brandSubtype || resolveBrandSubtype(formMode, opts?.brandSubtype);
+  const modePool = poolForFormMode(formMode, brandSubtype);
+  const filmKind = opts?.filmKind || modePool?.filmKind;
   const voHint = filmKind === 'logo' || filmKind === 'showreel'
     ? 'off' as VoMode
     : resolveVoMode({ ask: lockAsk, uiMode: uiVoMode });
@@ -485,35 +585,60 @@ export async function planSkills(
   const manimRule = manimOrdered
     ? '- User asked for Manim / 3Blue1Brown. primary = manim. EXCLUSIVE: manim is the ONLY skill — never mix with Remotion skills.'
     : '- Do NOT pick manim. Naming Manim inside narration, source docs, or a feature list is subject matter. Formula / theorem stays explainer-video + diagram-animation.';
-  const primaryPool = PRIMARY_SKILLS.filter((s) => !(opts?.forceRemotion && s === 'manim'));
-  // 路由只读技能「何时用」+ 正文摘要，不灌 CRAFT FLOOR
-  const skillDigest = readSkill(
-    filmKind === 'logo'
-      ? ['logo-animation', 'brand-motion-guidelines', 'svg-animation', 'remotion-video']
-      : filmKind === 'showreel'
-        ? ['launch-video', 'kinetic-typography', 'soundtrack', 'brand-motion-guidelines', 'remotion-video']
-        : ['explainer-video', 'diagram-animation', 'kinetic-typography', 'short-form-video', 'launch-video'],
-    18000,
-  );
+  const primaryPool = modePool
+    ? modePool.primaries.filter((s) => !(opts?.forceRemotion && s === 'manim'))
+    : PRIMARY_SKILLS.filter((s) => !(opts?.forceRemotion && s === 'manim'));
+  const supportPool = modePool
+    ? uniqueSkills([...modePool.leaves, ...modePool.primaries.filter((s) => s !== modePool.defaultPrimary)])
+    : uniqueSkills([...SUPPORT_SKILLS, ...PRIMARY_SKILLS.filter((s) => s !== 'manim' && s !== 'footage-remix')]);
+  // Agent：WHEN 目录覆盖全库；digest 扩到 primary+support（预算截断）
+  const digestIds: SkillName[] = filmKind === 'logo'
+    ? ['logo-animation', 'brand-motion-guidelines', 'svg-animation', 'remotion-video']
+    : filmKind === 'showreel'
+      ? ['launch-video', 'kinetic-typography', 'diagram-animation', 'logo-animation', 'remotion-video']
+      : modePool
+        ? uniqueSkills([...modePool.primaries, ...modePool.leaves, ...(modePool.softDocs || [])])
+        : uniqueSkills([...primaryPool, ...SUPPORT_SKILLS]);
+  const skillDigest = readSkill(digestIds, 36000);
+  const shotN = numberedShotCount(lockAsk);
+  const reelRule = shotN >= 4
+    ? `TECHNIQUE REEL: the brief has ${shotN} numbered shots. Emit one beat per shot, in order, up to ${Math.min(16, shotN)}. Do not merge shots into one layout. Each beat.skill is THAT shot's technique (map-animation, isometric-animation, whiteboard-animation, text-message-animation, chart-animation, kinetic-typography, product-demo-video, countdown-video, logo-animation, promo-video only for a price strike). support may list every technique used (up to 8). Do NOT mark a map, room, chat, or ink shot as promo-video.`
+    : 'Always 5–8 beats (dense lesson ≤10). Each beat.skill must be primary or one of the supports — SHOW that skill\'s technique ON a concrete metaphor, not craft-floor boilerplate.';
+  const beatCountRule = filmKind === 'logo'
+    ? 'Always 5 logo-motion beats (geo → accent → assemble → overshoot → settle).'
+    : filmKind === 'showreel'
+      ? 'Always 6 showreel chapters.'
+      : reelRule;
+  const poolRule = modePool
+    ? `PANEL POOL (LOCKED): primary MUST be one of [${modePool.primaries.join(', ')}]; support ≤3 from [${modePool.leaves.join(', ')}]. Soft docs are injected in code — do not put them in support.`
+    : 'FREE MODE: pick 1 primary + ≤3 real leaf techniques in support. Soft craft docs are not support seats.';
   const raw = await chatJson<Partial<SkillPlan>>(settings, `You are the SKILL ROUTER for a video factory.
 Match the brief to skill REQUIREMENTS (story/technique), then write beats. Do NOT invent skill names.
 
-PICK FEW SKILLS (quality > coverage):
-- PRIMARY: exactly one from the list
-- SUPPORT: 0–2 leaf techniques ONLY (never 3+)
-- Do NOT stack kinetic + diagram + caption + color + motion-art. One primary + at most two supports.
+PICK SKILLS LIKE A DIRECTOR'S TOOLKIT (budget: 1 primary + ≤2 main leaves + 0–1 accent):
+- PRIMARY: exactly one film-kind (explainer / whiteboard / launch…). Primary is the show genre — NOT rotated onto every beat.
+- MAIN TECHNIQUE: pick 1 leaf the WHOLE film is about (e.g. population curve → chart-animation). Put it first in support. Most beats use THIS skill and deepen it.
+- SECOND leaf: only if a different picture family is truly needed. Accent (particle/lower-thirds) only when brief asks.
+- ON-DEMAND only when brief/intent names them: map, isometric, chat, product-demo, promo, countdown, wrapped, photo-slideshow, audiogram, logo.
+- PICTURE MATERIAL WINS: 剪纸/拼贴/paper-cut/collage/插画/木刻/版画 → mainTechnique = generative-illustration (NOT kinetic-typography). Kinetic only when words ARE the subject or brief says 砸字/动能字.
+- FORBIDDEN: default kinetic+diagram+whiteboard+infographic stack "for variety". FORBIDDEN: changing skill every beat for spice.
+- Per beat: choose skill FROM visualIntent (object+action) first; same main technique MAY occupy consecutive beats.
+- ${shotN >= 4 ? 'Technique reel: one beat per numbered shot; support ≤3 leaves.' : 'Prefer 5–8 beats; rotate leaf skills across beats when the picture differs.'}
 - Chassis (remotion-video / shot-composition / animation-principles) is added in code — never pick as primary/support.
+- Code will NOT auto-fill missing supports. Empty seats stay empty.
+${poolRule}
 
 PRIMARY: ${primaryPool.join(' | ')}
-SUPPORT: ${SUPPORT_SKILLS.join(' | ')}
+SUPPORT: ${supportPool.join(' | ')}
 
 === WHEN TO USE (catalog) ===
 PRIMARY:
 ${skillWhenCatalog(primaryPool)}
 SUPPORT:
-${skillWhenCatalog(SUPPORT_SKILLS)}
+${skillWhenCatalog(supportPool)}
 
 === SKILL CRAFT (verbatim excerpts — obey story/technique, not factory slogans) ===
+The WHEN catalog above is the picker. The excerpts below are not the only legal pictures.
 ${skillDigest}
 
 ROUTING (prompt wins):
@@ -540,10 +665,11 @@ ${asksForStickman(lockAsk) ? `\n${stickmanMachineLockBlock()}\n` : ''}
 - Product hype / no-VO sizzle → launch-video
 - Pitch deck motion → presentation-video
 - 9:16 retention short → short-form-video
-- How-it-works / concept with VO → explainer-video (+ diagram OR kinetic, not both unless needed)
+- How-it-works / concept with VO → explainer-video, and keep ONE subject (the thing being explained) on every beat. diagram OR kinetic, not a new slammed title each scene.
+- A brief that describes a screen, a player, or a cursor → product-demo-video. Every beat is the next action on THAT screen. Do not swap in a title-card explainer.
 
 Aspect LOCKED: ${aspect}. Invent look from THIS brief.
-SOFT FRAME (optional, not law): full-bleed subject OK; avoid timid centered micro-UI; palette from topic.
+SOFT FRAME: the subject must own the frame. A blank field or a hairline in the middle is a failure. Do not say "accent under 10%" and do not ask for empty margin around a tiny widget.
 ${filmKind ? mgFilmLockPrompt(filmKind) : ''}
 ${lookBrief(
     briefSurfaceHint(lockAsk) === 'light'
@@ -557,8 +683,8 @@ VO MODE (LOCKED): ${voHint}
 ${voHint === 'off' ? '- Set EVERY beat.vo to "" and set durationSec (sum ≈ requested length). Music/SFX only.' : ''}
 ${voHint === 'on' && !filmKind ? '- EVERY beat.vo MUST be a speakable line in contentLang (zh ≈ 12–40 chars; en ≈ 8–22 words). Prefer skill pacing (explainer VO-first) over slogan compression.' : ''}
 ${voHint === 'auto' ? '- Prefer VO for explainer; prefer vo="" + durationSec for logo / launch / music films.' : ''}
-${filmKind === 'logo' ? 'Always 5 logo-motion beats (geo → accent → assemble → overshoot → settle).' : filmKind === 'showreel' ? 'Always 6 showreel chapters.' : 'Always 5–8 beats (dense lesson ≤10).'} Each beat.skill must be primary or one of the ≤2 supports — SHOW that skill's technique, not craft-floor boilerplate.
-visualIntent: describe the graphic action from the skill (nodes→edges, word stagger, mark assemble…) — do NOT paste "72px / 6% safe / full-bleed" slogans.
+${beatCountRule}
+visualIntent (FREE DIRECTED): 24–120 chars naming ONE concrete metaphor — object + action + space (e.g. 合上的书翻开成资料页与答题卡，朱红箭头从左流向右). Forbidden: Illustrate:, 节点和连线占满, words-only, 72px/safe-area slogans. The skill moves that metaphor; it does not erase it.
 The machine brief may be English — IGNORE that for VO/headline language; follow contentLang=${contentLang} only.
 Seed ${seed}. JSON only.`, `Brief:
 ${prompt}
@@ -597,14 +723,16 @@ Return:
     surface: (str('surface') === 'light' || str('surface') === 'dark') ? str('surface') as 'dark' | 'light' : undefined,
     motionNotes: str('motionNotes'),
   };
-  let plan = normalizeSkillPlan({ ...raw, look: lookRaw, contentLang }, aspect, undefined, {
+  let plan = normalizeSkillPlan({ ...raw, look: lookRaw, contentLang, formMode, brandSubtype }, aspect, undefined, {
     sourcePrompt: lockAsk,
-    forcePrimary: opts?.filmKind === 'logo'
+    forcePrimary: filmKind === 'logo'
       ? 'logo-animation'
-      : opts?.filmKind === 'showreel'
+      : filmKind === 'showreel'
         ? 'launch-video'
         : undefined,
-    filmKind: opts?.filmKind,
+    filmKind,
+    formMode,
+    brandSubtype,
     contentLang,
     uiVoMode,
     forceRemotion: opts?.forceRemotion,

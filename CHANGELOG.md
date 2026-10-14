@@ -1,5 +1,15 @@
 ## Unreleased
 
+- 废模板货架：创作页不再拉 `/api/templates/public`；改为代理管理后台 `GET /api/public/create-catalog`（经本机 `/api/create-catalog`）。
+- 创作类型 / 案例 / 提示词由 `admin.biunow.cn` 动态下发；自由与混剪仍本地固定；标志/类型顶栏分栏（不再用 brand 子 tab）。
+
+### 0.2.0 — 合入 file2video 创作线（Electron 发包不变）
+
+- 从 `file2video-main` 合入 `packages/create-core` / `packages/shared` 与创作 UI（CreatePanel / Workbench / History / Player / EngineSetup 等）。
+- 保留 Electron 窗控（最小化 / 最大化 / 关闭）与 `electron-builder` NSIS 发版；不引入浏览器壳 / `pack:slim`。
+- `config/commerce.json` 默认指向 `https://admin.biunow.cn`；检查更新优先拉管理端 `updateCheckUrl`，再回落 Gitee/GitHub。
+- 语言切换：修复 Vuetify `activated` 把 `zh-CN` 误截成 `z` 的问题。
+
 - 正式包可打入管理端地址：`config/commerce.json` 或打包时 `BN_COMMERCE_URL`；安装后无需用户设环境变量（仍可用环境变量 / 用户目录 `commerce.json` 覆盖）。
 - 对齐老厂：工作流 = StylePack（skill-directed / launch-showreel / narrated-explainer / next-word-loop / footage-remix）；原案例货架改为模板货架，绑定工作流+种子提示词；APP 点选后改词同质出片；恢复硬 SKU 出片路由。
 - 模板货架：默认不展示（官网配置开关）；分类下拉 + 横向滚动与左右翻页；预览播放弹窗；点选只绑自由创作（混剪除外）。

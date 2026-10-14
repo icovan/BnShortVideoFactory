@@ -50,16 +50,21 @@ export function estimateCreate(
 ): { durationSec: number; waitMinLow: number; waitMinHigh: number } {
   const chars = promptText.replace(/\s+/g, '').length + (hasDoc ? 1200 : 0)
   let durationSec = Math.round(chars / 4)
-  if (formMode === 'logo' || formMode === 'stickman') {
+  if (formMode === 'logo' || formMode === 'stickman' || formMode === 'brand:logo') {
     durationSec = Math.max(6, Math.min(12, Math.round(chars / 10) || 8))
-  } else if (formMode === 'showreel') {
-    durationSec = Math.max(12, Math.min(18, Math.round(chars / 8) || 14))
-  } else if (formMode === 'launch') {
+  } else if (formMode === 'showreel' || formMode === 'brand:showreel' || formMode === 'brand') {
+    // brand 未分子型时按展片中位估；brand:logo 走标志短片
+    durationSec = formMode === 'brand'
+      ? Math.max(8, Math.min(16, Math.round(chars / 9) || 12))
+      : Math.max(12, Math.min(18, Math.round(chars / 8) || 14))
+  } else if (formMode === 'launch' || formMode === 'story') {
     durationSec = Math.max(15, Math.min(45, Math.round(chars / 8) || 20))
   } else if (formMode === 'remix') {
     durationSec = Math.max(20, Math.min(180, Math.round(chars / 5) || 45))
   } else if (formMode === 'short') {
     durationSec = Math.max(12, Math.min(60, Math.round(chars / 6) || 20))
+  } else if (formMode === 'tutorial' || formMode === 'narrate') {
+    durationSec = Math.max(30, Math.min(120, Math.round(chars / 5) || 45))
   } else {
     durationSec = Math.max(20, Math.min(300, durationSec || 45))
   }

@@ -1,5 +1,6 @@
 /**
- * 打包前清空 dist-electron，避免历史 hashed main-*.js 堆积进 asar。
+ * 构建开头清空 dist-electron，避免多次构建堆积 hashed 碎片进 asar。
+ * 注意：beforePack 不得再删当前 main-*.js（main.js 会 require 它们）。
  */
 import { rmSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'

@@ -39,7 +39,9 @@ export async function previewSpeech(text: string, voice: string, settings: Setti
   try {
     await speak(sample, out, next, { contentLang: lang, lockVoice: true });
     if (!existsSync(out)) throw new Error('试听文件未生成');
-    return readFileSync(out);
+    const buf = readFileSync(out);
+    if (buf.length < 256) throw new Error('未收到 audio 消息');
+    return buf;
   } finally {
     try { unlinkSync(out); } catch { /* ignore */ }
   }

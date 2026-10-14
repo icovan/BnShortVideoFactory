@@ -1,4 +1,4 @@
-/** 本仓 packages/create-core（Remotion/Manim）经 Electron IPC 代理 */
+/** 本仓 packages/create-core（Remotion/Manim）经浏览器 shim → HTTP（Vite 代理 / 直连） */
 
 export type EngineState = {
   ready: boolean
@@ -54,7 +54,7 @@ export type EngineProject = {
   id: string
   title: string
   prompt: string
-  status: 'queued' | 'running' | 'ready' | 'error'
+  status: 'queued' | 'running' | 'paused' | 'ready' | 'error'
   engine?: string
   stylePack?: string
   aspect?: string
@@ -157,34 +157,41 @@ export type PublicWorkflow = {
   sort: number
 }
 
-/** 模板货架（管理后台已发布 cases） */
-export type PublicTemplate = {
+export { defaultCreateCatalog } from '../../packages/shared/src/createCatalog'
+
+/** 创作目录：类型 → 案例 → 提示词（管理后台 create-catalog） */
+export type CreatePrompt = {
   id: string
-  title: string
-  subtitle: string
-  prompt: string
-  category: string
-  aspect: string
-  engine?: string
-  stylePack: string
-  workflowId?: string
-  cover: string
-  previewVideo?: string
-  tall: number
-  kind: string
-  published: boolean
+  lang: 'zh' | 'en'
+  body: string
+  sort: number
+  enabled: boolean
 }
 
-export type PublicTemplateCategory = {
+export type CreateCase = {
   id: string
-  label: string
-  sort?: number
+  titleZh: string
+  titleEn: string
+  sort: number
+  enabled: boolean
+  prompts: CreatePrompt[]
 }
 
-export type PublicTemplateShelf = {
-  cases: PublicTemplate[]
-  categories: PublicTemplateCategory[]
-  showTemplateShelf: boolean
+export type CreateFormType = {
+  id: string
+  labelZh: string
+  labelEn: string
+  tipZh: string
+  tipEn: string
+  sort: number
+  enabled: boolean
+  cases: CreateCase[]
+  updatedAt: string
+}
+
+export type CreateCatalog = {
+  types: CreateFormType[]
+  updatedAt: string
 }
 
 export type UserAsset = {
@@ -296,6 +303,16 @@ export const engineApi = {
     }
   },
   listStyleRefs: () => req<StyleRefItem[]>('/api/style-refs'),
+  listStylePresets: () =>
+    req<
+      Array<{
+        id: string
+        labelZh: string
+        labelEn: string
+        mainTechnique: string
+        accent?: string
+      }>
+    >('/api/style-presets'),
   extractStyleRef: (body: { styleRefId?: string; styleRefDataUrl?: string }) =>
     req<{ look: StyleLook; source: string }>('/api/style-refs/extract', {
       method: 'POST',
@@ -308,14 +325,18 @@ export const engineApi = {
     aspect?: string
     quality?: string
     formMode?: string
+    brandSubtype?: 'logo' | 'showreel'
     templateId?: string
     stylePack?: string
     engine?: string
     autoSfx?: boolean
+    voiceOver?: 'off' | 'auto' | 'drive'
     voMode?: 'on' | 'off' | 'auto'
     scriptDrive?: 'off' | 'auto' | 'polish' | 'verbatim'
     styleRefId?: string
     styleRefDataUrl?: string
+    /** 风格预设（技法）；与设计参考联动 */
+    stylePresetId?: string
     userAssets?: UserAsset[]
     /** 观众语言锁；避免打包英文行污染检测 */
     contentLang?: 'zh' | 'en' | 'bilingual'
@@ -338,6 +359,10 @@ export const engineApi = {
     req<{ ok: boolean }>(`/api/projects/${id}`, { method: 'DELETE' }),
   cancelProject: (id: string) =>
     req<EngineProject>(`/api/projects/${id}/cancel`, { method: 'POST', body: {} }),
+  pauseProject: (id: string) =>
+    req<EngineProject>(`/api/projects/${id}/pause`, { method: 'POST', body: {} }),
+  resumeProject: (id: string) =>
+    req<EngineProject>(`/api/projects/${id}/resume`, { method: 'POST', body: {} }),
   pipeline: (id: string) => req<EnginePipelineStep[]>(`/api/projects/${id}/pipeline`),
   storyboard: (id: string) =>
     req<{
@@ -367,17 +392,7 @@ export const engineApi = {
   sitePublic: (lang?: string) =>
     req<PublicAppSite>(`/api/site/public?lang=${encodeURIComponent(lang || 'zh-CN')}`),
   listWorkflows: () => req<PublicWorkflow[]>('/api/workflows/public'),
-  listTemplates: async () => {
-    const raw = await req<PublicTemplateShelf | PublicTemplate[]>('/api/templates/public')
-    if (Array.isArray(raw)) {
-      return { cases: raw, categories: [], showTemplateShelf: false }
-    }
-    return {
-      cases: Array.isArray(raw?.cases) ? raw.cases : [],
-      categories: Array.isArray(raw?.categories) ? raw.categories : [],
-      showTemplateShelf: raw?.showTemplateShelf === true,
-    }
-  },
+  getCreateCatalog: () => req<CreateCatalog>('/api/create-catalog'),
   videoUrl: async (project: EngineProject, bust?: number) => {
     const st = await window.electron.engineGetState()
     const root = (st.url || '').replace(/\/$/, '')

@@ -119,7 +119,7 @@ function craftGateOk(skill: SkillName, tsx: string): boolean {
 
 /** True when issues need ActiveDirected repair (not coverage/sampling). */
 export function stillIssuesNeedCodeRepair(report: StillSkillReport): boolean {
-  return report.hardIssues.some((i) => /fingerprint|technique fingerprint/i.test(i));
+  return report.hardIssues.some((i) => /fingerprint|technique fingerprint|empty frame/i.test(i));
 }
 
 /**
@@ -185,8 +185,10 @@ export function verifyStillSkillBeats(opts: {
     );
   }
 
-  // Per sampled beat: leaf craft must leave a fingerprint in ActiveDirected
+  // Narration layouts draw the picture in NarrationFilm. Token fingerprints live there.
+  const layoutFilm = /narration-layout/.test(opts.tsx);
   const sampledLeaf = new Set<string>();
+  if (!layoutFilm) {
   for (const row of mapped) {
     if (!row.skill || !craftSet.has(row.skill as SkillName)) continue;
     if (SOFT_CRAFT_SKILLS.includes(row.skill as SkillName)) continue;
@@ -219,6 +221,27 @@ export function verifyStillSkillBeats(opts: {
   );
   if (leafOnBeats.length && stills.length >= minStills && sampledLeaf.size === 0) {
     softIssues.push('stills did not land on any craft-leaf beat — check duration/sample mapping');
+  }
+
+  // 导演工具箱：主技法应在采样镜中出现且过指纹（缺失 → soft，避免误杀连续母题片）
+  const mainTech = (() => {
+    const counts = new Map<string, number>();
+    for (const id of leafOnBeats) counts.set(id, (counts.get(id) || 0) + 1);
+    let best = '';
+    let n = 0;
+    counts.forEach((c, id) => {
+      if (c > n) {
+        n = c;
+        best = id;
+      }
+    });
+    return best;
+  })();
+  if (mainTech && stills.length >= minStills && !sampledLeaf.has(mainTech)) {
+    softIssues.push(`mainTechnique ${mainTech} not in sampled still beats — check duration map`);
+  } else if (mainTech && !craftGateOk(mainTech as SkillName, opts.tsx)) {
+    hardIssues.push(`mainTechnique ${mainTech}: technique fingerprint missing (director toolkit)`);
+  }
   }
 
   const hard = [...new Set(hardIssues)].slice(0, 14);

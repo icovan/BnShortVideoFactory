@@ -39,8 +39,12 @@ export default defineConfig({
             __BN_COMMERCE_URL__: bakedCommerceUrl(),
           },
           build: {
+            // 主进程打成单文件，避免 hashed main-*.js 被打包脚本误删后安装包启动弹 JS 错误
             rollupOptions: {
               external: ['better-sqlite3', 'ffmpeg-static'],
+              output: {
+                inlineDynamicImports: true,
+              },
             },
           },
         },

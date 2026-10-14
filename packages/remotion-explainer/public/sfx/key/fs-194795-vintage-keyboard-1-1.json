@@ -1,0 +1,36 @@
+{
+ "type": "key",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\key\\fs-194795-vintage-keyboard-1-1.wav",
+ "verdict": "ok",
+ "build_db": -21.3,
+ "start_db": -0.0,
+ "end_db": -30.2,
+ "spikiness": 3.54,
+ "dur_s": 0.095,
+ "peak_offset_s": 0.0094,
+ "rise_ms": 3.2,
+ "centroid_hz": 1934,
+ "below150": 0.002,
+ "above6k": 0.037,
+ "flatness": 0.113,
+ "note": null,
+ "start_floor_db": -22.4,
+ "source": {
+  "id": "194795",
+  "type": "key",
+  "title": "Vintage Keyboard 1",
+  "creator": "jim-ph",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/194/194795_670763-hq.mp3",
+  "landing": "https://freesound.org/people/jim-ph/sounds/194795",
+  "k": 3,
+  "keep": [
+   0,
+   1
+  ],
+  "tags": [
+   "typewriter",
+   "key"
+  ]
+ }
+}

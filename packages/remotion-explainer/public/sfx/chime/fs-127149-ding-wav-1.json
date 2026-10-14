@@ -1,0 +1,35 @@
+{
+ "type": "chime",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\chime\\fs-127149-ding-wav-1.wav",
+ "verdict": "ok",
+ "build_db": -25.9,
+ "start_db": -0.0,
+ "end_db": -38.2,
+ "spikiness": 1.35,
+ "dur_s": 0.767,
+ "peak_offset_s": 0.0073,
+ "rise_ms": 1.6,
+ "centroid_hz": 1608,
+ "below150": 0.0,
+ "above6k": 0.0,
+ "flatness": 0.005,
+ "note": 87.8,
+ "start_floor_db": -51.9,
+ "source": {
+  "id": "127149",
+  "type": "chime",
+  "title": "ding.wav",
+  "creator": "Daphne_in_Wonderland",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/127/127149_667113-hq.mp3",
+  "landing": "https://freesound.org/people/Daphne_in_Wonderland/sounds/127149",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "bell",
+   "ding"
+  ]
+ }
+}

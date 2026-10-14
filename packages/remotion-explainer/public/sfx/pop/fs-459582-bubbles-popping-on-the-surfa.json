@@ -1,0 +1,30 @@
+{
+ "type": "pop",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\pop\\fs-459582-bubbles-popping-on-the-surfa.wav",
+ "verdict": "ok",
+ "build_db": -13.2,
+ "start_db": -12.7,
+ "end_db": -22.6,
+ "spikiness": 2.37,
+ "dur_s": 0.059,
+ "peak_offset_s": 0.0196,
+ "rise_ms": 17.5,
+ "centroid_hz": 759,
+ "below150": 0.0,
+ "above6k": 0.004,
+ "flatness": 0.009,
+ "note": 76.8,
+ "start_floor_db": -19.1,
+ "source": {
+  "id": "459582",
+  "type": "pop",
+  "title": "Bubbles popping on the surface of water",
+  "creator": "vintage2005",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/459/459582_4807538-hq.mp3",
+  "landing": "https://freesound.org/people/vintage2005/sounds/459582",
+  "tags": [
+   "classic"
+  ]
+ }
+}

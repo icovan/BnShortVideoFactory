@@ -1,0 +1,35 @@
+{
+ "type": "reverse",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\reverse\\fs-503803-reverse-fx-13-wav-1.wav",
+ "verdict": "ok",
+ "build_db": 18.6,
+ "start_db": -26.3,
+ "end_db": -0.0,
+ "spikiness": 1.39,
+ "dur_s": 0.726,
+ "peak_offset_s": 0.683,
+ "rise_ms": 408.4,
+ "centroid_hz": 3459,
+ "below150": 0.002,
+ "above6k": 0.25,
+ "flatness": 0.109,
+ "note": 85.5,
+ "start_floor_db": -36.7,
+ "source": {
+  "id": "503803",
+  "type": "reverse",
+  "title": "reverse fx 13.wav",
+  "creator": "neezen.",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/503/503803_9637845-hq.mp3",
+  "landing": "https://freesound.org/people/neezen./sounds/503803",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "reverse",
+   "swell"
+  ]
+ }
+}

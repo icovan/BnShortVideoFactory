@@ -1,0 +1,22 @@
+{
+ "type": "ui",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\ui\\kenney-interface-minimize-001.wav",
+ "verdict": "ok",
+ "build_db": -14.3,
+ "start_db": -0.0,
+ "end_db": -20.6,
+ "spikiness": 1.18,
+ "dur_s": 0.258,
+ "peak_offset_s": 0.0057,
+ "rise_ms": 4.4,
+ "centroid_hz": 3769,
+ "below150": 0.0,
+ "above6k": 0.011,
+ "flatness": 0.027,
+ "note": null,
+ "start_floor_db": -4.4,
+ "source": {
+  "pack": "interface",
+  "file": "Audio/minimize_001.ogg"
+ }
+}

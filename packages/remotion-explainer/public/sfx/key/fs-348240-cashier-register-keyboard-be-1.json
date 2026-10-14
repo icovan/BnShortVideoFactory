@@ -1,0 +1,37 @@
+{
+ "type": "key",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\key\\fs-348240-cashier-register-keyboard-be-1.wav",
+ "verdict": "ok",
+ "build_db": -15.7,
+ "start_db": -0.1,
+ "end_db": -27.3,
+ "spikiness": 2.64,
+ "dur_s": 0.126,
+ "peak_offset_s": 0.012,
+ "rise_ms": 5.7,
+ "centroid_hz": 2613,
+ "below150": 0.002,
+ "above6k": 0.146,
+ "flatness": 0.244,
+ "note": null,
+ "start_floor_db": -36.4,
+ "source": {
+  "id": "348240",
+  "type": "key",
+  "title": "CASHIER-REGISTER-KEYBOARD-BEEP-CALC.wav",
+  "creator": "newagesoup",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/348/348240_4067257-hq.mp3",
+  "landing": "https://freesound.org/people/newagesoup/sounds/348240",
+  "k": 3,
+  "keep": [
+   0,
+   1,
+   2
+  ],
+  "tags": [
+   "typewriter",
+   "key"
+  ]
+ }
+}

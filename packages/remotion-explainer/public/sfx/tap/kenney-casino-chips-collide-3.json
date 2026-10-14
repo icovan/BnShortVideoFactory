@@ -1,0 +1,22 @@
+{
+ "type": "tap",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\tap\\kenney-casino-chips-collide-3.wav",
+ "verdict": "ok",
+ "build_db": -28.1,
+ "start_db": -0.0,
+ "end_db": -39.1,
+ "spikiness": 3.62,
+ "dur_s": 0.102,
+ "peak_offset_s": 0.008,
+ "rise_ms": 1.7,
+ "centroid_hz": 5908,
+ "below150": 0.009,
+ "above6k": 0.52,
+ "flatness": 0.106,
+ "note": 54.1,
+ "start_floor_db": -39.9,
+ "source": {
+  "pack": "casino",
+  "file": "Audio/chips-collide-3.ogg"
+ }
+}

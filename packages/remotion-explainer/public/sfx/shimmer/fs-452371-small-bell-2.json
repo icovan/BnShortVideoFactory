@@ -1,0 +1,35 @@
+{
+ "type": "shimmer",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\shimmer\\fs-452371-small-bell-2.wav",
+ "verdict": "ok",
+ "build_db": -25.0,
+ "start_db": -0.0,
+ "end_db": -33.0,
+ "spikiness": 1.23,
+ "dur_s": 0.735,
+ "peak_offset_s": 0.055,
+ "rise_ms": 52.1,
+ "centroid_hz": 4329,
+ "below150": 0.0,
+ "above6k": 0.065,
+ "flatness": 0.003,
+ "note": 107.4,
+ "start_floor_db": -11.3,
+ "source": {
+  "id": "452371",
+  "type": "shimmer",
+  "title": "Small Bell",
+  "creator": "steffcaffrey",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/452/452371_1844073-hq.mp3",
+  "landing": "https://freesound.org/people/steffcaffrey/sounds/452371",
+  "k": 3,
+  "keep": [
+   1
+  ],
+  "tags": [
+   "magic",
+   "chime"
+  ]
+ }
+}

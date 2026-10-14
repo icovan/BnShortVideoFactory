@@ -9,6 +9,13 @@ export const DirectedBeatSchema = z.object({
   visualIntent: z.string().optional(),
   keyMotion: z.string().optional(),
   skill: z.string().optional(),
+  /** @deprecated optional composition hint; not enforced */
+  layoutMode: z.string().optional(),
+  craftMust: z.array(z.string()).optional(),
+  /** Hand-written narration layout id. Pixels come from NarrationFilm. */
+  layout: z.string().optional(),
+  /** Object glyphs for this line (brush, coin, gear, …). */
+  glyphs: z.array(z.string()).optional(),
   items: z.array(z.string()).optional(),
   stat: z.object({ label: z.string(), value: z.number() }).optional(),
   narrationFile: z.string().optional(),
@@ -35,15 +42,30 @@ export const DirectedSchema = z.object({
   accent: z.string(),
   muted: z.string(),
   brandBg: z.string().optional(),
+  /** Look material sentence: ink, paper, halftone, clay. Skin only. */
+  material: z.string().optional(),
   primary: z.string(),
   skills: z.array(z.string()),
   coreIdea: z.string().optional(),
+  /** Director toolkit: leaf that most beats deepen */
+  mainTechnique: z.string().optional(),
+  /** Continuous same-page motif across Sequences */
+  motifLock: z.object({
+    continuousPage: z.boolean(),
+    motif: z.string(),
+  }).optional(),
   /** Audience language: zh | en | bilingual */
   contentLang: z.enum(['zh', 'en', 'bilingual']).optional(),
   dropSec: z.number().optional(),
   musicFile: z.string().optional(),
   /** 全局自动音效开关（分镜级 sfxCues / sfxFile） */
   autoSfx: z.boolean().optional(),
+  /** @deprecated unused; Agent films ignore Stage shell */
+  a2eCanvas: z.boolean().optional(),
+  /** @deprecated unused */
+  a2eHud: z.boolean().optional(),
+  /** @deprecated unused */
+  a2eBg: z.enum(['dots', 'stars', 'none']).optional(),
   /** 用户上屏素材（相对 public） */
   assets: z.array(z.object({
     role: z.enum(['logo', 'product', 'shot', 'image']),

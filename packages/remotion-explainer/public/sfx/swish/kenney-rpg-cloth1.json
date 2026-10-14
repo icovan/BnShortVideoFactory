@@ -1,0 +1,22 @@
+{
+ "type": "swish",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\swish\\kenney-rpg-cloth1.wav",
+ "verdict": "ok",
+ "build_db": -0.4,
+ "start_db": -19.5,
+ "end_db": -15.1,
+ "spikiness": 2.45,
+ "dur_s": 0.243,
+ "peak_offset_s": 0.0562,
+ "rise_ms": 26.5,
+ "centroid_hz": 913,
+ "below150": 0.033,
+ "above6k": 0.011,
+ "flatness": 0.047,
+ "note": null,
+ "start_floor_db": -31.2,
+ "source": {
+  "pack": "rpg",
+  "file": "Audio/cloth1.ogg"
+ }
+}

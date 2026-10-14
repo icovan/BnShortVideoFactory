@@ -1,8 +1,9 @@
 import axios from 'axios'
 import { BrowserWindow } from 'electron'
 import i18next from 'i18next'
+import { resolveCommerceUrl } from './commerce-url'
 
-/** 英文 → GitHub；中文 → Gitee。可用环境变量覆盖。 */
+/** 英文 → GitHub；中文 → Gitee。可用环境变量覆盖。管理端 updateCheckUrl 优先。 */
 const GITHUB_RELEASE_URL =
   process.env.BN_UPDATE_GITHUB ||
   process.env.BIUNOW_UPDATE_GITHUB ||
@@ -43,6 +44,27 @@ function releaseUrlsForLocale(lng?: string): string[] {
     return [GITEE_RELEASE_URL, GITHUB_RELEASE_URL]
   }
   return [GITHUB_RELEASE_URL, GITEE_RELEASE_URL]
+}
+
+/** 管理端公开站点里的 updateCheckUrl（与 slim / create-core 对齐） */
+async function resolveCommerceUpdateCheckUrl(lng?: string): Promise<string> {
+  const base = resolveCommerceUrl()
+  if (!base) return ''
+  const lang = isChineseLocale(lng) ? 'zh' : 'en'
+  try {
+    const { data } = await axios.get<{ updateCheckUrl?: string }>(
+      `${base}/api/public/site`,
+      {
+        params: { lang },
+        timeout: 8000,
+        headers: { Accept: 'application/json', 'User-Agent': 'BnShortVideoFactory' },
+      },
+    )
+    return String(data?.updateCheckUrl || '').trim()
+  } catch (e) {
+    console.warn('[Updater] commerce site unreachable', e instanceof Error ? e.message : e)
+    return ''
+  }
 }
 
 function parseReleaseNotes(body: string | null): Record<string, string> {
@@ -116,7 +138,11 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateChe
 
   const run: Promise<UpdateCheckResult> = (async (): Promise<UpdateCheckResult> => {
     const errors: string[] = []
-    for (const url of releaseUrlsForLocale()) {
+    const commerceUrl = await resolveCommerceUpdateCheckUrl()
+    const urls = commerceUrl
+      ? [commerceUrl, ...releaseUrlsForLocale()]
+      : releaseUrlsForLocale()
+    for (const url of urls) {
       try {
         const data = await fetchLatest(url)
         const version = String(data.tag_name || '').replace(/^v/, '')

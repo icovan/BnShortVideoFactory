@@ -1,0 +1,36 @@
+{
+ "type": "glitch",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\glitch\\fs-620108-stutter-turn-around-loop-2.wav",
+ "verdict": "ok",
+ "build_db": -12.9,
+ "start_db": -0.0,
+ "end_db": -25.6,
+ "spikiness": 1.32,
+ "dur_s": 0.454,
+ "peak_offset_s": 0.0323,
+ "rise_ms": 23.3,
+ "centroid_hz": 1159,
+ "below150": 0.1,
+ "above6k": 0.006,
+ "flatness": 0.015,
+ "note": null,
+ "start_floor_db": -22.9,
+ "source": {
+  "id": "620108",
+  "type": "glitch",
+  "title": "Stutter Turn Around Loop",
+  "creator": "adh.dreaming",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/620/620108_12672694-hq.mp3",
+  "landing": "https://freesound.org/people/adh.dreaming/sounds/620108",
+  "k": 3,
+  "keep": [
+   0,
+   1,
+   2
+  ],
+  "tags": [
+   "stutter"
+  ]
+ }
+}

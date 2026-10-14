@@ -1,0 +1,22 @@
+{
+ "type": "tap",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\tap\\kenney-impact-impact-metal-heavy-003.wav",
+ "verdict": "ok",
+ "build_db": -51.7,
+ "start_db": -0.0,
+ "end_db": -68.7,
+ "spikiness": 2.24,
+ "dur_s": 0.204,
+ "peak_offset_s": 0.0063,
+ "rise_ms": 4.1,
+ "centroid_hz": 1486,
+ "below150": 0.007,
+ "above6k": 0.0,
+ "flatness": 0.001,
+ "note": 86.8,
+ "start_floor_db": -2.9,
+ "source": {
+  "pack": "impact",
+  "file": "Audio/impactMetal_heavy_003.ogg"
+ }
+}

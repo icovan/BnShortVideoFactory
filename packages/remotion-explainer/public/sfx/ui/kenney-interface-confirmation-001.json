@@ -1,0 +1,22 @@
+{
+ "type": "ui",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\ui\\kenney-interface-confirmation-001.wav",
+ "verdict": "ok",
+ "build_db": -15.6,
+ "start_db": -0.0,
+ "end_db": -22.5,
+ "spikiness": 1.24,
+ "dur_s": 0.288,
+ "peak_offset_s": 0.0084,
+ "rise_ms": 4.0,
+ "centroid_hz": 663,
+ "below150": 0.0,
+ "above6k": 0.0,
+ "flatness": 0.001,
+ "note": 74.0,
+ "start_floor_db": -3.8,
+ "source": {
+  "pack": "interface",
+  "file": "Audio/confirmation_001.ogg"
+ }
+}

@@ -1,0 +1,35 @@
+{
+ "type": "whoosh",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\whoosh\\fs-30241-swoop2g-flac-1.wav",
+ "verdict": "ok",
+ "build_db": -17.0,
+ "start_db": -25.0,
+ "end_db": -30.5,
+ "spikiness": 2.16,
+ "dur_s": 0.418,
+ "peak_offset_s": 0.1225,
+ "rise_ms": 39.6,
+ "centroid_hz": 659,
+ "below150": 0.099,
+ "above6k": 0.002,
+ "flatness": 0.009,
+ "note": null,
+ "start_floor_db": -28.1,
+ "source": {
+  "id": "30241",
+  "type": "whoosh",
+  "title": "swoop2g.flac",
+  "creator": "Streety",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/30/30241_56897-hq.mp3",
+  "landing": "https://freesound.org/people/Streety/sounds/30241",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "air",
+   "whoosh"
+  ]
+ }
+}

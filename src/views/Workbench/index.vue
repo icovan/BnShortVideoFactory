@@ -84,6 +84,7 @@
       </div>
 
       <div class="stage">
+        <div class="stage-grid" aria-hidden="true" />
         <div class="stage-frame" :class="aspectClass">
           <video
             v-if="task?.videoPath && !hideVideo"
@@ -117,12 +118,19 @@
       <div v-if="task" class="prompt-bubble">{{ task.prompt }}</div>
 
       <ul class="steps">
-        <li v-for="s in task?.pipeline || []" :key="s.id">
+        <li v-for="s in task?.pipeline || []" :key="s.id" :class="s.status">
           <div class="step-head">
             <strong>{{ stepLabel(s) }}</strong>
-            <span :class="s.status">{{ stepStatus(s.status) }}</span>
+            <!-- 完成态改由进度条右侧「完成 · Ns」展示，避免重复 -->
+            <span v-if="s.status !== 'done'" :class="s.status">{{ stepStatus(s.status) }}</span>
           </div>
           <p v-if="stepDetail(s)">{{ stepDetail(s) }}</p>
+          <div class="step-rail">
+            <span class="step-eta" :class="s.status">{{ stepCountdown(s) }}</span>
+            <div class="step-bar" :class="s.status">
+              <i :style="{ width: `${stepProgress(s)}%` }" />
+            </div>
+          </div>
         </li>
       </ul>
 
@@ -159,7 +167,7 @@
       <div class="composer">
         <textarea
           v-model="note"
-          rows="3"
+          rows="6"
           :placeholder="t('studio.workbench.composerPlaceholder')"
           :disabled="!remakeReady || busy"
         />
@@ -246,7 +254,23 @@ const loopBeat = ref(false)
 const hideVideo = ref(false)
 const videoEl = ref<HTMLVideoElement | null>(null)
 const nowTick = ref(Date.now())
+/** 各步骤进入 running 的本地时刻，用于动态进度与倒计时 */
+const stepStartedAt = ref<Record<string, number>>({})
+/** 步骤实际耗时（完成时写入） */
+const stepElapsedMs = ref<Record<string, number>>({})
 let etaTimer: ReturnType<typeof setInterval> | null = null
+
+/** 步骤预算（毫秒）— 仅用于 UI 倒计时/进度，非引擎硬时限 */
+const STEP_BUDGET_MS: Record<string, number> = {
+  plan: 50_000,
+  brief: 35_000,
+  voice: 100_000,
+  build: 200_000,
+  stills: 70_000,
+  inspect: 45_000,
+  encode: 100_000,
+  scene: 70_000,
+}
 
 const remakeReady = computed(
   () => !!task.value && (task.value.status === 'ready' || task.value.status === 'error') && !busy.value,
@@ -352,6 +376,47 @@ function stepStatus(s: string) {
   if (s === 'done') return t('studio.status.done')
   if (s === 'error') return t('studio.status.error')
   return s
+}
+
+function stepBudget(s: PipelineStep) {
+  return STEP_BUDGET_MS[s.id] || 60_000
+}
+
+function stepProgress(s: PipelineStep) {
+  void nowTick.value
+  if (s.status === 'done') return 100
+  if (s.status === 'error') return 100
+  if (s.status !== 'running') return 0
+  const started = stepStartedAt.value[s.id] || nowTick.value
+  const pct = ((nowTick.value - started) / stepBudget(s)) * 100
+  return Math.max(4, Math.min(92, Math.round(pct)))
+}
+
+function formatStepSec(ms: number) {
+  return `${Math.max(1, Math.round(ms / 1000))}s`
+}
+
+function stepCountdown(s: PipelineStep) {
+  void nowTick.value
+  void i18next.language
+  const zh = !!i18next.language?.startsWith('zh')
+  if (s.status === 'done') {
+    const ms = stepElapsedMs.value[s.id]
+    if (ms != null) {
+      return zh ? `完成 · ${formatStepSec(ms)}` : `Done · ${formatStepSec(ms)}`
+    }
+    return zh ? '完成' : 'Done'
+  }
+  if (s.status === 'error') return t('studio.status.error')
+  if (s.status === 'pending') return '—'
+  const started = stepStartedAt.value[s.id] || nowTick.value
+  const left = Math.max(0, stepBudget(s) - (nowTick.value - started))
+  const sec = Math.ceil(left / 1000)
+  if (sec <= 0) return zh ? '即将完成' : 'Almost'
+  if (sec < 60) return `${sec}s`
+  const m = Math.floor(sec / 60)
+  const r = sec % 60
+  return `${m}:${String(r).padStart(2, '0')}`
 }
 
 function formatSec(n?: number) {
@@ -534,6 +599,8 @@ onUnmounted(() => {
 })
 
 watch(taskId, (id) => {
+  stepStartedAt.value = {}
+  stepElapsedMs.value = {}
   if (id) {
     studio.openTask(id)
     void studio
@@ -548,6 +615,37 @@ watch(
   (s) => {
     if (s === 'ready' || s === 'error') void loadBoard()
   },
+)
+
+watch(
+  () => (task.value?.pipeline || []).map((s) => `${s.id}:${s.status}`).join('|'),
+  () => {
+    const pipe = task.value?.pipeline || []
+    // remake 新一轮：步骤重新 pending 时清计时
+    if (pipe.length && pipe.every((s) => s.status === 'pending')) {
+      stepStartedAt.value = {}
+      stepElapsedMs.value = {}
+      return
+    }
+    const starts = { ...stepStartedAt.value }
+    const elapsed = { ...stepElapsedMs.value }
+    let startChanged = false
+    let elapsedChanged = false
+    const now = Date.now()
+    for (const s of pipe) {
+      if (s.status === 'running' && !starts[s.id]) {
+        starts[s.id] = now
+        startChanged = true
+      }
+      if ((s.status === 'done' || s.status === 'error') && starts[s.id] && elapsed[s.id] == null) {
+        elapsed[s.id] = Math.max(0, now - starts[s.id])
+        elapsedChanged = true
+      }
+    }
+    if (startChanged) stepStartedAt.value = starts
+    if (elapsedChanged) stepElapsedMs.value = elapsed
+  },
+  { immediate: true },
 )
 
 watch(
@@ -569,7 +667,8 @@ watch(
 .workbench {
   height: 100%;
   display: grid;
-  grid-template-columns: 268px minmax(0, 1fr) minmax(320px, 400px);
+  /* 中栏继续加宽，增量从左栏拿 */
+  grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.55fr) minmax(300px, 0.95fr);
   gap: 0;
   /* 透出 html/body 与首页相同的径向渐变底 */
   background: transparent;
@@ -789,23 +888,40 @@ watch(
 }
 
 .stage {
+  position: relative;
   flex: 1;
   min-height: 0;
+  container-type: size;
   display: grid;
   place-items: center;
-  padding: 8px 0;
-  background: rgb(255 255 255 / 62%);
-  backdrop-filter: blur(6px);
+  padding: 20px;
+  overflow: hidden;
+  background: transparent;
   border-radius: 14px;
   border: 1px solid var(--line);
 }
 
+/* 独立层画倾斜网格，避免 ::before + color-mix 在部分环境下不渲染 */
+.stage-grid {
+  position: absolute;
+  z-index: 0;
+  inset: -45%;
+  pointer-events: none;
+  transform: rotate(-12deg);
+  background-image:
+    linear-gradient(#b8d94a 2px, transparent 2px),
+    linear-gradient(90deg, #b8d94a 2px, transparent 2px);
+  background-size: 24px 24px;
+  opacity: 0.55;
+}
+
 .stage-frame {
   position: relative;
+  z-index: 1;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 0 0 1px var(--line), 0 12px 28px rgb(0 0 0 / 6%);
-  background: var(--paper-2);
+  box-shadow: 0 0 0 1px var(--line), 0 14px 32px rgb(0 0 0 / 8%);
+  background: var(--player-bg);
   max-width: 100%;
   max-height: 100%;
   display: grid;
@@ -814,31 +930,32 @@ watch(
 
 .stage-frame.ar-16-9 {
   aspect-ratio: 16 / 9;
-  width: min(100%, 640px);
+  width: min(100cqw, calc(100cqh * 16 / 9));
   height: auto;
 }
 
 .stage-frame.ar-9-16 {
   aspect-ratio: 9 / 16;
-  width: min(100%, 260px);
+  width: min(100cqw, calc(100cqh * 9 / 16));
   height: auto;
 }
 
 .stage-frame.ar-1-1 {
   aspect-ratio: 1 / 1;
-  width: min(100%, 400px);
+  width: min(100cqw, 100cqh);
   height: auto;
 }
 
 .stage-frame.ar-3-4 {
   aspect-ratio: 3 / 4;
-  width: min(100%, 320px);
+  width: min(100cqw, calc(100cqh * 3 / 4));
   height: auto;
 }
 
 .wait {
   background: var(--ink);
   color: var(--surface);
+  border: 1px solid var(--ink);
   font-size: 13px;
   padding: 10px 16px;
   border-radius: 999px;
@@ -903,8 +1020,7 @@ watch(
   overflow: auto;
   flex: 1;
   li {
-    padding: 10px 4px;
-    border-bottom: 1px solid var(--paper);
+    padding: 10px 4px 0;
   }
   .step-head {
     display: flex;
@@ -920,12 +1036,68 @@ watch(
       &.done {
         color: var(--success);
       }
+      &.error {
+        color: var(--danger);
+      }
     }
   }
   p {
     margin: 4px 0 0;
     font-size: 11px;
     color: var(--muted-2);
+  }
+}
+
+.step-rail {
+  margin-top: 8px;
+  padding-bottom: 2px;
+}
+
+.step-eta {
+  display: block;
+  text-align: right;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-2);
+  line-height: 1.2;
+  min-height: 14px;
+  &.running {
+    color: var(--accent-deep);
+    font-weight: 600;
+  }
+  &.done {
+    color: var(--success);
+  }
+  &.error {
+    color: var(--danger);
+  }
+}
+
+.step-bar {
+  margin-top: 4px;
+  height: 3px;
+  border-radius: 99px;
+  background: var(--line);
+  overflow: hidden;
+  i {
+    display: block;
+    height: 100%;
+    width: 0;
+    border-radius: inherit;
+    background: var(--line-strong);
+    transition: width 0.6s ease;
+  }
+  &.running i {
+    background: linear-gradient(90deg, var(--accent-deep), var(--accent));
+  }
+  &.done i {
+    background: var(--success);
+  }
+  &.error i {
+    background: var(--danger);
+  }
+  &.pending i {
+    width: 0 !important;
   }
 }
 
@@ -968,13 +1140,15 @@ watch(
 .composer {
   position: relative;
   width: 100%;
+  flex-shrink: 0;
   textarea {
     width: 100%;
+    min-height: 132px;
     box-sizing: border-box;
     border: 1px solid var(--line);
     border-radius: 16px;
     padding: 12px 48px 12px 12px;
-    resize: none;
+    resize: vertical;
     font: inherit;
     font-size: 13px;
     line-height: 1.45;

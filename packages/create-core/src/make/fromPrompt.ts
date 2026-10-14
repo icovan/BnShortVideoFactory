@@ -15,13 +15,22 @@ import { runWebSearch } from './webSearch.ts';
 import { extractUrlsFromText, runUrlExtract } from './urlExtract.ts';
 import {
   applyScriptDriveToPlan,
+  assessDriveConsumption,
+  assessDriveScript,
+  assessDriveVisualVariety,
   joinDocsText,
-  polishScriptForFilm,
-  resolveScriptDrive,
-  splitVerbatimScript,
+  planPicturesForLines,
+  shotsFromFormattedNarration,
   synthesizeScriptFromAsk,
   type ScriptDriveMode,
 } from './scriptDrive.ts';
+import { formatToNarrationTxt } from './narrationFormat.ts';
+import { diversifyBeatSkills } from './beatTechnique.ts';
+import { attachCraftMust } from '../skills/skillDepth.ts';
+import { rebuildSkillsList } from './directorToolkit.ts';
+import { isSkillName } from '../skills/registry.ts';
+import type { SkillName } from '../llm.ts';
+import { coalesceVoiceOver, mapVoiceOver, type VoiceOverUi } from './voiceOver.ts';
 import type { Aspect, Project, Quality, Settings, StylePack } from '../../../shared/src/index.ts';
 import { isRemixFormMode, makeFootageRemix } from './footageRemix.ts';
 import {
@@ -30,13 +39,23 @@ import {
   withStickmanMachineLock,
 } from './stickmanBrief.ts';
 import { makeExplainer } from './explainer.ts';
+import { resolveBrandSubtype } from './formModePools.ts';
+import {
+  applyStylePresetToPlan,
+  getStylePreset,
+  stylePresetBriefLock,
+} from './stylePresets.ts';
 
 type MakeOpts = {
   autoSfx?: boolean;
+  /** 口播三态：关 / 自动 / 驱动（优先于 voMode+scriptDrive） */
+  voiceOver?: VoiceOverUi;
   voMode?: VoMode;
   scriptDrive?: ScriptDriveMode;
   styleRefId?: string;
   styleRefDataUrl?: string;
+  /** 风格预设 id（技法偏置；与设计参考联动） */
+  stylePresetId?: string;
   userAssets?: IncomingUserAsset[];
   /** 云端 prepare：禁止 Manim */
   forceRemotion?: boolean;
@@ -48,8 +67,10 @@ type MakeOpts = {
   webSearch?: boolean;
   /** 出片分辨率 1080p | 720p */
   quality?: Quality;
-  /** UI 形态：narrate/short/logo/launch/remix/prompt（旧 stickman = logo） */
+  /** UI 形态：prompt / short / narrate / tutorial / story / launch / brand / remix */
   formMode?: string;
+  /** brand 子型 */
+  brandSubtype?: 'logo' | 'showreel' | string;
   /** 混剪：本机素材文件夹 */
   footageFolder?: string;
   /** 混剪：显式视频路径 */
@@ -163,15 +184,18 @@ async function planFromPrompt(
   }
 
   const mergedDocs = [...docTexts, ...urlDocs];
-  const logoFilm = opts?.formMode === 'logo' || opts?.formMode === 'stickman';
-  const showreelFilm = opts?.formMode === 'showreel' || opts?.formMode === 'mg';
-  const mgSilent = logoFilm || showreelFilm;
-  const scriptMode = mgSilent && opts?.voMode !== 'on'
-    ? 'off' as ScriptDriveMode
-    : resolveScriptDrive({
-      uiMode: opts?.scriptDrive,
-      hasDocs: mergedDocs.length > 0,
-    });
+  const brandSub = resolveBrandSubtype(opts?.formMode, opts?.brandSubtype);
+  // 标志与类型不再强制 logo/showreel 配方与关口播——案例提示词写约束，操作栏自由
+  let voiceOver = coalesceVoiceOver({
+    voiceOver: opts?.voiceOver,
+    voMode: opts?.voMode,
+    scriptDrive: opts?.scriptDrive,
+  });
+  // 驱动但无文稿：降为自动（从需求策划），避免空跑
+  if (voiceOver === 'drive' && !mergedDocs.length) voiceOver = 'auto';
+  const mapped = mapVoiceOver(voiceOver);
+  const scriptMode = mapped.scriptDrive;
+  const uiVoMode = mapped.voMode;
 
   let webBlock = '';
   if (opts?.webSearch) {
@@ -224,19 +248,24 @@ async function planFromPrompt(
     opts?.contentLang && isContentLang(opts.contentLang)
       ? opts.contentLang
       : detectContentLang(prompt);
-  const machineBrief = withStickmanMachineLock(brief.machinePrompt || brief.prompt, prompt);
+  const preset = getStylePreset(opts?.stylePresetId);
+  const presetLock = stylePresetBriefLock(opts?.stylePresetId);
+  const machineBrief = withStickmanMachineLock(
+    [brief.machinePrompt || brief.prompt, presetLock].filter(Boolean).join('\n\n'),
+    prompt,
+  );
+  // 技法路由 / 导演工具箱也要看见预设（与 machine brief 对齐）
+  const sourceAskForPlan = [prompt, presetLock].filter(Boolean).join('\n');
   setPipelineStep(
     projectId,
     'plan',
     'running',
     brief.primaryGuess
-      ? `双轨就绪 · ${brief.primaryGuess} · 观众语 ${brief.contentLang}${asksForStickman(prompt) ? ' · stickman' : ''}`
-      : `双轨就绪 · 观众语 ${brief.contentLang}${asksForStickman(prompt) ? ' · stickman' : ''}`,
+      ? `双轨就绪 · ${brief.primaryGuess} · 观众语 ${brief.contentLang}${asksForStickman(prompt) ? ' · stickman' : ''}${preset ? ` · 风格:${preset.labelZh}` : ''}`
+      : `双轨就绪 · 观众语 ${brief.contentLang}${asksForStickman(prompt) ? ' · stickman' : ''}${preset ? ` · 风格:${preset.labelZh}` : ''}`,
   );
 
-  const voForPlan = mgSilent
-    ? (opts?.voMode === 'on' ? 'on' as VoMode : 'off' as VoMode)
-    : scriptMode !== 'off' ? 'on' as VoMode : opts?.voMode;
+  const voForPlan = uiVoMode;
 
   let plan = await planSkills(
     machineBrief,
@@ -245,60 +274,137 @@ async function planFromPrompt(
     undefined,
     brief.contentLang,
     voForPlan,
-    prompt,
+    sourceAskForPlan,
     {
       forceRemotion: opts?.forceRemotion === true,
-      filmKind: logoFilm ? 'logo' : showreelFilm ? 'showreel' : undefined,
+      formMode: opts?.formMode,
+      brandSubtype: brandSub,
     },
   );
   plan.contentLang = brief.contentLang;
-
-  if (scriptMode !== 'off' && mergedDocs.length) {
-    setPipelineStep(projectId, 'plan', 'running', `旁白驱动 · ${scriptMode}`);
-    const sourceText = joinDocsText(mergedDocs);
-    let scriptBeats;
-    if (scriptMode === 'verbatim') {
-      scriptBeats = splitVerbatimScript(sourceText).slice(0, 40).map((vo, i) => ({
-        job: `beat-${i}`,
-        vo,
-        headline: vo.slice(0, 16),
-        visualIntent: `Illustrate: ${vo.slice(0, 80)}`,
-        keyMotion: 'spring reveal',
-      }));
-    } else {
-      scriptBeats = await polishScriptForFilm(settings, {
-        sourceText,
-        contentLang: brief.contentLang,
-        aspect,
-        userAsk: prompt,
-      });
+  plan.formMode = (opts?.formMode || 'prompt').trim() || 'prompt';
+  plan.brandSubtype = brandSub;
+  // 硬偏置主技法（防止 LLM 仍把 kinetic 排第一）
+  if (preset) {
+    plan = applyStylePresetToPlan(plan, preset.id);
+    if (preset.preferMono && brief.lookLock && !/mono|木刻|单色|黑白/i.test(brief.lookLock)) {
+      brief.lookLock = `${brief.lookLock} · monochrome woodcut ink`.slice(0, 200);
+    } else if (preset.briefLock && !brief.lookLock) {
+      brief.lookLock = `${preset.labelZh} · ${preset.motionNotes || ''}`.slice(0, 200);
     }
-    plan = applyScriptDriveToPlan(plan, scriptBeats, scriptMode);
-    setPipelineStep(projectId, 'plan', 'running', `旁白锁定 · ${plan.beats.length} 句`);
-  } else if (!logoFilm && plan.voMode === 'on' && !mergedDocs.length) {
-    setPipelineStep(projectId, 'plan', 'running', '旁白合成 · 无文稿');
+  }
+
+  if (voiceOver === 'drive' && mergedDocs.length) {
+    // 唯一契约：先 narration.txt（空行=画面单元，镜数随内容）→ skill 配画。不开 NarrationFilm / 不走 polish 碎切。
+    const sourceText = joinDocsText(mergedDocs);
+    setPipelineStep(projectId, 'plan', 'running', '口播驱动 · narration.txt 格式化');
+    const narrationTxt = await formatToNarrationTxt(settings, sourceText, { userAsk: prompt });
+    const packed = shotsFromFormattedNarration(narrationTxt);
+    const driveLines = packed.lines;
+    const driveMode: ScriptDriveMode = 'verbatim';
+
+    const projDir = store.getProject(projectId)?.dir;
+    if (projDir) {
+      const outDir = join(OUTPUTS_DIR, projDir);
+      if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
+      writeFileSync(join(outDir, 'narration.txt'), narrationTxt, 'utf8');
+    }
+
+    setPipelineStep(
+      projectId,
+      'plan',
+      'running',
+      `口播驱动 · ${driveLines.length} 画面单元`,
+    );
+    const scriptBeats = await planPicturesForLines(settings, {
+      lines: driveLines,
+      contentLang: brief.contentLang,
+      aspect,
+      userAsk: prompt,
+    });
+
+    const structureIssues = assessDriveScript(driveLines);
+    const driveIssues = [...packed.issues, ...structureIssues].slice(0, 32);
+    plan = applyScriptDriveToPlan(plan, scriptBeats, driveMode);
+    let consumeIssues = [
+      ...assessDriveConsumption({ lines: driveLines, beats: plan.beats }),
+      ...assessDriveVisualVariety(plan.beats),
+    ];
+    // 自查：邻镜同技 / skill 垄断 → 再钉轮转（防导演工具箱回潮；不重跑 LLM）
+    if (consumeIssues.some((x) => /consecutive same skill|dominates/i.test(x))) {
+      const rotated = attachCraftMust(diversifyBeatSkills(plan.beats, { primary: plan.primary }));
+      const used: SkillName[] = [];
+      for (const b of rotated) {
+        if (isSkillName(b.skill) && b.skill !== plan.primary && !used.includes(b.skill)) {
+          used.push(b.skill);
+        }
+      }
+      plan = {
+        ...plan,
+        beats: rotated,
+        support: used.slice(0, 3),
+        skills: rebuildSkillsList(plan.primary, used.slice(0, 3), plan.brandSkills || [], true),
+      };
+      consumeIssues = [
+        ...assessDriveConsumption({ lines: driveLines, beats: plan.beats }),
+        ...assessDriveVisualVariety(plan.beats),
+      ];
+    }
+    const driveAll = [...driveIssues, ...consumeIssues].slice(0, 40);
+    plan = { ...plan, driveIssues: driveAll };
+    setPipelineStep(
+      projectId,
+      'plan',
+      'running',
+      driveAll.length
+        ? `口播锁定 · narration.txt · ${plan.beats.length} 镜 · 提示 ${driveAll.length}`
+        : `口播锁定 · narration.txt · ${plan.beats.length} 镜`,
+    );
+  } else if (voiceOver === 'auto') {
+    // 自动：需求 → LLM 策划旁白；同样按空行画面单元归并过碎句（无 24 镜硬顶）
+    setPipelineStep(projectId, 'plan', 'running', '口播自动 · 策划');
     const synthesized = await synthesizeScriptFromAsk(settings, {
       userAsk: stripFactoryPackLines(prompt) || prompt,
       contentLang: brief.contentLang,
       aspect,
     });
     if (synthesized.length >= 4) {
-      plan = applyScriptDriveToPlan(plan, synthesized, 'polish');
-      setPipelineStep(projectId, 'plan', 'running', `旁白锁定 · 合成 ${plan.beats.length} 句`);
+      const packedAuto = shotsFromFormattedNarration(
+        synthesized.map((b) => b.vo).join('\n\n'),
+      );
+      const autoBeats = packedAuto.lines.length === synthesized.length
+        ? synthesized
+        : await planPicturesForLines(settings, {
+          lines: packedAuto.lines,
+          contentLang: brief.contentLang,
+          aspect,
+          userAsk: prompt,
+        });
+      plan = applyScriptDriveToPlan(plan, autoBeats, 'polish');
+      setPipelineStep(projectId, 'plan', 'running', `口播锁定 · 合成 ${plan.beats.length} 镜`);
     }
   }
 
   // 旁白驱动后可能冲掉 clip: 前缀 — 火柴人镜再锁回短语
-  if (asksForStickman(prompt) || plan.skills.includes('stickman-animation')) {
+  if (
+    asksForStickman(sourceAskForPlan)
+    || plan.skills.includes('stickman-animation')
+    || plan.mainTechnique === 'stickman-animation'
+  ) {
     plan = {
       ...plan,
-      beats: applyStickmanPhraseToBeats(plan.beats, { sourceAsk: prompt }),
+      beats: applyStickmanPhraseToBeats(plan.beats, { sourceAsk: sourceAskForPlan }),
     };
+  }
+
+  // 旁白驱动可能冲掉技法挂载 — 预设再钉一次
+  if (preset) {
+    plan = applyStylePresetToPlan(plan, preset.id);
   }
 
   let styleSource: string | undefined;
   if (opts?.styleRefId || opts?.styleRefDataUrl) {
-    setPipelineStep(projectId, 'brief', 'running', '设计参考 → look');
+    setPipelineStep(projectId, 'brief', 'running', preset ? '设计参考 → 色板' : '设计参考 → look');
     const family: LookFamily = aspect === '9:16' || aspect === '3:4' ? 'nextword' : 'launch';
     const hit = await resolveStyleLook({
       styleRefId: opts.styleRefId,
@@ -310,11 +416,12 @@ async function planFromPrompt(
       plan.look = reconcileStyleLook(
         plan.look,
         hit.look,
-        [prompt, machineBrief, brief.audiencePrompt || '', brief.lookLock || ''],
+        [prompt, machineBrief, brief.audiencePrompt || '', brief.lookLock || '', presetLock],
         family,
+        { paletteOnly: Boolean(preset) },
       );
       styleSource = hit.source;
-      setPipelineStep(projectId, 'brief', 'done', `style · ${plan.look.accent}`);
+      setPipelineStep(projectId, 'brief', 'done', `style · ${plan.look.accent}${preset ? ` · ${preset.labelZh}` : ''}`);
     }
   }
 
@@ -369,16 +476,26 @@ export async function makeFromPrompt(
     return makeManim(machineBrief, settings, projectId);
   }
   if (plan.engine === 'footage-remix' || plan.primary === 'footage-remix') {
-    return makeFootageRemix(prompt, settings, projectId, {
-      aspect,
-      quality: opts?.quality,
-      scriptDrive: opts?.scriptDrive,
-      contentLang: opts?.contentLang,
-      userAssets: opts?.userAssets,
-      footageFolder: opts?.footageFolder,
-      footagePaths: opts?.footagePaths,
-      remixBrief: opts?.remixBrief,
-    });
+    const hasFootage = !!(opts?.footageFolder || (opts?.footagePaths && opts.footagePaths.length));
+    // 故事池可含 footage-remix；无素材夹时不得误闯混剪（面板混剪入口仍独立）
+    if (!hasFootage && !isRemixFormMode(opts?.formMode) && opts?.stylePack !== 'footage-remix') {
+      plan.primary = 'text-message-animation';
+      plan.engine = 'explainer-remotion';
+      plan.support = (plan.support || []).filter((s) => s !== 'footage-remix').slice(0, 3);
+      plan.skills = [plan.primary, ...plan.support, ...(plan.brandSkills || [])];
+      console.info('[fromPrompt] footage-remix without folder → text-message-animation');
+    } else {
+      return makeFootageRemix(prompt, settings, projectId, {
+        aspect,
+        quality: opts?.quality,
+        scriptDrive: opts?.scriptDrive,
+        contentLang: opts?.contentLang,
+        userAssets: opts?.userAssets,
+        footageFolder: opts?.footageFolder,
+        footagePaths: opts?.footagePaths,
+        remixBrief: opts?.remixBrief,
+      });
+    }
   }
 
   // 自由 / 技能导向
@@ -393,6 +510,7 @@ export async function makeFromPrompt(
     styleSource,
     userAssets: opts?.userAssets,
     quality: opts?.quality === '720p' ? '720p' : '1080p',
+    formMode: plan.formMode || opts?.formMode || 'prompt',
   });
 }
 
@@ -425,5 +543,6 @@ export async function makeFromPromptPrepare(
     styleSource,
     userAssets: opts?.userAssets,
     quality: opts?.quality === '720p' ? '720p' : '1080p',
+    formMode: plan.formMode || opts?.formMode || 'prompt',
   });
 }

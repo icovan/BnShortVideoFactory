@@ -1,0 +1,37 @@
+{
+ "type": "hit",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\hit\\fs-452593-door-metal-screen-door-in-tr-3.wav",
+ "verdict": "ok",
+ "build_db": -26.2,
+ "start_db": -0.0,
+ "end_db": -32.3,
+ "spikiness": 1.69,
+ "dur_s": 0.364,
+ "peak_offset_s": 0.0194,
+ "rise_ms": 10.6,
+ "centroid_hz": 637,
+ "below150": 0.677,
+ "above6k": 0.013,
+ "flatness": 0.071,
+ "note": null,
+ "start_floor_db": -42.0,
+ "source": {
+  "id": "452593",
+  "type": "hit",
+  "title": "door metal screen door in trailer rv close hard slam or hit close various.wav",
+  "creator": "kyles",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/452/452593_612689-hq.mp3",
+  "landing": "https://freesound.org/people/kyles/sounds/452593",
+  "k": 3,
+  "keep": [
+   0,
+   1,
+   2
+  ],
+  "tags": [
+   "trailer",
+   "hit"
+  ]
+ }
+}

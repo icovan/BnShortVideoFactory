@@ -27,8 +27,15 @@ function ensureDir(dir: string) {
   mkdirSync(dir, { recursive: true });
 }
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..');
-export const OUTPUTS_DIR = join(ROOT, 'outputs');
+function resolveProductRoot(): string {
+  const envRoot = (process.env.BIUNOW_ROOT || '').trim();
+  if (envRoot) return envRoot;
+  // packages/create-core/src → 上三级到产品根
+  return join(dirname(fileURLToPath(import.meta.url)), '../../..');
+}
+
+export const ROOT = resolveProductRoot();
+export const OUTPUTS_DIR = (process.env.BIUNOW_OUTPUTS_DIR || '').trim() || join(ROOT, 'outputs');
 export const REMOTION_PKG = join(ROOT, 'packages/remotion-explainer');
 ensureDir(OUTPUTS_DIR);
 

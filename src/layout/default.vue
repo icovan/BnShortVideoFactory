@@ -65,9 +65,16 @@ import { Languages, Maximize2, Minus, Settings, X } from '@lucide/vue'
 import AppIcon from '@/components/AppIcon.vue'
 import { i18nLanguages } from '~/electron/i18n/common-options'
 import ConfigDialog from '@/components/ConfigDialog.vue'
-import { armLanguageNotice, disarmLanguageNotice } from '@/lib/notice'
+import {
+  armLanguageNotice,
+  disarmLanguageNotice,
+  pushNotice,
+  takeLanguageNotice,
+} from '@/lib/notice'
+import { useAppStore } from '@/store'
 
 const { i18next, t } = useTranslation()
+const appStore = useAppStore()
 
 document.title = t('app.name')
 watch(
@@ -85,11 +92,26 @@ const layoutStyle = {
 const windowIsMaxed = ref(false)
 const showConfig = ref(false)
 
+/** Vuetify activated 可能是 string 或 string[]；误用 [0] 会把 zh-CN 收成 z */
+function langCodeOf(lng: unknown): string {
+  if (Array.isArray(lng)) return String(lng[0] || '').trim()
+  return String(lng || '').trim()
+}
+
 const handleChangeLanguage = (lng: unknown) => {
-  const code = (lng as string[])[0]
+  const code = langCodeOf(lng)
   if (!code || code === i18next.language) return
   armLanguageNotice()
-  void window.i18n.changeLanguage(code).catch(() => disarmLanguageNotice())
+  void (async () => {
+    try {
+      await i18next.changeLanguage(code)
+      appStore.updateLocale(code)
+      await window.i18n.changeLanguage(code)
+      if (takeLanguageNotice()) pushNotice('ok', i18next.t('notice.switched'))
+    } catch {
+      disarmLanguageNotice()
+    }
+  })()
 }
 
 window.addEventListener('resize', async () => {

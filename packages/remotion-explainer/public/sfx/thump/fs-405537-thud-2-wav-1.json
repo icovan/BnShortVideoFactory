@@ -1,0 +1,34 @@
+{
+ "type": "thump",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\thump\\fs-405537-thud-2-wav-1.wav",
+ "verdict": "ok",
+ "build_db": -24.3,
+ "start_db": -0.0,
+ "end_db": -35.7,
+ "spikiness": 2.01,
+ "dur_s": 0.374,
+ "peak_offset_s": 0.0082,
+ "rise_ms": 2.6,
+ "centroid_hz": 640,
+ "below150": 0.31,
+ "above6k": 0.006,
+ "flatness": 0.075,
+ "note": 42.2,
+ "start_floor_db": -53.6,
+ "source": {
+  "id": "405537",
+  "type": "thump",
+  "title": "Thud 2.wav",
+  "creator": "nebulasnails",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/405/405537_2723982-hq.mp3",
+  "landing": "https://freesound.org/people/nebulasnails/sounds/405537",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "thud"
+  ]
+ }
+}

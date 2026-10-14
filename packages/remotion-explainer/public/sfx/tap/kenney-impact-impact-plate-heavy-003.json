@@ -1,0 +1,22 @@
+{
+ "type": "tap",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\tap\\kenney-impact-impact-plate-heavy-003.wav",
+ "verdict": "ok",
+ "build_db": -30.5,
+ "start_db": -0.0,
+ "end_db": -36.4,
+ "spikiness": 1.87,
+ "dur_s": 0.202,
+ "peak_offset_s": 0.0048,
+ "rise_ms": 3.8,
+ "centroid_hz": 296,
+ "below150": 0.4,
+ "above6k": 0.0,
+ "flatness": 0.005,
+ "note": 43.1,
+ "start_floor_db": -3.8,
+ "source": {
+  "pack": "impact",
+  "file": "Audio/impactPlate_heavy_003.ogg"
+ }
+}

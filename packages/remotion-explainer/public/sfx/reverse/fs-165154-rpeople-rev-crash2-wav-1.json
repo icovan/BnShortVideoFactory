@@ -1,0 +1,35 @@
+{
+ "type": "reverse",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\reverse\\fs-165154-rpeople-rev-crash2-wav-1.wav",
+ "verdict": "ok",
+ "build_db": 16.2,
+ "start_db": -25.9,
+ "end_db": -0.0,
+ "spikiness": 1.32,
+ "dur_s": 1.72,
+ "peak_offset_s": 1.6662,
+ "rise_ms": 1062.8,
+ "centroid_hz": 5166,
+ "below150": 0.0,
+ "above6k": 0.272,
+ "flatness": 0.082,
+ "note": 108.2,
+ "start_floor_db": -37.1,
+ "source": {
+  "id": "165154",
+  "type": "reverse",
+  "title": "Rpeople_RevCrash2.wav",
+  "creator": "rhythmpeople",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/165/165154_2997898-hq.mp3",
+  "landing": "https://freesound.org/people/rhythmpeople/sounds/165154",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "reverse",
+   "cymbal"
+  ]
+ }
+}

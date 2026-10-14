@@ -1,0 +1,35 @@
+{
+ "type": "paper",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\paper\\fs-442857-page-turn-1.wav",
+ "verdict": "ok",
+ "build_db": -6.5,
+ "start_db": -17.6,
+ "end_db": -15.9,
+ "spikiness": 2.05,
+ "dur_s": 0.205,
+ "peak_offset_s": 0.1192,
+ "rise_ms": 96.4,
+ "centroid_hz": 1135,
+ "below150": 0.001,
+ "above6k": 0.03,
+ "flatness": 0.081,
+ "note": null,
+ "start_floor_db": -25.7,
+ "source": {
+  "id": "442857",
+  "type": "paper",
+  "title": "Page Turn",
+  "creator": "qubodup",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/442/442857_71257-hq.mp3",
+  "landing": "https://freesound.org/people/qubodup/sounds/442857",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "page",
+   "turn"
+  ]
+ }
+}

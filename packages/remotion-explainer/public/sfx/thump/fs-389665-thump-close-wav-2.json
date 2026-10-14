@@ -1,0 +1,34 @@
+{
+ "type": "thump",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\thump\\fs-389665-thump-close-wav-2.wav",
+ "verdict": "ok",
+ "build_db": -26.3,
+ "start_db": -0.0,
+ "end_db": -35.2,
+ "spikiness": 1.59,
+ "dur_s": 0.465,
+ "peak_offset_s": 0.0225,
+ "rise_ms": 7.9,
+ "centroid_hz": 225,
+ "below150": 0.275,
+ "above6k": 0.0,
+ "flatness": 0.001,
+ "note": null,
+ "start_floor_db": -41.5,
+ "source": {
+  "id": "389665",
+  "type": "thump",
+  "title": "Thump; close.wav",
+  "creator": "TylerAM",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/389/389665_7158173-hq.mp3",
+  "landing": "https://freesound.org/people/TylerAM/sounds/389665",
+  "k": 3,
+  "keep": [
+   1
+  ],
+  "tags": [
+   "thump"
+  ]
+ }
+}

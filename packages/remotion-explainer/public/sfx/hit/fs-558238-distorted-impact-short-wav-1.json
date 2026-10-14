@@ -1,0 +1,35 @@
+{
+ "type": "hit",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\hit\\fs-558238-distorted-impact-short-wav-1.wav",
+ "verdict": "ok",
+ "build_db": -19.0,
+ "start_db": -0.0,
+ "end_db": -28.4,
+ "spikiness": 1.49,
+ "dur_s": 1.242,
+ "peak_offset_s": 0.023,
+ "rise_ms": 17.4,
+ "centroid_hz": 167,
+ "below150": 0.695,
+ "above6k": 0.0,
+ "flatness": 0.002,
+ "note": null,
+ "start_floor_db": -27.4,
+ "source": {
+  "id": "558238",
+  "type": "hit",
+  "title": "Distorted Impact Short.wav",
+  "creator": "Rizzard",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/558/558238_10825267-hq.mp3",
+  "landing": "https://freesound.org/people/Rizzard/sounds/558238",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "cinematic",
+   "impact"
+  ]
+ }
+}

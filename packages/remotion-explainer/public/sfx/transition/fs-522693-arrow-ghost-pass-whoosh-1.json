@@ -1,0 +1,36 @@
+{
+ "type": "transition",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\transition\\fs-522693-arrow-ghost-pass-whoosh-1.wav",
+ "verdict": "ok",
+ "build_db": -10.0,
+ "start_db": -12.3,
+ "end_db": -15.4,
+ "spikiness": 1.76,
+ "dur_s": 0.953,
+ "peak_offset_s": 0.2722,
+ "rise_ms": 244.4,
+ "centroid_hz": 1103,
+ "below150": 0.018,
+ "above6k": 0.005,
+ "flatness": 0.009,
+ "note": 77.1,
+ "start_floor_db": -25.0,
+ "source": {
+  "id": "522693",
+  "type": "transition",
+  "title": "Arrow, ghost, pass, whoosh",
+  "creator": "quedicemipez",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/522/522693_11584853-hq.mp3",
+  "landing": "https://freesound.org/people/quedicemipez/sounds/522693",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "pass",
+   "by",
+   "whoosh"
+  ]
+ }
+}

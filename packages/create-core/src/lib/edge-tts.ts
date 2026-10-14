@@ -193,6 +193,22 @@ const DIAGNOSTIC_MESSAGE_TYPES = new Set([
 const MAX_MP3_HEADER_SCAN_BYTES = 16 * 1024
 const MIN_VALID_AUDIO_BYTES = 512
 const WEBSOCKET_HANDSHAKE_TIMEOUT_MS = 15_000
+
+/**
+ * Microsoft 在 2026-10-12 起对旧的 speech.platform.bing.com 合成接口返回 403。
+ * 新主机仍接受原来的 Sec-MS-GEC（版本号保持 1-143，不能改成 2-155）。
+ * 奇数次走新主机，偶数次退回旧主机。
+ */
+function synthesisSocketUrl(attempt: number, gec: string, connectionId: string): string {
+  const token = Constants.TRUSTED_CLIENT_TOKEN
+  const query = `Sec-MS-GEC=${gec}&Sec-MS-GEC-Version=${SEC_MS_GEC_VERSION}&ConnectionId=${connectionId}`
+  const hosts = [
+    `wss://api.msedgeservices.com/tts/cognitiveservices/websocket/v1?Ocp-Apim-Subscription-Key=${token}`,
+    `${Constants.WSS_URL}?TrustedClientToken=${token}`,
+  ]
+  const base = hosts[(Math.max(1, attempt) - 1) % hosts.length]
+  return `${base}&${query}`
+}
 const WEBSOCKET_IDLE_TIMEOUT_MS = 30_000
 const AUDIO_BITS_PER_SECOND = 48_000
 
@@ -207,11 +223,9 @@ function getWebSocketMessagePath(data: Buffer): string | undefined {
   return data.subarray(valueStart, end).toString('utf-8').trim()
 }
 
-/** Reject obvious non-MP3 responses before they can reach video rendering. */
-export function hasMp3FrameHeader(buffer: Buffer): boolean {
-  if (buffer.length < MIN_VALID_AUDIO_BYTES) return false
-
-  const scanLength = Math.min(buffer.length - 3, MAX_MP3_HEADER_SCAN_BYTES)
+/** First MPEG frame offset, or -1. Chrome cannot play MP3 that still has WS headers in front. */
+export function findMp3FrameOffset(buffer: Buffer): number {
+  const scanLength = Math.min(Math.max(0, buffer.length - 3), MAX_MP3_HEADER_SCAN_BYTES)
   for (let index = 0; index < scanLength; index++) {
     const first = buffer[index]
     const second = buffer[index + 1]
@@ -225,10 +239,23 @@ export function hasMp3FrameHeader(buffer: Buffer): boolean {
       ((third >> 4) & 0x0f) !== 0 &&
       ((third >> 4) & 0x0f) !== 0x0f
     ) {
-      return true
+      return index
     }
   }
-  return false
+  if (buffer.length >= 3 && buffer.subarray(0, 3).toString('ascii') === 'ID3') return 0
+  return -1
+}
+
+export function stripToMp3(buffer: Buffer): Buffer {
+  const offset = findMp3FrameOffset(buffer)
+  if (offset <= 0) return buffer
+  return buffer.subarray(offset)
+}
+
+/** Reject obvious non-MP3 responses before they can reach video rendering. */
+export function hasMp3FrameHeader(buffer: Buffer): boolean {
+  if (buffer.length < MIN_VALID_AUDIO_BYTES) return false
+  return findMp3FrameOffset(buffer) >= 0
 }
 
 function getErrorMessage(error: unknown): string {
@@ -731,10 +758,7 @@ export class EdgeTTS {
       let receivedTurnEnd = false
       let idleTimeout: NodeJS.Timeout | undefined
       const ws = new WebSocket(
-        `${Constants.WSS_URL}?trustedclienttoken=${Constants.TRUSTED_CLIENT_TOKEN}` +
-          `&Sec-MS-GEC=${DRM.generateSecMsGec()}` +
-          `&Sec-MS-GEC-Version=${SEC_MS_GEC_VERSION}` +
-          `&ConnectionId=${requestId}`,
+        synthesisSocketUrl(attempt, DRM.generateSecMsGec(), requestId),
         {
           headers: WSS_HEADERS,
           handshakeTimeout: WEBSOCKET_HANDSHAKE_TIMEOUT_MS,
@@ -826,16 +850,56 @@ export class EdgeTTS {
         }
       })
 
-      ws.on('message', (data: Buffer) => {
-        resetIdleTimeout()
-        const messagePath = getWebSocketMessagePath(data)
-        recordMessage(messagePath)
+      const finishSuccess = () => {
+        if (settled) return
+        const buffer = stripToMp3(Buffer.concat(audioStream))
+        if (buffer.length === 0) {
+          const receivedAudioMessage = (diagnostics.messageCounts.audio ?? 0) > 0
+          finishWithError(
+            receivedAudioMessage ? 'INVALID_AUDIO_BUFFER' : 'NO_AUDIO_RECEIVED',
+            receivedAudioMessage ? '收到 audio 消息但 Buffer 为空' : '未收到 audio 消息',
+            true,
+          )
+          return
+        }
+        if (!hasMp3FrameHeader(buffer)) {
+          finishWithError(
+            'INVALID_AUDIO_BUFFER',
+            '已收到 audio 消息，但 Buffer 不包含有效 MP3 帧',
+            true,
+          )
+          return
+        }
+        settled = true
+        cleanup()
+        diagnostics.elapsedMs = Date.now() - startedAt
+        diagnostics.audioBytes = buffer.length
         try {
-          if (messagePath === 'turn.end') {
-            receivedTurnEnd = true
+          ws.close()
+        } catch {
+          /* ignore */
+        }
+        resolve(new SynthesisResultImpl(wordList, [buffer]))
+      }
+
+      ws.on('message', (raw: WebSocket.RawData) => {
+        resetIdleTimeout()
+        const data = Buffer.isBuffer(raw)
+          ? raw
+          : Buffer.from(raw as ArrayBuffer)
+        try {
+          const parsed = this.parseSocketMessage(data)
+          recordMessage(parsed.path)
+          if (parsed.path === 'audio.metadata' && parsed.body.length) {
+            this.ingestCaptionJson(parsed.body, wordList)
           }
-          this.processCaptionData(data, wordList)
-          this.processAudioData(data, audioStream, ws)
+          if (parsed.path === 'audio' && parsed.body.length) {
+            audioStream.push(parsed.body)
+          }
+          if (parsed.path === 'turn.end') {
+            receivedTurnEnd = true
+            finishSuccess()
+          }
         } catch (error) {
           finishWithError('WEBSOCKET_CLOSED_EARLY', 'WebSocket 消息解析失败', false, error)
           ws.terminate()
@@ -858,44 +922,16 @@ export class EdgeTTS {
         diagnostics.closeCode = code
         diagnostics.closeReason = reason.toString('utf-8') || undefined
         if (settled) return
-        if (!receivedTurnEnd) {
-          const unsupported = /unsupported voice/i.test(diagnostics.closeReason || '')
-          if (unsupported) {
-            finishWithError(
-              'UNSUPPORTED_VOICE',
-              `音色不可用：${voice}`,
-              false,
-            )
-            return
-          }
-          finishWithError('WEBSOCKET_CLOSED_EARLY', 'WebSocket 在收到 turn.end 前关闭', true)
+        if (receivedTurnEnd) {
+          finishSuccess()
           return
         }
-
-        const result = new SynthesisResultImpl(wordList, audioStream)
-        const buffer = result.getBuffer()
-        if (buffer.length === 0) {
-          const receivedAudioMessage = (diagnostics.messageCounts.audio ?? 0) > 0
-          finishWithError(
-            receivedAudioMessage ? 'INVALID_AUDIO_BUFFER' : 'NO_AUDIO_RECEIVED',
-            receivedAudioMessage ? '收到 audio 消息但 Buffer 为空' : '未收到 audio 消息',
-            true,
-          )
+        const unsupported = /unsupported voice/i.test(diagnostics.closeReason || '')
+        if (unsupported) {
+          finishWithError('UNSUPPORTED_VOICE', `音色不可用：${voice}`, false)
           return
         }
-        if (!hasMp3FrameHeader(buffer)) {
-          finishWithError(
-            'INVALID_AUDIO_BUFFER',
-            '已收到 audio 消息，但 Buffer 不包含有效 MP3 帧',
-            true,
-          )
-          return
-        }
-        settled = true
-        cleanup()
-        diagnostics.elapsedMs = Date.now() - startedAt
-        diagnostics.audioBytes = buffer.length
-        resolve(result)
+        finishWithError('WEBSOCKET_CLOSED_EARLY', 'WebSocket 在收到 turn.end 前关闭', true)
       })
 
       ws.on('error', (error: Error) => {
@@ -955,37 +991,52 @@ export class EdgeTTS {
     )
   }
 
-  private processCaptionData(data: Buffer, wordBoundaryList: WordBoundary[]): void {
-    const needle = Buffer.from('Path:audio.metadata\r\n')
-
-    const startIndex = data.indexOf(needle)
-
-    if (startIndex !== -1) {
-      const metaData = JSON.parse(
-        data.subarray(startIndex + needle.length).toString('utf-8'),
-      )?.Metadata
-
-      if (metaData[0]?.Type === 'WordBoundary') {
-        wordBoundaryList.push(metaData[0].Data)
+  /**
+   * Microsoft sends:
+   * - TEXT: headers + \r\n\r\n + body (config / metadata / turn.*)
+   * - BINARY: uint16BE header-byte-count + headers + mp3 body
+   *   (matches edge-tts / Chromium: body starts at 2 + headerLength)
+   */
+  private parseSocketMessage(data: Buffer): { path: string; body: Buffer } {
+    if (data.length >= 3) {
+      const headerLength = data.readUInt16BE(0)
+      // Text frames start with "X-…" (uint16 ≥ 0x5800); real binary headers are a few hundred bytes.
+      if (headerLength >= 6 && headerLength < 4096 && 2 + headerLength <= data.length) {
+        const header = data.subarray(2, 2 + headerLength)
+        if (header.includes(Buffer.from('Path:'))) {
+          const path = getWebSocketMessagePath(Buffer.concat([header, Buffer.from('\r\n')])) || 'other'
+          return { path, body: data.subarray(2 + headerLength) }
+        }
       }
     }
+
+    const split = data.indexOf(Buffer.from('\r\n\r\n'))
+    if (split !== -1) {
+      const path = getWebSocketMessagePath(data.subarray(0, split + 2)) || 'other'
+      return { path, body: data.subarray(split + 4) }
+    }
+
+    const path = getWebSocketMessagePath(data) || 'other'
+    if (path === 'audio') {
+      const needle = Buffer.from('Path:audio\r\n')
+      const at = data.indexOf(needle)
+      if (at !== -1) {
+        let body = data.subarray(at + needle.length)
+        if (body[0] === 0x0d && body[1] === 0x0a) body = body.subarray(2)
+        return { path, body }
+      }
+    }
+    return { path, body: Buffer.alloc(0) }
   }
 
-  private processAudioData(data: Buffer, audioStream: Buffer[], ws: WebSocket): void {
-    const needle = Buffer.from('Path:audio\r\n')
-
-    const startIndex = data.indexOf(needle)
-
-    if (startIndex !== -1) {
-      const audioData = data.subarray(startIndex + needle.length)
-
-      if (audioData.length > 0) {
-        audioStream.push(audioData)
+  private ingestCaptionJson(body: Buffer, wordBoundaryList: WordBoundary[]): void {
+    try {
+      const metaData = JSON.parse(body.toString('utf-8'))?.Metadata
+      if (metaData?.[0]?.Type === 'WordBoundary') {
+        wordBoundaryList.push(metaData[0].Data)
       }
-    }
-
-    if (data.includes('Path:turn.end')) {
-      ws.close()
+    } catch {
+      /* ignore partial metadata */
     }
   }
 }

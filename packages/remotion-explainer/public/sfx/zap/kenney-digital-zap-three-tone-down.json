@@ -1,0 +1,22 @@
+{
+ "type": "zap",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\zap\\kenney-digital-zap-three-tone-down.wav",
+ "verdict": "ok",
+ "build_db": -23.3,
+ "start_db": -0.0,
+ "end_db": -29.9,
+ "spikiness": 1.07,
+ "dur_s": 1.168,
+ "peak_offset_s": 0.0539,
+ "rise_ms": 50.8,
+ "centroid_hz": 257,
+ "below150": 0.0,
+ "above6k": 0.0,
+ "flatness": 0.009,
+ "note": 58.0,
+ "start_floor_db": -7.6,
+ "source": {
+  "pack": "digital",
+  "file": "Audio/zapThreeToneDown.ogg"
+ }
+}

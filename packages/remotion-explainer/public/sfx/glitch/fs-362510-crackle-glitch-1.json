@@ -1,0 +1,37 @@
+{
+ "type": "glitch",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\glitch\\fs-362510-crackle-glitch-1.wav",
+ "verdict": "ok",
+ "build_db": -7.7,
+ "start_db": -0.0,
+ "end_db": -9.2,
+ "spikiness": 1.39,
+ "dur_s": 0.449,
+ "peak_offset_s": 0.0389,
+ "rise_ms": 12.0,
+ "centroid_hz": 2460,
+ "below150": 0.154,
+ "above6k": 0.12,
+ "flatness": 0.019,
+ "note": null,
+ "start_floor_db": -43.5,
+ "source": {
+  "id": "362510",
+  "type": "glitch",
+  "title": "crackle_glitch",
+  "creator": "dotY21",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/362/362510_5048136-hq.mp3",
+  "landing": "https://freesound.org/people/dotY21/sounds/362510",
+  "k": 3,
+  "keep": [
+   0,
+   1,
+   2
+  ],
+  "tags": [
+   "digital",
+   "glitch"
+  ]
+ }
+}

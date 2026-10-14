@@ -1,0 +1,36 @@
+{
+ "type": "tick",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\tick\\fs-188033-ticking-clock-1.wav",
+ "verdict": "ok",
+ "build_db": -9.9,
+ "start_db": -20.5,
+ "end_db": -23.8,
+ "spikiness": 1.91,
+ "dur_s": 0.062,
+ "peak_offset_s": 0.0255,
+ "rise_ms": 16.6,
+ "centroid_hz": 1784,
+ "below150": 0.0,
+ "above6k": 0.0,
+ "flatness": 0.005,
+ "note": null,
+ "start_floor_db": -29.3,
+ "source": {
+  "id": "188033",
+  "type": "tick",
+  "title": "Ticking Clock",
+  "creator": "AntumDeluge",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/188/188033_3403708-hq.mp3",
+  "landing": "https://freesound.org/people/AntumDeluge/sounds/188033",
+  "k": 3,
+  "keep": [
+   0,
+   1,
+   2
+  ],
+  "tags": [
+   "tick"
+  ]
+ }
+}

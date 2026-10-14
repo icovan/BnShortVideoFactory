@@ -1,0 +1,35 @@
+{
+ "type": "chime",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\chime\\fs-615949-ding-effect-wav-1.wav",
+ "verdict": "ok",
+ "build_db": -16.8,
+ "start_db": -0.0,
+ "end_db": -37.9,
+ "spikiness": 2.83,
+ "dur_s": 0.855,
+ "peak_offset_s": 0.0079,
+ "rise_ms": 2.1,
+ "centroid_hz": 4347,
+ "below150": 0.0,
+ "above6k": 0.245,
+ "flatness": 0.005,
+ "note": 103.8,
+ "start_floor_db": -49.3,
+ "source": {
+  "id": "615949",
+  "type": "chime",
+  "title": "Ding Effect.wav",
+  "creator": "JulesV4",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/615/615949_13086280-hq.mp3",
+  "landing": "https://freesound.org/people/JulesV4/sounds/615949",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "bell",
+   "ding"
+  ]
+ }
+}

@@ -1,0 +1,22 @@
+{
+ "type": "zap",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\zap\\kenney-scifi-laser-small-004.wav",
+ "verdict": "ok",
+ "build_db": -14.2,
+ "start_db": -0.0,
+ "end_db": -19.7,
+ "spikiness": 1.37,
+ "dur_s": 0.377,
+ "peak_offset_s": 0.0069,
+ "rise_ms": 4.9,
+ "centroid_hz": 707,
+ "below150": 0.071,
+ "above6k": 0.0,
+ "flatness": 0.002,
+ "note": null,
+ "start_floor_db": -5.5,
+ "source": {
+  "pack": "scifi",
+  "file": "Audio/laserSmall_004.ogg"
+ }
+}

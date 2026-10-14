@@ -10,7 +10,7 @@
         <button type="button" class="row" @click="$emit('preview', item.id)">
           <div class="thumb" :class="item.status">
             <AppIcon
-              :icon="item.status === 'running' || item.status === 'queued' ? Loader2 : Film"
+              :icon="thumbIcon(item)"
               :size="16"
               :class="{ spin: item.status === 'running' || item.status === 'queued' }"
             />
@@ -25,6 +25,26 @@
           <div class="ops" @click.stop>
             <button
               v-if="item.status === 'queued'"
+              type="button"
+              class="op"
+              :title="t('studio.history.pause')"
+              @click="pauseQueue(item)"
+            >
+              <AppIcon :icon="Pause" :size="14" />
+              {{ t('studio.history.pause') }}
+            </button>
+            <button
+              v-if="item.status === 'paused'"
+              type="button"
+              class="op go"
+              :title="t('studio.history.resume')"
+              @click="resumeQueue(item)"
+            >
+              <AppIcon :icon="Play" :size="14" />
+              {{ t('studio.history.resume') }}
+            </button>
+            <button
+              v-if="item.status === 'queued' || item.status === 'paused'"
               type="button"
               class="op"
               :title="t('studio.history.cancelQueue')"
@@ -80,7 +100,7 @@
 <script lang="ts" setup>
 import { computed, ref } from 'vue'
 import { useTranslation } from 'i18next-vue'
-import { ChevronRight, Film, Loader2, Trash2 } from '@lucide/vue'
+import { ChevronRight, Film, Loader2, Pause, Play, Trash2 } from '@lucide/vue'
 import AppIcon from '@/components/AppIcon.vue'
 import { useStudioStore, type StudioTask } from '@/store/studio'
 
@@ -106,8 +126,10 @@ function statusLine(item: StudioTask) {
   return t(`studio.status.${item.status}`)
 }
 
-function askDelete(item: StudioTask) {
-  pending.value = item
+function thumbIcon(item: StudioTask) {
+  if (item.status === 'paused') return Pause
+  if (item.status === 'running' || item.status === 'queued') return Loader2
+  return Film
 }
 
 async function cancelQueue(item: StudioTask) {
@@ -116,6 +138,26 @@ async function cancelQueue(item: StudioTask) {
   } catch {
     /* ignore */
   }
+}
+
+async function pauseQueue(item: StudioTask) {
+  try {
+    await studio.pauseQueuedTask(item.id)
+  } catch {
+    /* ignore */
+  }
+}
+
+async function resumeQueue(item: StudioTask) {
+  try {
+    await studio.resumePausedTask(item.id)
+  } catch {
+    /* ignore */
+  }
+}
+
+function askDelete(item: StudioTask) {
+  pending.value = item
 }
 
 async function confirmDelete() {
@@ -132,7 +174,7 @@ async function confirmDelete() {
 
 <style lang="scss" scoped>
 .history {
-  flex: 1;
+  flex: 1 1 50%;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -148,7 +190,7 @@ header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--line);
   h3 {
     margin: 0;
@@ -218,6 +260,10 @@ li.active .row {
     background: var(--accent-soft);
     color: var(--ink);
   }
+  &.paused {
+    background: var(--paper-2);
+    color: var(--ink);
+  }
 }
 
 .spin {
@@ -273,6 +319,12 @@ li.active .ops {
   font-size: 12px;
   font-weight: 600;
   padding: 4px 8px;
+  background: var(--paper);
+  color: var(--muted);
+  &:hover {
+    background: var(--accent-soft);
+    color: var(--ink);
+  }
 }
 
 .op.del {

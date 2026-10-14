@@ -20,7 +20,9 @@ import {
   revealFamilyHardRules,
   type CraftKind,
 } from './craftFloor.ts';
+import { canvasLawForAspect } from './canvas/index.ts';
 import { logoCodegenHint, showreelCodegenHint } from './mgFilm.ts';
+import { motifLockLaw, type MotifLock } from './directorToolkit.ts';
 
 const requireTs = createRequire(import.meta.url);
 
@@ -59,24 +61,241 @@ export function parseTsxSyntaxIssues(src: string, fileName = 'Active.tsx'): stri
   }
 }
 
+/** Brace-matched spring({ ... }) bodies, so a nested config `}` is not the end. */
+export function springObjectSpans(src: string): { open: number; close: number }[] {
+  const spans: { open: number; close: number }[] = [];
+  const re = /spring\s*\(\s*\{/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src))) {
+    const open = m.index + m[0].length - 1;
+    let depth = 0;
+    let close = -1;
+    for (let i = open; i < src.length; i++) {
+      if (src[i] === '{') depth++;
+      else if (src[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          close = i;
+          break;
+        }
+      }
+    }
+    if (close < 0) break;
+    spans.push({ open, close });
+    re.lastIndex = close + 1;
+  }
+  return spans;
+}
+
+function springFpsProblem(body: string): 'missing' | 'bad' | null {
+  const prop = body.match(/(?:^|[,{\s])fps\s*:\s*([^,}\n]+)/);
+  if (prop) {
+    const expr = prop[1].trim();
+    if (expr === '0' || /\bframe\b/.test(expr)) return 'bad';
+    return null;
+  }
+  if (/(?:^|[,{\s])fps\s*(?=,|\})/.test(body)) return null;
+  return 'missing';
+}
+
+/**
+ * 像 JS 代码行（位移/语句/泛型），不是「Step A >> Step B」这类纯文本。
+ * 注意：不能用「>> 后接字母」判定位移，否则会把 JSX 文案误判成代码。
+ */
+function looksLikeJsExpressionLine(line: string): boolean {
+  if (line.includes('{') || line.includes('</') || line.includes('/>')) return true;
+  if (/>>\s*=/.test(line) || /<<\s*=/.test(line)) return true;
+  if (/\b(return|const|let|var|type|interface|function|Array|Record|Map|Set|Promise|React\.FC)\b/.test(line)) {
+    return true;
+  }
+  // 位移常伴 &|^~ / 括号 / 方括号 / 数字右操作数
+  if (/[&|^~;\[\]]/.test(line)) return true;
+  if (/\([^)]*(>>|<<|>>>|≫|≪)/.test(line)) return true;
+  if (/(>>|<<|>>>|≫|≪)\s*\d/.test(line)) return true;
+  return false;
+}
+
+/**
+ * VO/bed 在 public 根；画面素材在 public/assets。
+ * LLM 常写 `assetSrc(f) => staticFile(f.includes('/') ? f : \`assets/\${f}\`)`，
+ * 把 `vo-0.mp3` 错挂成 `assets/vo-0.mp3` → Remotion 404。
+ */
+export function repairMediaStaticPaths(src: string): string {
+  let s = src;
+  s = s.replace(
+    /const\s+(\w+)\s*=\s*\(\s*f\s*:\s*string\s*\)\s*=>\s*staticFile\(\s*f\.includes\(\s*['"]\/['"]\s*\)\s*\?\s*f\s*:\s*`assets\/\$\{f\}`\s*\)\s*;?/g,
+    'const $1 = (f: string) => staticFile(!f ? \'\' : (f.includes(\'/\') || /^(vo-\\d+|narration|bed\\.|music)/i.test(f) ? f : `assets/${f}`));',
+  );
+  // 字面量 / 模板误加 assets/ 前缀
+  s = s.replace(
+    /staticFile\(\s*`assets\/\$\{([^}]*narrationFile[^}]*)\}`\s*\)/gi,
+    'staticFile($1)',
+  );
+  s = s.replace(
+    /staticFile\(\s*['"]assets\/((?:vo-\d+|narration|bed|music)[^'"]*)['"]\s*\)/gi,
+    "staticFile('$1')",
+  );
+  return s;
+}
+
+/** Remotion interpolate.easing 必须是函数；LLM 常写成字符串 'linear' → 运行期 TypeError */
+export function repairInterpolateEasing(src: string): string {
+  return (src || '')
+    .replace(
+      /easing\s*:\s*['"]linear['"](\s+as\s+unknown\s+as\s+\w+)?/gi,
+      'easing: (t: number) => t',
+    )
+    .replace(
+      /easing\s*:\s*['"](ease(?:-in)?(?:-out)?|in|out|inOut)['"](\s+as\s+unknown\s+as\s+\w+)?/gi,
+      'easing: (t: number) => t',
+    );
+}
+
+/** codegen / seal 共用：位移、媒体路径、字体、spring fps、easing */
+export function sealDirectedSource(src: string): string {
+  return repairUnsafeGoogleFonts(
+    repairMediaStaticPaths(repairJsxBareGt(repairSpringFps(repairInterpolateEasing(src)))),
+  );
+}
+
+/**
+ * LLM 常在 JSX 文本里写 `A >> B`，esbuild 会报 `>` invalid inside JSX.
+ * 仅把「纯文本行」的 `>>` 换成 `≫`；位移 / 泛型收口必须保持 ASCII `>>`。
+ * 旧逻辑误伤 `return [(n >> 16) & 255, …]` → `≫`，tsc/esbuild 必炸。
+ */
+export function repairJsxBareGt(src: string): string {
+  // 1) 代码行里的 Unicode 位移 → ASCII（LLM 直写或旧 repair 误伤）
+  let out = src
+    .split('\n')
+    .map((line) => {
+      if (!/[≫≪]/.test(line)) return line;
+      if (!looksLikeJsExpressionLine(line)) return line;
+      return line.replace(/≫/g, '>>').replace(/≪/g, '<<');
+    })
+    .join('\n')
+    // 泛型收口误伤（任意行）
+    .replace(/(React\.FC<\w+)≫(\s*=)/g, '$1>>$2')
+    .replace(/(Array<React\.FC<\w+)≫(\s*=)/g, '$1>>$2')
+    .replace(/(Record<[^>]+)≫(\s*=)/g, '$1>>$2')
+    .replace(/:\s*(Array<[^;=\n]*)≫(\s*=)/g, ': $1>>$2');
+  // 2) 仅纯 JSX 文本行：裸 >> → ≫（避免 esbuild JSX 解析炸）
+  return out
+    .split('\n')
+    .map((line) => {
+      if (!/>>/.test(line)) return line;
+      if (looksLikeJsExpressionLine(line)) return line;
+      if (!/^\s*[^<{\n]/.test(line)) return line;
+      return line.replace(/>>/g, '≫');
+    })
+    .join('\n');
+}
+
+/**
+ * Remotion @remotion/google-fonts：NotoSerifSC / NotoSansSC 的
+ * `chinese-simplified` + weight 400 在运行时经常不可用 → 首渲必炸。
+ * 硬策略：一律 Inter + latin；中文靠系统字体回退（微软雅黑 / 苹方）。
+ */
+const FONT_SAFE = new Set(['Inter']);
+
+export function repairUnsafeGoogleFonts(src: string): string {
+  let s = src;
+  const dirty = /@remotion\/google-fonts\/(?!Inter\b)/.test(s)
+    || /chinese-simplified/i.test(s)
+    || /NotoSerifSC|NotoSansSC/i.test(s);
+  if (!dirty && /@remotion\/google-fonts\/Inter/.test(s) && /subsets:\s*\[[^\]]*latin/.test(s)) {
+    // 已是 Inter+latin，补 CJK 回退栈即可
+  } else if (dirty || /loadFont\s*\(/.test(s)) {
+    s = s.replace(
+      /import\s*\{([^}]*\bloadFont\b[^}]*)\}\s*from\s*['"]@remotion\/google-fonts\/[^'"]+['"]\s*;?/g,
+      `import { loadFont } from '@remotion/google-fonts/Inter';`,
+    );
+    s = s.replace(
+      /from\s*['"]@remotion\/google-fonts\/(?!Inter')[^'"]+['"]/g,
+      `from '@remotion/google-fonts/Inter'`,
+    );
+    s = s.replace(
+      /loadFont\(\s*(['"]normal['"])\s*,\s*\{[\s\S]*?\}\s*\)/g,
+      `loadFont($1, {\n  weights: ['400', '500', '600', '700'],\n  subsets: ['latin'],\n})`,
+    );
+  }
+
+  // 注入 CJK 系统字体回退栈；样式里的 fontFamily: ZH/FONT 换成栈（不动解构行）
+  if (/loadFont\s*\(/.test(s) && !/FONT_CJK_STACK/.test(s)) {
+    const m = s.match(/const\s*\{\s*fontFamily:\s*(\w+)\s*\}\s*=\s*loadFont/);
+    const local = m?.[1];
+    if (local) {
+      const inject = `\n/** CJK glyphs via OS fonts (YaHei / PingFang); Google CJK subsets disabled. */\nconst FONT_CJK_STACK = [${local}, '"Microsoft YaHei"', '"PingFang SC"', 'sans-serif'].join(', ');\n`;
+      s = s.replace(
+        /(const\s*\{\s*fontFamily:\s*\w+\s*\}\s*=\s*loadFont\([\s\S]*?\);)/,
+        `$1${inject}`,
+      );
+      s = s.split('\n').map((line) => {
+        if (/const\s*\{/.test(line) && /fontFamily:/.test(line)) return line;
+        if (/^\s*fontFamily:\s*\w+\s*,?\s*$/.test(line)) return line; // 多行解构
+        return line.replace(
+          new RegExp(`fontFamily:\\s*${local}\\b`, 'g'),
+          'fontFamily: FONT_CJK_STACK',
+        );
+      }).join('\n');
+    }
+  }
+  return s;
+}
+
+export function assertSafeGoogleFonts(src: string): string[] {
+  const issues: string[] = [];
+  for (const m of src.matchAll(/@remotion\/google-fonts\/([A-Za-z0-9_]+)/g)) {
+    if (!FONT_SAFE.has(m[1])) {
+      issues.push(`font: use @remotion/google-fonts/Inter only (got ${m[1]})`);
+    }
+  }
+  // 只查 loadFont 选项里的子集，忽略注释
+  if (/loadFont\s*\(\s*['"]normal['"]\s*,\s*\{[^}]*chinese-simplified/i.test(src)) {
+    issues.push('font: chinese-simplified subset forbidden (crashes Remotion google-fonts)');
+  }
+  return issues;
+}
+
+export function repairSpringFps(src: string): string {
+  const spans = springObjectSpans(src);
+  let out = src;
+  for (let i = spans.length - 1; i >= 0; i--) {
+    const { open, close } = spans[i];
+    const body = out.slice(open + 1, close);
+    const problem = springFpsProblem(body);
+    if (problem === 'bad') {
+      const next = body.replace(/fps\s*:\s*([^,}\n]+)/, 'fps: useVideoConfig().fps');
+      out = out.slice(0, open + 1) + next + out.slice(close);
+    } else if (problem === 'missing') {
+      out = out.slice(0, open + 1) + ' fps: useVideoConfig().fps,' + body + out.slice(close);
+    }
+  }
+  if (out.includes('useVideoConfig()')) {
+    out = out.replace(
+      /import\s*\{([^}]+)\}\s*from\s*(['"]remotion['"])/,
+      (full, names: string, quote: string) => (
+        /\buseVideoConfig\b/.test(names) ? full : `import { useVideoConfig,${names}} from ${quote}`
+      ),
+    );
+  }
+  return out;
+}
+
 /**
  * spring() fps must be the composition fps. Passing `frame` is 0 on the first
  * frame of a Sequence, which still sampling skips and full encode hits.
  */
 export function assertSpringFps(src: string): string[] {
   const issues: string[] = [];
-  const springCalls = src.matchAll(/spring\s*\(\s*\{([\s\S]*?)\}\s*\)/g);
-  for (const m of springCalls) {
-    const body = m[1];
-    const fpsProp = body.match(/\bfps\s*:\s*([^,}\n]+)/);
-    if (fpsProp) {
-      const expr = fpsProp[1].trim();
-      if (expr === '0' || /\bframe\b/.test(expr)) {
-        issues.push(
-          `spring fps: got "${expr}" — pass useVideoConfig().fps, never frame or 0 (frame 0 crashes encode)`,
-        );
-      }
-    } else if (!/(?:^|[,\s])fps(?:\s*[,}])/m.test(body)) {
+  for (const span of springObjectSpans(src)) {
+    const body = src.slice(span.open + 1, span.close);
+    const problem = springFpsProblem(body);
+    if (problem === 'bad') {
+      const expr = body.match(/fps\s*:\s*([^,}\n]+)/)?.[1]?.trim() || 'frame';
+      issues.push(
+        `spring fps: got "${expr}" — pass useVideoConfig().fps, never frame or 0 (frame 0 crashes encode)`,
+      );
+    } else if (problem === 'missing') {
       issues.push('spring fps: every spring() must pass fps from useVideoConfig()');
     }
   }
@@ -88,9 +307,40 @@ export function assertSpringFps(src: string): string[] {
   return issues;
 }
 
+/**
+ * Spoken beats last as long as the voice. A reveal that ends on a fixed early
+ * frame leaves a frozen card while the line is still being read.
+ */
+export function assertMotionSpansScene(src: string, durations: number[] = []): string[] {
+  const long = durations.filter((d) => Number(d) >= 6);
+  if (!long.length) return [];
+  if (/durationInFrames\s*\*\s*0\.[6-9]|dur\s*\*\s*0\.[6-9]|frame\s*\/\s*\(?\s*(?:dur\b|durationInFrames)|reveal\s*\(/.test(src)) {
+    return [];
+  }
+  const ends: number[] = [];
+  const re = /interpolate\s*\(\s*(?:frame|f)\s*,\s*\[\s*[\d.]+\s*,\s*([\d.]+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src))) ends.push(Number(m[1]));
+  const maxEnd = ends.length ? Math.max(...ends) : 0;
+  const longest = Math.max(...long);
+  const need = Math.round(longest * 30 * 0.5);
+  if (maxEnd < need) {
+    return [
+      `motion span: a spoken beat is ${longest.toFixed(0)}s but the reveal ends by frame ${maxEnd}. Pace the main graphic to about 80% of durationInFrames (durationInFrames * 0.8). A 1.00 to 1.05 zoom does not count.`,
+    ];
+  }
+  return [];
+}
+
 export function extractTsx(text: string): string {
-  const m = text.match(/```(?:tsx|typescript|ts|jsx)?\s*([\s\S]*?)```/i);
-  return (m ? m[1] : text).trim();
+  let t = (text || '').trim();
+  // 完整围栏：```tsx ... ```
+  const m = t.match(/```(?:tsx|typescript|ts|jsx)?\s*([\s\S]*?)```/i);
+  if (m) return m[1].trim();
+  // deepseek-chat 等常只开不关：残留首行 ```tsx 会让语法检查从 L1 误报连锁错误
+  t = t.replace(/^```(?:tsx|typescript|ts|jsx)?\s*\r?\n?/i, '');
+  t = t.replace(/\r?\n?```\s*$/i, '');
+  return t.trim();
 }
 
 function parseSceneCountFromProps(propsJson: string): number {
@@ -112,6 +362,7 @@ function parseBeatSkillsFromProps(propsJson: string): BeatSkillRef[] {
         skill?: string;
         visualIntent?: string;
         keyMotion?: string;
+        layoutMode?: string;
         craftMust?: string[];
       }>;
     };
@@ -123,6 +374,7 @@ function parseBeatSkillsFromProps(propsJson: string): BeatSkillRef[] {
         skill: s.skill as SkillName,
         visualIntent: s.visualIntent,
         keyMotion: s.keyMotion,
+        layoutMode: s.layoutMode,
         craftMust: s.craftMust,
       }));
   } catch {
@@ -598,10 +850,19 @@ const { fontFamily: FONT } = loadFont('normal', {
   subsets: ['latin'],
 });
 
+const Beat: React.FC<{ scene: DirectedProps['scenes'][number]; props: DirectedProps; dur: number }> = ({
+  scene, props: P,
+}) => (
+  <AbsoluteFill style={{ background: P.canvas || P.brandBg || '#12141C' }}>
+    {/* Agent full-frame: paint metaphor + optional caption here. layoutMode is a soft variety hint. */}
+    <div style={{ fontFamily: FONT, fontWeight: 900, fontSize: 72, color: P.ink, padding: '5%' }}>{scene.headline}</div>
+  </AbsoluteFill>
+);
+
 export const ActiveDirected: React.FC<DirectedProps> = (props) => {
   const { fps } = useVideoConfig();
   return (
-    <AbsoluteFill style={{ background: props.canvas, fontFamily: FONT }}>
+    <AbsoluteFill style={{ background: props.canvas || props.brandBg, fontFamily: FONT }}>
       {props.musicFile ? <Audio src={staticFile(props.musicFile)} volume={0.35} /> : null}
       <Series>
         {props.scenes.map((scene, i) => {
@@ -611,17 +872,17 @@ export const ActiveDirected: React.FC<DirectedProps> = (props) => {
             : (scene.sfxCues?.length
               ? scene.sfxCues
               : scene.sfxFile
-                ? [{ file: scene.sfxFile, volume: scene.sfxVolume ?? 0.2, atSec: 0 }]
+                ? [{ file: scene.sfxFile, volume: scene.sfxVolume ?? 0.4, atSec: 0 }]
                 : []);
           return (
             <Series.Sequence key={i} durationInFrames={dur}>
               {scene.narrationFile ? <Audio src={staticFile(scene.narrationFile)} /> : null}
               {cues.map((cue, j) => (
-                <Sequence key={j} from={Math.max(0, Math.round((cue.atSec || 0) * fps))} layout="none">
-                  <Audio src={staticFile(cue.file)} volume={cue.volume ?? 0.18} />
+                <Sequence key={j} from={Math.max(0, Math.round((cue.atSec || 0) * fps))} durationInFrames={Math.max(6, Math.round(fps * 0.9))} layout="none">
+                  <Audio src={staticFile(cue.file)} volume={cue.volume ?? 0.4} />
                 </Sequence>
               ))}
-              <AbsoluteFill />
+              <Beat scene={scene} props={props} dur={dur} />
             </Series.Sequence>
           );
         })}
@@ -675,6 +936,58 @@ function craftKindFromSkills(skillIds: string[]): CraftKind {
   return 'default';
 }
 
+/**
+ * 一镜一组件：禁止 BEATS 短表 + Math.min/i% 钳位复用（vbgv：12 镜只有 Beat00–07）。
+ * 硬失败，不得 soft-accept。
+ */
+export function assertBeatComponentCoverage(src: string, sceneCount?: number): string[] {
+  const issues: string[] = [];
+  const n = Math.max(0, Number(sceneCount) || 0);
+  if (n < 2) return issues;
+
+  if (/BEATS\s*\[\s*(?:index|i)\s*%\s*BEATS\.length/i.test(src)) {
+    issues.push('beat recycle: BEATS[i % BEATS.length] — one distinct component per scene');
+  }
+  if (
+    /Math\.min\s*\(\s*(?:index|i)\s*,\s*BEATS\.length/i.test(src)
+    || /BEATS\s*\[\s*Math\.min/i.test(src)
+    || /BEATS\s*\[\s*[^\]]*Math\.min\s*\(\s*(?:index|i)/i.test(src)
+  ) {
+    issues.push(
+      'beat clamp: Math.min(index, BEATS.length-1) reuses the last beat for later scenes — BEATS.length must equal props.scenes.length',
+    );
+  }
+
+  const beatIds = new Set<string>();
+  for (const m of src.matchAll(/\bconst\s+(Beat(?:\d+|[A-Z][A-Za-z0-9]*))\s*[:=]/g)) {
+    // 排除 Router / Props 等非镜头组件
+    if (/^Beat(Router|Props|Shell|Stage|Frame)$/i.test(m[1])) continue;
+    beatIds.add(m[1]);
+  }
+  const arr = src.match(/\bconst\s+BEATS\b[\s\S]{0,120}?=\s*\[([^\]]*)\]/);
+  if (arr) {
+    const refs = arr[1]
+      .split(',')
+      .map((s) => s.trim().replace(/\/\*[\s\S]*?\*\//g, ''))
+      .map((s) => s.trim())
+      .filter((s) => /^Beat(?:\d+|[A-Z][A-Za-z0-9]*)$/.test(s))
+      .filter((s) => !/^Beat(Router|Props|Shell|Stage|Frame)$/i.test(s));
+    if (refs.length > 0 && refs.length < n) {
+      issues.push(
+        `beat coverage: BEATS registry has ${refs.length} components but scenes=${n} — emit Beat00…Beat${String(n - 1).padStart(2, '0')} (all ${n})`,
+      );
+    }
+  } else if (beatIds.size > 0 && beatIds.size < n) {
+    const cases = (src.match(/\bcase\s+\d+\s*:/g) || []).length;
+    if (cases < n) {
+      issues.push(
+        `beat coverage: ${beatIds.size} Beat* components / ${cases} switch cases < scenes=${n}`,
+      );
+    }
+  }
+  return issues;
+}
+
 export function validateDirectedTsx(
   src: string,
   skillIds?: string[],
@@ -682,6 +995,7 @@ export function validateDirectedTsx(
   aspect: Aspect = '16:9',
   sceneCount?: number,
   assetFiles?: string[],
+  sceneDurations?: number[],
 ): string[] {
   const issues: string[] = [];
   const stickmanOn = skillIds?.includes('stickman-animation') === true;
@@ -696,6 +1010,7 @@ export function validateDirectedTsx(
   }
   if (src.length < 800) issues.push('source too short');
   if (!/spring\s*\(/.test(src)) issues.push('must use spring()');
+  issues.push(...assertBeatComponentCoverage(src, sceneCount));
   if (logoOn) {
     if (!/(strokeDash|stroke-dash|pathLength|scale|assemble|Img\b)/i.test(src)) {
       issues.push('logo: must stroke-draw / scale-assemble the mark (or Img asset)');
@@ -736,25 +1051,43 @@ export function validateDirectedTsx(
     }
     void contentLang;
   }
-  // 按镜轮换揭示族：全 skill 硬卡，禁止 spring+translateY 复读
-  issues.push(...assertRevealFamilyRotation(src, {
-    craftKind: craft,
-    sceneCount,
-    stickmanLed: stickmanOn,
-  }));
-  // 成片密度：禁每镜同一套 REC/CAM HUD，技法要够厚
-  if (!logoOn && !showreelOn) {
-    issues.push(...assertFilmCraftDensity(src, {
-      sceneCount,
-      skillIds: skillIds || [],
-      craftKind: craft,
-    }));
-  }
+  // 揭示族 / 成片密度：仅作 prompt 软约束，不再硬失败（导演模式对齐 Agent）
+  void assertRevealFamilyRotation;
+  void assertFilmCraftDensity;
+  void sceneCount;
   if (assetFiles?.length) {
     issues.push(...assertScreenAssetsDrawn(src, assetFiles));
   }
   issues.push(...assertSpringFps(src));
-  // 语法错误优先：esbuild 会在 still 阶段炸，必须在 soft-accept 前拦住
+  issues.push(...assertSafeGoogleFonts(src));
+  if (!logoOn && !showreelOn) {
+    issues.push(...assertMotionSpansScene(src, sceneDurations));
+  }
+  // 裸 `>>` 在 JSX 文本里 esbuild 会炸；位移/语句行不算
+  if (src.split('\n').some((l) => {
+    if (!/>>/.test(l)) return false;
+    if (looksLikeJsExpressionLine(l)) return false;
+    return /^\s*[^<{\n].*>>/.test(l);
+  })) {
+    issues.push('syntax: bare >> in JSX text — use ≫ or {\'>>\'}');
+  }
+  // 代码行里残留 Unicode 位移（repair 应已清掉；纯文本 ≫ 合法）
+  if (src.split('\n').some((l) => /[≪≫]/.test(l) && looksLikeJsExpressionLine(l))) {
+    issues.push('syntax: unicode shift ≪/≫ in expression — must be <</>>');
+  }
+  // VO 被挂到 assets/ 会 404（repairMediaStaticPaths 应已清）
+  if (
+    /assets\/\$\{f\}/.test(src)
+    && /assetSrc\s*\(\s*(?:scene\.)?narrationFile|assetSrc\s*\(\s*narration/i.test(src)
+    && !/\^\(vo-\\d\|narration/.test(src)
+  ) {
+    issues.push('media: narration via assetSrc under assets/ — use public-root vo-*.mp3');
+  }
+  // 误伤残留：泛型里的 ≫ 会让 Remotion esbuild 报 Expected ">"
+  if (/React\.FC<\w+≫\s*=|Array<React\.FC<\w+≫\s*=/.test(src)) {
+    issues.push('syntax: generic close used ≫ — must be >>');
+  }
+  // 语法错误优先：esbuild 会在 still 阶段炸
   issues.push(...parseTsxSyntaxIssues(src, 'ActiveDirected.tsx'));
   return issues;
 }
@@ -808,41 +1141,62 @@ export async function generateDirectedTsx(
       ? opts.beats
       : parseBeatSkillsFromProps(opts.propsJson),
   );
+  let motifFromProps: MotifLock | undefined;
+  try {
+    const pj = JSON.parse(opts.propsJson) as { motifLock?: MotifLock; mainTechnique?: string };
+    motifFromProps = pj.motifLock;
+  } catch {
+    motifFromProps = undefined;
+  }
+  const motifLaw = motifLockLaw(motifFromProps);
   const raw = await chatText(
     settings,
-    `You are a Remotion AUTHOR. Implement the SELECTED skills deeply — story + technique from SKILL text below.
+    `You are a Remotion AUTHOR for FREE DIRECTED films. Skills are a DIRECTOR'S TOOLKIT — deepen the main technique, do not rotate labels for spice.
 Export: export const ActiveDirected: React.FC<DirectedProps> from '../directedSchema'
-Canvas from props.aspect. Series over props.scenes; Audio via staticFile(scene.narrationFile) only when set. Optional props.musicFile + props.dropSec.
-When props.autoSfx is on, play scene.sfxCues as timed hits (only files listed in props).
-If props.assets exist, draw EVERY asset.file with <Img src={staticFile('assets/…file')} />. The filename string must appear in the file. Never invent URLs. Passing shots through props without <Img> fails.
-ONE beat component per scene. Forbidden: BEATS[i % BEATS.length] and any layout registry shorter than the scene list.
-Never put skill id strings (explainer-video, stickman-animation, diagram-animation, …) in on-screen text or string arrays.
-Use scene.headline / scene.vo / scene.line EXACTLY — do not translate. Empty headline → no invented title card.
-Fill each Sequence with real motion/graphics — no empty AbsoluteFill placeholders.
-Focus on the skills listed below (primary + technique supports, often 3 craft seats). Do NOT sprinkle fake markers for unselected skills.
-Each scene.skill + scene.craftMust is LAW for THAT beat — implement that technique in that Sequence.
+Canvas from props.aspect. Series over props.scenes; Audio via staticFile(scene.narrationFile) when set. Optional props.musicFile + props.dropSec.
+When props.autoSfx is on, play scene.sfxCues as timed hits (only files listed in props). Use cue.volume as given (≈0.3–0.55) — do not quiet them below 0.28.
+If props.assets exist, draw EVERY asset.file with <Img src={staticFile('assets/…file')} />. Never invent URLs.
+Invent UNIQUE compositions from scene.visualIntent + props colors. Prefer switch(sceneIndex) or one named component per beat.
+BEAT COVERAGE (hard): props.scenes has N entries → you MUST emit N distinct beat components (Beat00…Beat{N-1} or N switch cases). Wire with BEATS[i] or switch(i) only when BEATS.length === N.
+FORBIDDEN: BEATS[i % BEATS.length], Math.min(index, BEATS.length-1), or any clamp that reuses the last beat for later scenes (causes identical "fixed layout" tails).
+FORBIDDEN: short BEATS registries (e.g. 8 comps for 12 scenes).
+Never put skill id strings on screen. Use scene.headline / scene.vo / scene.line EXACTLY — do not translate.
+REALIZE every scene.visualIntent as a concrete FULL-FRAME metaphor (object + action + space). scene.skill moves that metaphor — it does not erase it.
+When props.mainTechnique is set, that technique must appear clearly on its beats — neighboring beats may rotate other leaves.
+${motifLaw}
+For each skill assigned on a beat, SHOW its core ON the metaphor: chat bubbles, strokeDash ink, Ken Burns, isometric, countdown, cursor/device, CTA, quote/stars, map marker, logo sting, audiogram bars, promo % off, wrapped stats, lowerThird, motionBg, dropSec reveal.
+Paint each beat — no empty AbsoluteFill. A blank field, speck, or hairline fails. Full-bleed BG OK; ~5–6% soft safe pad.
+VO PACE: when narrationFile is set, the main reveal still arrives until about durationInFrames * 0.8. A 1–2s spring then freeze fails. A 1.00→1.05 zoom does not count.
+Every spring({ ... }) must include fps: useVideoConfig().fps. Never omit fps. Never pass frame or 0 as fps.
 ${stickmanOn ? stickmanDirectedHint(contentLang) : ''}
 ${craftKind === 'logo' ? logoCodegenHint() : ''}
 ${craftKind === 'showreel' ? showreelCodegenHint() : ''}
 ${opts.lookLine || ''}
 ${stickmanOn ? '\nSTICKMAN MIX: actor layer only; keep other selected skills visible on their beats.\n' : ''}
 
-=== SELECTED SKILLS (LAW — implement their craft, not factory slogans) ===
+=== SELECTED SKILLS (LAW — implement their craft on the metaphors) ===
 ${skill}
 
 ${depthLaw}
+
+${canvasLawForAspect(aspect)}
 
 ${craftKind === 'logo' ? '' : revealFamilyHardRules(sceneCount)}
 
 ${craftKind === 'logo' || craftKind === 'showreel' ? '' : filmCraftDensityLaw(sceneCount)}
 
-=== SOFT HINT (optional quality, NOT a pass/fail checklist) ===
+=== MOTION LANGUAGE (brief + skills; soft) ===
 ${floorHint}
-Prefer skill pacing and progressive disclosure over repeating "72px / safe area / full-bleed" in every beat.
-FORBIDDEN: re-export stock SKUs; fetch/timers; empty placeholders; default Linear/PageOn purple skins unless brief asks.
-FORBIDDEN: spring()+translateY as the only reveal for every beat — rotate mask/blur/clip/slam.
-FORBIDDEN: passing frame, 0, or a delay as spring fps. fps must be useVideoConfig().fps. Frame 0 is a real frame and encode throws if fps is 0.
-FORBIDDEN: one HudShell (REC/CAM/TC/LAB) reused on every beat with only the title changed.
+At least ONE near-full-bleed accent beat using props.accent. Layered Z. Rotate mask/blur/clip/slam.
+FONT LOCK: ONLY @remotion/google-fonts/Inter with subsets: ['latin']. FORBIDDEN: NotoSansSC / NotoSerifSC / chinese-simplified (Remotion runtime crash). For Chinese text use fontFamily stack: Inter + "Microsoft YaHei" / "PingFang SC".
+FORBIDDEN: re-export stock SKUs; fetch/timers; empty placeholders; default Linear/PageOn purple unless brief asks.
+FORBIDDEN: the same Inter grid + grey bars + thin strokeDash nodes on every beat.
+FORBIDDEN: spring()+translateY as the only reveal for every beat.
+FORBIDDEN: spring fps = frame or 0.
+FORBIDDEN: one HudShell (REC/CAM/TC/LAB) on every beat.
+FORBIDDEN: forced top centered HUD pill / progress bar chrome.
+FORBIDDEN: numbered 01–05 cards with empty or repeated labels (模块).
+FORBIDDEN: a left-column list with a void right half.
 
 Skeleton:
 \`\`\`tsx
@@ -851,13 +1205,13 @@ ${DIRECTED_SKELETON}
     `User brief:
 ${opts.prompt}
 
-Locked props:
+Locked props (timing + VO + style + visualIntent — REALIZE each intent):
 ${opts.propsJson.slice(0, 18000)}
 
-Return complete ActiveDirected.tsx.`,
-    0.7,
+Return complete ActiveDirected.tsx — denser and more specific than a thin diagram card film.`,
+    0.78,
   );
-  let src = extractTsx(raw);
+  let src = sealDirectedSource(extractTsx(raw));
   if (!/ActiveDirected/.test(src) && /export\s+const\s+\w+/.test(src)) {
     src = src.replace(/export\s+const\s+\w+/, 'export const ActiveDirected');
   }
@@ -873,13 +1227,22 @@ export async function fixDirectedTsx(
     settings,
     `Fix Remotion TSX for GeneratedDirected. Keep export const ActiveDirected. Frame-driven. Complete file only.
 Preserve the brief's staging / props / look (props.canvas, props.ink) — do NOT replace the film with a generic pose demo.
-If error mentions hero type / scale / rotate / timid: on 16:9 enlarge ONE slam to ≥72–140px with spring scale/rotate depth; on 9:16 keep captions smaller and modest edge pad — do NOT put 72px on every line or keep tiny centered cards. If logo/motion: animate the mark, do not add explainer titles.
+If error mentions empty frame: redraw that beat so the subject fills the frame. A black field, a speck, or a hairline is a failure. Keep the beat's own technique (map, room, bubbles, ink, chart, type). Do not replace it with a caption transcript.
+If error mentions type on graphic / hero overlap: keep a short headline readable and rebuild the hero as a full-frame metaphor from scene.visualIntent. Do not collapse the beat into a thin node card.
+If error mentions hero type / scale / rotate / timid: enlarge the composition — layered Z, fuller subject. On 9:16 keep body type readable with a modest edge pad. If logo/motion: animate the mark, do not add explainer titles.
 If error mentions reveal families: ROTATE mask / blur / clip / slam across beats — add real clipPath, filter:blur, mask/RGB wipe, or scale-overshoot slam. Do NOT only retune spring+translateY.
 If error mentions chrome spam / craft density: DELETE per-beat REC/CAM/TC/LAB shells; give each Sequence a distinct layout (full-bleed diagram, kinetic slam, caption bar, chart). Deepen SVG/strokeDash/split/interpolate — do not shrink the file.
-If error mentions beat recycle: delete i % BEATS.length. Emit one distinct beat component per scene and list every one in order. Do not wrap a short registry around props.scenes.
+If error mentions layout sandwich: stop pinning TitleBlock at left:96 top:70 on every beat. Rotate families: hook-bleed, split-compare, process-row, stacked-evidence, kinetic-type, lockup-outro. Move the title — full-bleed, right column, or none.
+If error mentions canvas / safe area: keep ~5–6% soft pad; full-bleed BG OK; paint the metaphor full-frame from visualIntent — ContentSlot is optional.
+If error mentions layoutMode: treat it as a soft variety hint; change composition across beats when the story allows — do not invent a forced Stage shell or top HUD pill.
+If error mentions empty numbered shells: replace 01–05 with distinct nouns from visualIntent/items (分析/分镜/配音). Never a repeated 模块 under every number.
+If error mentions one side of the hero well is void / title/caption: redraw so the metaphor occupies both left and right thirds, or center a full-bleed object. Do not leave a left list with an empty right half.
+If error mentions beat recycle / beat clamp / beat coverage: DELETE i % BEATS.length and Math.min(index, BEATS.length-1). Count props.scenes.length (=N). Emit N distinct beat components (Beat00…Beat{N-1}), each realizing that scene's visualIntent. BEATS array length MUST equal N; router must be BEATS[i] with no clamp. Do not reuse the last beat for trailing scenes.
 If error mentions screen assets: render every listed file with <Img src={staticFile('assets/…')} />. The filename must appear in source. Do not pass an unused shots array.
 If error mentions skill ids on screen: delete quoted skill-id arrays. Show the story headline, never explainer-video / stickman-animation / similar ids.
+If error mentions motion span: retiming the main reveal so it is still moving until about durationInFrames * 0.8. Do not only add a 1.00→1.05 zoom.
 If error mentions spring fps: every spring() must use fps from useVideoConfig(). Never write spring({ fps: frame }) or helper(frame, frame, delay). The first frame is 0.
+If error mentions font / weight / subset / chinese-simplified / NotoSans / NotoSerif: DELETE every @remotion/google-fonts import except Inter; loadFont MUST use subsets: ['latin'] only (never chinese-simplified). For Chinese glyphs use fontFamily stack Inter + "Microsoft YaHei" + "PingFang SC" (or FONT_CJK_STACK). Do not call loadFont on NotoSansSC/NotoSerifSC.
 ${revealFamilyHardRules(sceneCount)}
 ${filmCraftDensityLaw(sceneCount)}
 If stickman / Series / pose errors:
@@ -900,7 +1263,7 @@ Props:
 ${opts.propsJson.slice(0, 4000)}`,
     0.35,
   );
-  return extractTsx(raw);
+  return sealDirectedSource(extractTsx(raw));
 }
 
 /**
@@ -1044,5 +1407,5 @@ ${opts.propsJson.slice(0, 8000)}`,
       '模型把未选中的分镜也整片重写了。请缩小修改范围或写得更具体后重试（系统已拦截整片重做）。',
     );
   }
-  return src;
+  return sealDirectedSource(src);
 }

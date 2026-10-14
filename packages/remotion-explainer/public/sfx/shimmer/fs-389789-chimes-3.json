@@ -1,0 +1,35 @@
+{
+ "type": "shimmer",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\shimmer\\fs-389789-chimes-3.wav",
+ "verdict": "ok",
+ "build_db": -14.5,
+ "start_db": -0.0,
+ "end_db": -22.0,
+ "spikiness": 1.2,
+ "dur_s": 1.563,
+ "peak_offset_s": 0.0549,
+ "rise_ms": 48.1,
+ "centroid_hz": 1328,
+ "below150": 0.0,
+ "above6k": 0.005,
+ "flatness": 0.01,
+ "note": 88.1,
+ "start_floor_db": -7.0,
+ "source": {
+  "id": "389789",
+  "type": "shimmer",
+  "title": "Chimes",
+  "creator": "fmceretta",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/389/389789_6152820-hq.mp3",
+  "landing": "https://freesound.org/people/fmceretta/sounds/389789",
+  "k": 3,
+  "keep": [
+   2
+  ],
+  "tags": [
+   "magic",
+   "chime"
+  ]
+ }
+}

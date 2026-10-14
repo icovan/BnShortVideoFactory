@@ -35,6 +35,9 @@ function styleRefsCandidates(): string[] {
     out.push(t);
   };
   push(process.env.STYLE_REFS_DIR);
+  // 仓库在 BnFactory/file2video-main 时 cankao 在 creator/cankao（上两级）
+  push(join(ROOT, '../../cankao/style'));
+  // 若整仓与 cankao 同级（file2video-main/../cankao）
   push(join(ROOT, '../cankao/style'));
   push(join(ROOT, 'assets/style-refs'));
   push(join(ROOT, 'packages/create-core/assets/style-refs'));
@@ -359,5 +362,5 @@ export function styleLookLockLine(look: JobLook, source: string, opts?: { mono?:
     return `STYLE REF (texture only, from ${source}): canvas=${look.canvas} ink=${look.ink}. Audience asked MONOCHROME / woodcut — NO chroma accent, NO collage color wipes. Material = ink + paper grain / hatch from the ref; palette already reconciled to mono.`;
   }
   return `STYLE REF LOCK (from ${source}): surface=${look.surface} energy=${look.energy} canvas=${look.canvas} ink=${look.ink} accent=${look.accent} muted=${look.muted} highlight=${look.highlight} brandBg=${look.brandBg}. ${look.motionNotes}
-Match this reference board's material and accent grammar. Do NOT drift to Linear / PageOn / sandwich defaults.`;
+Match this reference board's material and accent grammar. Draw the material named above (dots, ink, grain, glow) — do not replace it with a flat grid and Inter. Do NOT drift to Linear / PageOn / sandwich defaults.`;
 }

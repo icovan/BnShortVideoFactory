@@ -1,0 +1,36 @@
+{
+ "type": "pop",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\pop\\fs-188381-3-popping-pops-1.wav",
+ "verdict": "ok",
+ "build_db": -22.3,
+ "start_db": -0.0,
+ "end_db": -35.2,
+ "spikiness": 2.15,
+ "dur_s": 0.155,
+ "peak_offset_s": 0.0112,
+ "rise_ms": 4.9,
+ "centroid_hz": 964,
+ "below150": 0.0,
+ "above6k": 0.0,
+ "flatness": 0.001,
+ "note": 82.1,
+ "start_floor_db": -62.2,
+ "source": {
+  "id": "188381",
+  "type": "pop",
+  "title": "3 Popping Pops",
+  "creator": "wubitog",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/188/188381_3501487-hq.mp3",
+  "landing": "https://freesound.org/people/wubitog/sounds/188381",
+  "k": 3,
+  "keep": [
+   0,
+   1,
+   2
+  ],
+  "tags": [
+   "pop"
+  ]
+ }
+}

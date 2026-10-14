@@ -1,0 +1,34 @@
+{
+ "type": "hit",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\hit\\fs-592034-braams-hit-1-1.wav",
+ "verdict": "ok",
+ "build_db": -17.2,
+ "start_db": -0.0,
+ "end_db": -29.9,
+ "spikiness": 1.69,
+ "dur_s": 1.132,
+ "peak_offset_s": 0.0536,
+ "rise_ms": 16.1,
+ "centroid_hz": 123,
+ "below150": 0.838,
+ "above6k": 0.0,
+ "flatness": 0.003,
+ "note": null,
+ "start_floor_db": -7.7,
+ "source": {
+  "id": "592034",
+  "type": "hit",
+  "title": "BRAAMS HIT - 1",
+  "creator": "XHALE303",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/592/592034_9015615-hq.mp3",
+  "landing": "https://freesound.org/people/XHALE303/sounds/592034",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "braam"
+  ]
+ }
+}

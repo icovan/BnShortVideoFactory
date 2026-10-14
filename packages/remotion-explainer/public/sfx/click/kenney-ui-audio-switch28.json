@@ -1,0 +1,22 @@
+{
+ "type": "click",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\click\\kenney-ui-audio-switch28.wav",
+ "verdict": "ok",
+ "build_db": -31.3,
+ "start_db": -0.2,
+ "end_db": -39.7,
+ "spikiness": 3.09,
+ "dur_s": 0.082,
+ "peak_offset_s": 0.0092,
+ "rise_ms": 3.3,
+ "centroid_hz": 3024,
+ "below150": 0.0,
+ "above6k": 0.079,
+ "flatness": 0.162,
+ "note": null,
+ "start_floor_db": -40.7,
+ "source": {
+  "pack": "ui-audio",
+  "file": "Audio/switch28.ogg"
+ }
+}

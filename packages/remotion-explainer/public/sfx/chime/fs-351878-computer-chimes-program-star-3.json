@@ -1,0 +1,34 @@
+{
+ "type": "chime",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\chime\\fs-351878-computer-chimes-program-star-3.wav",
+ "verdict": "ok",
+ "build_db": -23.3,
+ "start_db": -0.0,
+ "end_db": -29.5,
+ "spikiness": 1.46,
+ "dur_s": 2.5,
+ "peak_offset_s": 0.0565,
+ "rise_ms": 10.6,
+ "centroid_hz": 406,
+ "below150": 0.009,
+ "above6k": 0.0,
+ "flatness": 0.01,
+ "note": 69.0,
+ "start_floor_db": -7.4,
+ "source": {
+  "id": "351878",
+  "type": "chime",
+  "title": "Computer Chimes - Program Start.aif",
+  "creator": "TheAtomicBrain",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/351/351878_195590-hq.mp3",
+  "landing": "https://freesound.org/people/TheAtomicBrain/sounds/351878",
+  "k": 3,
+  "keep": [
+   2
+  ],
+  "tags": [
+   "chime"
+  ]
+ }
+}

@@ -1,0 +1,36 @@
+{
+ "type": "transition",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\transition\\fs-623014-whoosh-passby-spaceship-sci-1.wav",
+ "verdict": "ok",
+ "build_db": -5.9,
+ "start_db": -12.2,
+ "end_db": -13.0,
+ "spikiness": 1.97,
+ "dur_s": 2.736,
+ "peak_offset_s": 1.2813,
+ "rise_ms": 1018.5,
+ "centroid_hz": 134,
+ "below150": 0.659,
+ "above6k": 0.0,
+ "flatness": 0.001,
+ "note": null,
+ "start_floor_db": -30.9,
+ "source": {
+  "id": "623014",
+  "type": "transition",
+  "title": "Whoosh_Passby_Spaceship_SciFi_Long_Stereo.wav",
+  "creator": "Nox_Sound",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/623/623014_9250976-hq.mp3",
+  "landing": "https://freesound.org/people/Nox_Sound/sounds/623014",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "pass",
+   "by",
+   "whoosh"
+  ]
+ }
+}

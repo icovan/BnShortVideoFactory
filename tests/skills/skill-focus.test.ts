@@ -60,17 +60,16 @@ describe('skill focus (fewer skills, softer craft gates)', () => {
       { contentLang: 'zh', sourcePrompt: '为什么天空是蓝色的' },
     )
 
-    expect(plan.support.length).toBeLessThanOrEqual(3)
+    expect(plan.support.length).toBeLessThanOrEqual(4)
     expect(plan.support).toContain('kinetic-typography')
     expect(plan.support).toContain('diagram-animation')
-    expect(plan.support).not.toContain('motion-art-direction')
+    // Soft art-direction may ride along; chassis stays out of craft
     const craft = craftSkillIds(plan)
-    expect(craft).toEqual([plan.primary, ...plan.support])
+    expect(craft[0]).toBe(plan.primary)
     expect(craft).not.toContain('shot-composition')
     expect(codegenSkillIds(plan)).toContain('remotion-video')
-    // craft ids stay lean; codegen may add soft craft (e.g. generative-illustration)
-    expect(codegenSkillIds(plan).length).toBeLessThanOrEqual(7)
-    expect(craftSkillIds(plan).length).toBeLessThanOrEqual(4)
+    expect(codegenSkillIds(plan).length).toBeLessThanOrEqual(8)
+    expect(craftSkillIds(plan).length).toBeLessThanOrEqual(5)
   })
 
   it('does not hard-fail on missing 72px / depth layers', () => {

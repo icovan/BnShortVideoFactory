@@ -86,8 +86,17 @@ const isZh = computed(() => {
 
 const releaseNotes = computed(() => {
   const notes = props.updateInfo.releaseNotes
-  const locale = appStore.locale
-  return notes[locale] ?? notes[locale.split('-')[0]] ?? notes.en ?? Object.values(notes)[0] ?? ''
+  if (!notes) return ''
+  if (typeof notes === 'string') return notes
+  const locale = appStore.locale || 'zh-CN'
+  return (
+    notes[locale] ??
+    notes[locale.split('-')[0]] ??
+    notes['zh-CN'] ??
+    notes.en ??
+    Object.values(notes)[0] ??
+    ''
+  )
 })
 
 const renderedReleaseNotes = computed(() => md.render(releaseNotes.value))

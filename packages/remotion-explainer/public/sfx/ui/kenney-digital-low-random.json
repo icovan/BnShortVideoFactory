@@ -1,0 +1,22 @@
+{
+ "type": "ui",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\ui\\kenney-digital-low-random.wav",
+ "verdict": "ok",
+ "build_db": -35.5,
+ "start_db": -1.8,
+ "end_db": -41.9,
+ "spikiness": 1.52,
+ "dur_s": 0.196,
+ "peak_offset_s": 0.0362,
+ "rise_ms": 35.8,
+ "centroid_hz": 288,
+ "below150": 0.024,
+ "above6k": 0.0,
+ "flatness": 0.001,
+ "note": 59.2,
+ "start_floor_db": -5.8,
+ "source": {
+  "pack": "digital",
+  "file": "Audio/lowRandom.ogg"
+ }
+}

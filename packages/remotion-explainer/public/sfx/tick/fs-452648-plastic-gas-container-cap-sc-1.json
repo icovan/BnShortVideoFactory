@@ -1,0 +1,35 @@
+{
+ "type": "tick",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\tick\\fs-452648-plastic-gas-container-cap-sc-1.wav",
+ "verdict": "ok",
+ "build_db": -30.5,
+ "start_db": -0.0,
+ "end_db": -41.6,
+ "spikiness": 3.44,
+ "dur_s": 0.111,
+ "peak_offset_s": 0.0071,
+ "rise_ms": 1.3,
+ "centroid_hz": 2597,
+ "below150": 0.0,
+ "above6k": 0.115,
+ "flatness": 0.164,
+ "note": 78.4,
+ "start_floor_db": -34.7,
+ "source": {
+  "id": "452648",
+  "type": "tick",
+  "title": "plastic gas container cap screw back on ratchet twist1.wav",
+  "creator": "kyles",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/452/452648_612689-hq.mp3",
+  "landing": "https://freesound.org/people/kyles/sounds/452648",
+  "k": 3,
+  "keep": [
+   0,
+   1
+  ],
+  "tags": [
+   "ratchet"
+  ]
+ }
+}

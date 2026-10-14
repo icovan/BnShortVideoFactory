@@ -64,6 +64,7 @@ const emptyText = computed(() => {
   if (props.task.status === 'running' || props.task.status === 'queued') {
     return t('studio.player.generating')
   }
+  if (props.task.status === 'paused') return t('studio.player.paused')
   if (props.task.status === 'error') return props.task.error || t('studio.player.failed')
   return t('studio.player.waiting')
 })
@@ -76,17 +77,20 @@ const statusLabel = computed(() => {
 
 <style lang="scss" scoped>
 .player-panel {
+  flex: 1 1 50%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
-/* 固定舞台高度，竖屏用宽度钳制，避免把历史区挤没 */
+/* 占满半区；各比例播放器随容器等比例缩放 */
 .stage {
-  height: 240px;
-  min-height: 200px;
-  max-height: 280px;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  container-type: size;
   display: grid;
   place-items: center;
   padding: 4px 0;
@@ -108,25 +112,25 @@ const statusLabel = computed(() => {
 
 .frame.ar-16-9 {
   aspect-ratio: 16 / 9;
-  width: min(100%, 420px);
+  width: min(100cqw, calc(100cqh * 16 / 9));
   height: auto;
 }
 
 .frame.ar-9-16 {
   aspect-ratio: 9 / 16;
-  width: min(100%, 148px);
+  width: min(100cqw, calc(100cqh * 9 / 16));
   height: auto;
 }
 
 .frame.ar-1-1 {
   aspect-ratio: 1 / 1;
-  width: min(100%, 220px);
+  width: min(100cqw, 100cqh);
   height: auto;
 }
 
 .frame.ar-3-4 {
   aspect-ratio: 3 / 4;
-  width: min(100%, 180px);
+  width: min(100cqw, calc(100cqh * 3 / 4));
   height: auto;
 }
 
@@ -183,6 +187,7 @@ const statusLabel = computed(() => {
 }
 
 .meta {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -214,6 +219,10 @@ const statusLabel = computed(() => {
   &.queued {
     background: var(--ink);
     color: var(--accent);
+  }
+  &.paused {
+    background: var(--paper-2);
+    color: var(--ink);
   }
   &.error {
     background: #fdecea;

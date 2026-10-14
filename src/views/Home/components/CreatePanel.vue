@@ -26,111 +26,17 @@
       @activated="onLicenseActivated"
     />
 
-    <div v-if="showTemplateShelf && remoteTemplates.length" class="workflows">
-      <div class="wf-head">
-        <strong>{{ t('studio.create.templates') }}</strong>
-        <span>{{ t('studio.create.templatesHint') }}</span>
-        <div class="wf-tools">
-          <div class="wf-cat">
-            <button type="button" class="pill aspect wf-cat-trigger" @click="templateCatOpen = !templateCatOpen">
-              {{ templateCategoryLabel }}
-              <AppIcon :icon="ChevronDown" :size="14" :stroke-width="2" />
-            </button>
-            <div v-if="templateCatOpen" class="wf-cat-menu" role="listbox">
-              <button
-                type="button"
-                role="option"
-                :aria-selected="templateCategory === 'all'"
-                :class="{ on: templateCategory === 'all' }"
-                @click="templateCategory = 'all'; templateCatOpen = false"
-              >
-                {{ t('studio.create.templateCategoryAll') }}
-              </button>
-              <button
-                v-for="c in templateCategories"
-                :key="c.id"
-                type="button"
-                role="option"
-                :aria-selected="templateCategory === c.id"
-                :class="{ on: templateCategory === c.id }"
-                @click="templateCategory = c.id; templateCatOpen = false"
-              >
-                {{ c.label }}
-              </button>
-            </div>
-          </div>
-          <div class="wf-pager">
-            <button type="button" class="wf-page-btn" :disabled="!canPagePrev" :aria-label="t('studio.create.templatePrev')" @click="pageTemplates(-1)">
-              <AppIcon :icon="ChevronLeft" :size="14" :stroke-width="2" />
-            </button>
-            <button type="button" class="wf-page-btn" :disabled="!canPageNext" :aria-label="t('studio.create.templateNext')" @click="pageTemplates(1)">
-              <AppIcon :icon="ChevronRight" :size="14" :stroke-width="2" />
-            </button>
-          </div>
-        </div>
-      </div>
-      <div ref="tplTrackRef" class="wf-track" @scroll="onTplScroll">
-        <button
-          v-for="tpl in filteredTemplates"
-          :key="tpl.id"
-          type="button"
-          class="wf-card"
-          :class="{ on: activeTemplateId === tpl.id }"
-          :data-aspect="tpl.aspect || '16:9'"
-          :data-cover="tpl.cover"
-          @click="applyTemplate(tpl)"
-        >
-          <em class="wf-aspect">{{ tpl.aspect || '16:9' }}</em>
-          <span
-            class="wf-play"
-            :class="{ disabled: !tpl.previewVideo }"
-            role="button"
-            :tabindex="tpl.previewVideo ? 0 : -1"
-            :aria-disabled="!tpl.previewVideo"
-            :aria-label="t('studio.create.templatePlay')"
-            @click.stop="openTemplatePreview(tpl)"
-            @keydown.enter.stop.prevent="openTemplatePreview(tpl)"
-          >
-            <AppIcon :icon="Play" :size="12" :stroke-width="2.2" />
-          </span>
-          <strong>{{ tpl.title }}</strong>
-          <span class="wf-sub">{{ tpl.subtitle }}</span>
-          <i>{{ tpl.stylePack }} · {{ tpl.engine || 'remotion' }}</i>
-        </button>
-      </div>
-    </div>
-
-    <div v-if="previewTpl" class="wf-preview-mask" @click="closeTemplatePreview">
-      <div class="wf-preview-dialog" @click.stop>
-        <header>
-          <strong>{{ previewTpl.title }}</strong>
-          <button type="button" class="wf-preview-close" @click="closeTemplatePreview">
-            <AppIcon :icon="X" :size="16" :stroke-width="2" />
-          </button>
-        </header>
-        <video
-          v-if="previewTpl.previewVideo"
-          class="wf-preview-video"
-          :src="previewTpl.previewVideo"
-          controls
-          autoplay
-          playsinline
-        />
-        <p v-else class="wf-preview-empty">{{ t('studio.create.templateNoVideo') }}</p>
-      </div>
-    </div>
-
     <div class="composer">
       <div class="mode-tabs">
         <button
-          v-for="m in FORM_MODES"
+          v-for="m in modeTabs"
           :key="m.id"
           type="button"
           class="mode-tab"
           :class="{ on: formMode === m.id }"
           @click="applyMode(m.id)"
         >
-          {{ t(`studio.create.modes.${m.id}`) }}
+          {{ m.label }}
         </button>
       </div>
 
@@ -138,6 +44,14 @@
         <span v-if="detectedUrls.length" class="tag url" :title="detectedUrls.join('\n')">
           {{ t('studio.create.plus.urlExtract') }} · {{ detectedUrls.length }}
         </span>
+        <div v-if="stylePreset" class="tag-wrap">
+          <span class="tag style-preset">
+            <span class="name">{{ stylePresetLabel }}</span>
+            <button type="button" class="x" aria-label="remove" @click="stylePresetId = null">
+              <AppIcon :icon="X" :size="12" :stroke-width="2" />
+            </button>
+          </span>
+        </div>
         <div v-if="stylePick" class="tag-wrap" :class="{ 'has-preview': !!stylePreviewSrc }">
           <span class="tag style">
             <span v-if="stylePick.look" class="swatches" aria-hidden="true">
@@ -285,7 +199,7 @@
                 <button type="button" class="plus-row" @click="openStyle">
                   <span class="plus-ico"><AppIcon :icon="ImageIcon" :size="16" /></span>
                   <span>{{ t('studio.create.plus.styleRef') }}</span>
-                  <em v-if="stylePick">{{ t('studio.create.plus.on') }}</em>
+                  <em v-if="stylePick || stylePresetId">{{ t('studio.create.plus.on') }}</em>
                 </button>
                 <button type="button" class="plus-row" @click="webSearch = !webSearch">
                   <span class="plus-ico"><AppIcon :icon="Search" :size="16" /></span>
@@ -302,17 +216,11 @@
                 <button
                   type="button"
                   class="plus-row"
-                  :disabled="formMode === 'narrate' || formMode === 'remix' || formMode === 'logo' || formMode === 'showreel'"
-                  @click="cycleVo"
+                  @click="cycleVoiceOver"
                 >
                   <span class="plus-ico"><AppIcon :icon="Mic" :size="16" /></span>
                   <span>{{ t('studio.create.plus.vo') }}</span>
-                  <em :class="{ lit: voMode !== 'auto' || formMode === 'narrate' || formMode === 'remix' || formMode === 'logo' || formMode === 'showreel' }">{{ voLabel }}</em>
-                </button>
-                <button type="button" class="plus-row" @click="cycleDrive">
-                  <span class="plus-ico"><AppIcon :icon="FileText" :size="16" /></span>
-                  <span>{{ t('studio.create.plus.scriptDrive') }}</span>
-                  <em>{{ driveLabel }}</em>
+                  <em :class="{ lit: voiceOverLit }">{{ voiceOverLabel }}</em>
                 </button>
               </template>
               <template v-else-if="plusView === 'voice'">
@@ -366,6 +274,20 @@
                   <button type="button" class="plus-row back" @click="plusView = 'main'">
                     <span class="plus-ico"><AppIcon :icon="ChevronLeft" :size="16" /></span>
                     <span>{{ t('studio.create.plus.back') }}</span>
+                  </button>
+                </div>
+                <p class="style-hint">{{ t('studio.create.plus.presetHint') }}</p>
+                <div class="preset-chips">
+                  <button
+                    v-for="p in stylePresets"
+                    :key="p.id"
+                    type="button"
+                    class="preset-chip"
+                    :class="{ on: stylePresetId === p.id }"
+                    :title="p.mainTechnique"
+                    @click="toggleStylePreset(p.id)"
+                  >
+                    {{ stylePresetName(p) }}
                   </button>
                 </div>
                 <p class="style-hint">{{ t('studio.create.plus.styleHint') }}</p>
@@ -472,7 +394,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTranslation } from 'i18next-vue'
 import {
@@ -481,13 +403,10 @@ import {
   Check,
   ChevronDown,
   ChevronLeft,
-  ChevronRight,
-  FileText,
   FolderOpen,
   Image as ImageIcon,
   Mic,
   Music,
-  Play,
   Plus,
   Search,
   Upload,
@@ -500,15 +419,17 @@ import {
   engineApi,
   engineAssetUrlSync,
   rememberEngineRoot,
+  defaultCreateCatalog,
+  type CreateCatalog,
+  type CreateCase,
+  type CreateFormType,
   type EntitlementSnapshot,
-  type PublicTemplate,
-  type PublicTemplateCategory,
   type StyleLook,
   type StyleRefItem,
   type UserAsset,
 } from '@/lib/engine-api'
 import { detectContentLang, estimateCreate } from '@/lib/content-lang'
-import { classifyTaskError } from '@/lib/notice-kind'
+import { classifyTaskError, voiceNoticeKey } from '@/lib/notice-kind'
 import { pushNotice } from '@/lib/notice'
 import { useAppStore } from '@/store'
 import {
@@ -538,68 +459,47 @@ type Attach = {
   previewUrl?: string
 }
 
-const FORM_MODES: { id: FormMode; aspect: Aspect }[] = [
-  { id: 'prompt', aspect: '16:9' },
-  { id: 'narrate', aspect: '16:9' },
-  { id: 'short', aspect: '9:16' },
-  { id: 'logo', aspect: '16:9' },
-  { id: 'showreel', aspect: '16:9' },
-  { id: 'launch', aspect: '16:9' },
-  { id: 'remix', aspect: '9:16' },
-]
-const ASPECTS: Aspect[] = ['16:9', '9:16', '1:1', '3:4']
-
-/** 各形态傻瓜话题手册 */
-const TOPIC_IDS: Record<Exclude<FormMode, 'prompt'>, string[]> = {
-  narrate: ['ramen', 'honey', 'cats', 'beijing'],
-  short: ['hook', 'list', 'loop'],
-  logo: ['draw', 'icon', 'build'],
-  showreel: ['principles', 'brand', 'dark'],
-  launch: ['three', 'chapters'],
-  remix: ['promo', 'story', 'tips'],
+/** 本地固定：自由 / 混剪；中间类型来自 create-catalog */
+const LOCAL_MODE_ASPECT: Record<string, Aspect> = {
+  prompt: '16:9',
+  remix: '9:16',
 }
+const REMIX_TOPICS = [
+  { id: 'promo', titleKey: 'studio.create.quickbook.topics.remix.promo.title' },
+  { id: 'story', titleKey: 'studio.create.quickbook.topics.remix.story.title' },
+  { id: 'tips', titleKey: 'studio.create.quickbook.topics.remix.tips.title' },
+] as const
+const ASPECTS: Aspect[] = ['16:9', '9:16', '1:1', '3:4']
 
 const prompt = ref('')
 const formMode = ref<FormMode>('prompt')
+const catalogTypes = ref<CreateFormType[]>([])
 const topicSheetOpen = ref(false)
 const license = ref<EntitlementSnapshot | null>(null)
 const licenseOpen = ref(false)
-const showTemplateShelf = ref(false)
-const remoteTemplates = ref<PublicTemplate[]>([])
-const templateCategories = ref<PublicTemplateCategory[]>([])
-const templateCategory = ref('all')
-const templateCatOpen = ref(false)
-const activeTemplateId = ref<string | null>(null)
-const boundStylePack = ref<string | null>(null)
-const boundSeedPrompt = ref('')
-const boundEngine = ref<string | undefined>(undefined)
-const previewTpl = ref<PublicTemplate | null>(null)
-const tplTrackRef = ref<HTMLElement | null>(null)
-const canPagePrev = ref(false)
-const canPageNext = ref(false)
 
-const filteredTemplates = computed(() => {
-  const rows = remoteTemplates.value
-  if (templateCategory.value === 'all') return rows
-  return rows.filter((t) => t.category === templateCategory.value)
-})
+const uiIsZh = computed(() => !!i18next.language?.startsWith('zh'))
 
-const templateCategoryLabel = computed(() => {
-  if (templateCategory.value === 'all') return t('studio.create.templateCategoryAll')
-  return templateCategories.value.find((c) => c.id === templateCategory.value)?.label
-    || templateCategory.value
+const modeTabs = computed(() => {
+  const zh = uiIsZh.value
+  const managed = [...catalogTypes.value]
+    .filter((t) => t.enabled !== false)
+    .sort((a, b) => a.sort - b.sort)
+    .map((t) => ({
+      id: t.id as FormMode,
+      label: zh ? t.labelZh : t.labelEn,
+      aspect: (LOCAL_MODE_ASPECT[t.id] || '16:9') as Aspect,
+    }))
+  return [
+    { id: 'prompt' as FormMode, label: t('studio.create.modes.prompt'), aspect: '16:9' as Aspect },
+    ...managed,
+    { id: 'remix' as FormMode, label: t('studio.create.modes.remix'), aspect: '9:16' as Aspect },
+  ]
 })
 
-watch(filteredTemplates, async () => {
-  await nextTick()
-  onTplScroll()
-})
-watch(templateCategory, async () => {
-  await nextTick()
-  const el = tplTrackRef.value
-  if (el) el.scrollLeft = 0
-  onTplScroll()
-})
+const activeCatalogType = computed(() =>
+  catalogTypes.value.find((t) => t.id === formMode.value) || null,
+)
 
 const licenseBadge = computed(() => {
   const e = license.value
@@ -646,8 +546,8 @@ const plusView = ref<'main' | 'voice' | 'style'>('main')
 const attachments = ref<Attach[]>([])
 const webSearch = ref(true)
 const autoSfx = ref(true)
-const voMode = ref<'on' | 'off' | 'auto'>('auto')
-const scriptDrive = ref<'off' | 'auto' | 'polish' | 'verbatim'>('auto')
+/** 口播三态：关=无旁白；自动=按需求策划；驱动=上传文稿格式化 */
+const voiceOver = ref<'off' | 'auto' | 'drive'>('auto')
 const speechVoice = ref(
   speechVoiceForLang(settings.speech, uiVoiceLang(i18next.language)) ||
     settings.speech.voice ||
@@ -655,8 +555,18 @@ const speechVoice = ref(
 )
 const previewing = ref(false)
 const styleRefs = ref<StyleRefItem[]>([])
+const stylePresets = ref<
+  Array<{
+    id: string
+    labelZh: string
+    labelEn: string
+    mainTechnique: string
+    accent?: string
+  }>
+>([])
 const styleThumbMap = ref<Record<string, string>>({})
 const styleBusy = ref(false)
+const stylePresetId = ref<string | null>(null)
 const stylePick = ref<{
   id?: string
   name: string
@@ -668,19 +578,49 @@ const stylePick = ref<{
 const stylePreviewSrc = computed(
   () => stylePick.value?.previewUrl || stylePick.value?.dataUrl || '',
 )
+const stylePreset = computed(() =>
+  stylePresets.value.find((p) => p.id === stylePresetId.value) || null,
+)
+const stylePresetLabel = computed(() => {
+  const p = stylePreset.value
+  if (!p) return ''
+  return stylePresetName(p)
+})
+function stylePresetName(p: { labelZh: string; labelEn: string }) {
+  return i18next.language?.startsWith('zh') ? p.labelZh : p.labelEn
+}
+function toggleStylePreset(id: string) {
+  stylePresetId.value = stylePresetId.value === id ? null : id
+}
 
-const placeholder = computed(() => t(`studio.create.placeholders.${formMode.value}`))
+const placeholder = computed(() => {
+  const key = `studio.create.placeholders.${formMode.value}`
+  const localized = t(key)
+  if (localized && !localized.startsWith('studio.create.')) return localized
+  return t('studio.create.placeholders.prompt')
+})
 const topicEntries = computed(() => {
   if (formMode.value === 'prompt') return [] as { id: string; title: string }[]
-  const ids = TOPIC_IDS[formMode.value] || []
-  return ids.map((id) => ({
-    id,
-    title: t(`studio.create.quickbook.topics.${formMode.value}.${id}.title`),
-  }))
+  if (formMode.value === 'remix') {
+    return REMIX_TOPICS.map((x) => ({ id: x.id, title: t(x.titleKey) }))
+  }
+  const type = activeCatalogType.value
+  if (!type) return [] as { id: string; title: string }[]
+  const zh = uiIsZh.value
+  return [...(type.cases || [])]
+    .filter((c) => c.enabled !== false)
+    .sort((a, b) => a.sort - b.sort)
+    .map((c) => ({
+      id: c.id,
+      title: zh ? c.titleZh : c.titleEn,
+    }))
 })
 const topicTips = computed(() => {
   if (formMode.value === 'prompt' || !topicSheetOpen.value) return ''
-  return t(`studio.create.quickbook.tips.${formMode.value}`)
+  if (formMode.value === 'remix') return t('studio.create.quickbook.tips.remix')
+  const type = activeCatalogType.value
+  if (!type) return ''
+  return (uiIsZh.value ? type.tipZh : type.tipEn) || ''
 })
 const hasDoc = computed(() => attachments.value.some((a) => a.kind === 'doc'))
 const footageFolder = ref(appStore.videoAssetsFolder || '')
@@ -705,6 +645,7 @@ function resetComposerForMode() {
   error.value = ''
   attachments.value = []
   stylePick.value = null
+  stylePresetId.value = null
   plusOpen.value = false
   plusView.value = 'main'
   webSearch.value = true
@@ -763,16 +704,20 @@ const detectedUrls = computed(() => {
   return uniq
 })
 const tagsVisible = computed(
-  () => !!stylePick.value || attachments.value.length > 0 || detectedUrls.value.length > 0,
+  () =>
+    !!stylePick.value
+    || !!stylePresetId.value
+    || attachments.value.length > 0
+    || detectedUrls.value.length > 0,
 )
 const plusDot = computed(
   () =>
     attachments.value.length > 0 ||
     !!stylePick.value ||
+    !!stylePresetId.value ||
     autoSfx.value ||
     webSearch.value ||
-    voMode.value !== 'auto' ||
-    scriptDrive.value !== 'auto',
+    voiceOver.value !== 'auto',
 )
 /** 形态提示用语：跟提示词观众语走，不用界面语言当 contentLang */
 const packLang = computed(() => detectContentLang(prompt.value))
@@ -807,22 +752,14 @@ const estimateLine = computed(() => {
     high: e.waitMinHigh,
   })
 })
-const voLabel = computed(() => {
-  if (formMode.value === 'narrate' || formMode.value === 'remix' || formMode.value === 'logo' || formMode.value === 'showreel') {
-    return t('studio.create.plus.voLocked')
-  }
-  if (voMode.value === 'on') return t('studio.create.plus.on')
-  if (voMode.value === 'off') return t('studio.create.plus.off')
+const voiceOverLabel = computed(() => {
+  if (voiceOver.value === 'off') return t('studio.create.plus.off')
+  if (voiceOver.value === 'drive') return t('studio.create.plus.drive')
   return t('studio.create.plus.auto')
 })
-const driveLabel = computed(() => {
-  const m: Record<string, string> = {
-    off: t('studio.create.plus.off'),
-    auto: t('studio.create.plus.auto'),
-    polish: t('studio.create.plus.polish'),
-    verbatim: t('studio.create.plus.verbatim'),
-  }
-  return m[scriptDrive.value] || scriptDrive.value
+/** 关=灰；自动/驱动=亮（开态） */
+const voiceOverLit = computed(() => {
+  return voiceOver.value === 'auto' || voiceOver.value === 'drive'
 })
 function readDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -890,15 +827,14 @@ function removeAttach(id: string) {
   attachments.value = attachments.value.filter((a) => a.id !== id)
 }
 
-function applyMode(id: FormMode, opts?: { keepTemplate?: boolean }) {
+function applyMode(id: FormMode) {
   // 自由创作：无话题手册；其他形态：点开/再点关
   if (id === 'prompt') {
     if (formMode.value !== 'prompt') resetComposerForMode()
     formMode.value = 'prompt'
     topicSheetOpen.value = false
-  } else if (formMode.value === id && topicSheetOpen.value && !opts?.keepTemplate) {
+  } else if (formMode.value === id && topicSheetOpen.value) {
     topicSheetOpen.value = false
-    if (!opts?.keepTemplate && activeTemplateId.value) clearTemplate()
     return
   } else {
     if (formMode.value !== id) resetComposerForMode()
@@ -906,148 +842,54 @@ function applyMode(id: FormMode, opts?: { keepTemplate?: boolean }) {
     topicSheetOpen.value = true
   }
 
-  const m = FORM_MODES.find((x) => x.id === id)
+  const m = modeTabs.value.find((x) => x.id === id)
   if (m) aspect.value = m.aspect
-  if (id === 'narrate') {
-    voMode.value = 'on'
-    scriptDrive.value = 'auto'
-  } else if (id === 'logo' || id === 'showreel') {
-    // Logo 片 / 动效展片：默认无旁白、无文稿驱动
-    voMode.value = 'off'
-    scriptDrive.value = 'off'
-  } else if (id === 'launch') {
-    // 素材叙事：旁白 + 文稿/链接驱动
-    voMode.value = 'on'
-    scriptDrive.value = 'auto'
-  } else if (id === 'remix') {
-    voMode.value = 'on'
-    scriptDrive.value = 'auto'
-    void refreshFootageCount()
-  } else if (id === 'short') {
-    voMode.value = 'on'
-    scriptDrive.value = 'auto'
-  } else {
-    voMode.value = 'auto'
-    scriptDrive.value = 'auto'
-  }
-  // 手动切 Tab 时解除模板绑定（避免管线串味）
-  if (!opts?.keepTemplate && activeTemplateId.value) clearTemplate()
+  else if (LOCAL_MODE_ASPECT[id]) aspect.value = LOCAL_MODE_ASPECT[id]
+  if (id === 'remix') void refreshFootageCount()
 }
 
-function isBoundToTemplate(text: string, seed: string) {
-  const t = text.trim()
-  const base = seed.trim()
-  if (!t || !base) return false
-  return t === base || t.startsWith(base) || t.includes(base)
+function pickPromptBody(caseRow: CreateCase): string {
+  const want = uiIsZh.value ? 'zh' : 'en'
+  const prompts = [...(caseRow.prompts || [])]
+    .filter((p) => p.enabled !== false && p.body?.trim())
+    .sort((a, b) => a.sort - b.sort)
+  const hit = prompts.find((p) => p.lang === want) || prompts[0]
+  return hit?.body?.trim() || ''
 }
 
-/** 模板只绑自由创作（混剪除外，需素材文件夹 UI） */
-function applyTemplate(tpl: PublicTemplate) {
-  const pack = tpl.stylePack || 'skill-directed'
-  const mode: FormMode = pack === 'footage-remix' ? 'remix' : 'prompt'
-  applyMode(mode, { keepTemplate: true })
-  activeTemplateId.value = tpl.id
-  boundStylePack.value = pack
-  boundSeedPrompt.value = (tpl.prompt || '').trim()
-  boundEngine.value = tpl.engine
-  if (tpl.aspect === '16:9' || tpl.aspect === '9:16' || tpl.aspect === '1:1' || tpl.aspect === '3:4') {
-    aspect.value = tpl.aspect
-  }
-  if (boundSeedPrompt.value) prompt.value = boundSeedPrompt.value
-  topicSheetOpen.value = mode === 'remix'
-}
-
-function clearTemplate() {
-  activeTemplateId.value = null
-  boundStylePack.value = null
-  boundSeedPrompt.value = ''
-  boundEngine.value = undefined
-}
-
-function openTemplatePreview(tpl: PublicTemplate) {
-  if (!tpl.previewVideo) return
-  previewTpl.value = tpl
-}
-
-function closeTemplatePreview() {
-  previewTpl.value = null
-}
-
-function onTplScroll() {
-  const el = tplTrackRef.value
-  if (!el) {
-    canPagePrev.value = false
-    canPageNext.value = false
-    return
-  }
-  canPagePrev.value = el.scrollLeft > 4
-  canPageNext.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 4
-}
-
-function pageTemplates(dir: -1 | 1) {
-  const el = tplTrackRef.value
-  if (!el) return
-  const step = Math.max(220, Math.floor(el.clientWidth * 0.85))
-  el.scrollBy({ left: dir * step, behavior: 'smooth' })
-}
-
-const CAT_FALLBACK_LABEL: Record<string, string> = {
-  narrate: '口播解说',
-  promo: '宣传与发布',
-  tutorial: '教程干货',
-  commerce: '种草带货',
-  story: '剧情故事',
-  other: '其他',
-}
-
-async function refreshTemplates() {
+async function refreshCreateCatalog() {
   try {
-    const shelf = await engineApi.listTemplates()
-    // 仅当后台明确打开时展示；默认关
-    showTemplateShelf.value = shelf?.showTemplateShelf === true
-    const cases = (shelf?.cases || [])
-      .filter((t) => t && t.published !== false && t.prompt)
-      .sort((a, b) => a.title.localeCompare(b.title, 'zh'))
-    remoteTemplates.value = cases
-
-    let cats = (shelf?.categories || [])
-      .filter((c) => c && c.id && c.id !== 'all')
-      .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
-    // 后台未下发分类时，从模板 category 推导，保证下拉可用
-    if (!cats.length && cases.length) {
-      const seen = new Set<string>()
-      cats = []
-      for (const t of cases) {
-        const id = String(t.category || 'other')
-        if (seen.has(id)) continue
-        seen.add(id)
-        cats.push({ id, label: CAT_FALLBACK_LABEL[id] || id, sort: cats.length })
-      }
-    }
-    // 只展示当前货架里实际有模板的分类
-    const used = new Set(cases.map((t) => t.category || 'other'))
-    cats = cats.filter((c) => used.has(c.id))
-    templateCategories.value = cats
-    if (templateCategory.value !== 'all' && !cats.some((c) => c.id === templateCategory.value)) {
-      templateCategory.value = 'all'
-    }
-    await nextTick()
-    onTplScroll()
+    const catalog = await engineApi.getCreateCatalog()
+    applyCatalog(catalog)
   } catch {
-    showTemplateShelf.value = false
-    remoteTemplates.value = []
-    templateCategories.value = []
+    // 引擎未就绪 / 断网：用与后台同构的本地种子，保证类型 tab 可用
+    if (!catalogTypes.value.length) applyCatalog(defaultCreateCatalog())
+  }
+}
+
+function applyCatalog(catalog: CreateCatalog | null | undefined) {
+  const types = Array.isArray(catalog?.types) ? catalog!.types : []
+  catalogTypes.value = types
+    .filter((t) => t && t.id && t.enabled !== false)
+    .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
+  // 当前选中类型若被后台下架，回到自由
+  if (
+    formMode.value !== 'prompt'
+    && formMode.value !== 'remix'
+    && !catalogTypes.value.some((t) => t.id === formMode.value)
+  ) {
+    formMode.value = 'prompt'
+    topicSheetOpen.value = false
   }
 }
 
 function fillTopic(topicId: string) {
   if (formMode.value === 'prompt') return
-  const fill = t(`studio.create.quickbook.topics.${formMode.value}.${topicId}.fill`)
-  if (!fill || fill.startsWith('studio.create.')) return
-  prompt.value = fill
-  briefHint.value = ''
-  error.value = ''
   if (formMode.value === 'remix') {
+    const fill = t(`studio.create.quickbook.topics.remix.${topicId}.fill`)
+    if (fill && !fill.startsWith('studio.create.')) prompt.value = fill
+    briefHint.value = ''
+    error.value = ''
     if (topicId === 'promo' || topicId === 'story' || topicId === 'tips') {
       if (remixTopicId.value !== topicId) {
         remixBrand.value = ''
@@ -1056,15 +898,20 @@ function fillTopic(topicId: string) {
       }
       remixTopicId.value = topicId
     }
+    return
   }
+  const caseRow = activeCatalogType.value?.cases?.find((c) => c.id === topicId)
+  if (!caseRow) return
+  const body = pickPromptBody(caseRow)
+  if (!body) return
+  prompt.value = body
+  briefHint.value = ''
+  error.value = ''
 }
 
 function onPromptInput(next: string) {
   prompt.value = next
   briefHint.value = ''
-  if (activeTemplateId.value && boundSeedPrompt.value) {
-    if (!isBoundToTemplate(next, boundSeedPrompt.value)) clearTemplate()
-  }
 }
 
 function onPromptEv(ev: Event) {
@@ -1076,18 +923,14 @@ function togglePlus() {
   plusView.value = 'main'
 }
 
-function cycleVo() {
-  if (formMode.value === 'narrate' || formMode.value === 'remix' || formMode.value === 'logo' || formMode.value === 'showreel') {
-    return
-  }
-  voMode.value = voMode.value === 'auto' ? 'on' : voMode.value === 'on' ? 'off' : 'auto'
-}
-
-function cycleDrive() {
-  if (formMode.value === 'logo' || formMode.value === 'showreel') return
-  const order: Array<'off' | 'auto' | 'polish' | 'verbatim'> = ['auto', 'polish', 'verbatim', 'off']
-  const i = order.indexOf(scriptDrive.value)
-  scriptDrive.value = order[(i + 1) % order.length]
+function cycleVoiceOver() {
+  // 关 → 自动 → 驱动 → 关（各形态自由；仅混剪仍建议有口播）
+  const order: Array<'off' | 'auto' | 'drive'> =
+    formMode.value === 'remix'
+      ? ['auto', 'drive']
+      : ['off', 'auto', 'drive']
+  const i = order.indexOf(voiceOver.value)
+  voiceOver.value = order[(i < 0 ? 0 : i + 1) % order.length]
 }
 
 async function openVoice() {
@@ -1101,13 +944,17 @@ function styleThumb(r: StyleRefItem) {
 async function openStyle() {
   plusView.value = 'style'
   // Re-open with cache: show immediately, refresh in background if needed
-  const hadCache = styleRefs.value.length > 0
+  const hadCache = styleRefs.value.length > 0 || stylePresets.value.length > 0
   if (!hadCache) styleBusy.value = true
   try {
     const st = await studio.ensureEngine()
     rememberEngineRoot(st?.url)
-    const list = await engineApi.listStyleRefs()
+    const [list, presets] = await Promise.all([
+      engineApi.listStyleRefs(),
+      engineApi.listStylePresets().catch(() => stylePresets.value),
+    ])
     styleRefs.value = list
+    if (presets?.length) stylePresets.value = presets
     const map: Record<string, string> = {}
     for (const r of list) {
       map[r.id] = engineAssetUrlSync(r.url)
@@ -1126,11 +973,14 @@ async function openStyle() {
 function pickVoice(id: string) {
   speechVoice.value = id
   settings.updateSpeech({ voice: id, langHint: voiceLang.value })
+  void previewVoice()
 }
 
+let previewSeq = 0
+
 async function previewVoice() {
+  const seq = ++previewSeq
   previewing.value = true
-  error.value = ''
   try {
     await studio.ensureEngine()
     const { syncSettingsToEngine } = await import('@/lib/sync-settings')
@@ -1143,12 +993,27 @@ async function previewVoice() {
           ? 'Hello, this is a voice preview.'
           : t('studio.create.plus.previewText'),
     })
-    const audio = new Audio(`data:${res.mime};base64,${res.base64}`)
-    await audio.play()
+    if (seq !== previewSeq) return
+    const { previewAudioUrl } = await import('@/lib/speech-preview-audio')
+    const clip = previewAudioUrl(res.mime || 'audio/mpeg', res.base64)
+    const audio = new Audio(clip.url)
+    audio.onended = () => clip.revoke()
+    audio.onerror = () => clip.revoke()
+    try {
+      await audio.play()
+    } catch (playErr) {
+      clip.revoke()
+      const msg = playErr instanceof Error ? playErr.message : String(playErr)
+      if (/no supported source|NotSupportedError|Failed to load/i.test(msg)) {
+        throw new Error('试听无法播放：音频格式不被支持')
+      }
+      throw playErr
+    }
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    if (seq !== previewSeq) return
+    pushNotice('attention', t(voiceNoticeKey(e?.message || String(e))))
   } finally {
-    previewing.value = false
+    if (seq === previewSeq) previewing.value = false
   }
 }
 
@@ -1196,55 +1061,47 @@ async function onStyleFile(ev: Event) {
 
 function modeHintLine(lang?: 'zh' | 'en' | 'bilingual') {
   const en = (lang || packLang.value) === 'en'
+  // 轻标签：不锁技法；硬约束写在案例 fill 里
   if (formMode.value === 'narrate') {
-    if (en) {
-      return hasDoc.value
-        ? 'Form: explainer / knowledge film; VO on; script-drive polish from uploaded docs.'
-        : 'Form: explainer / knowledge film; VO on.'
-    }
-    return hasDoc.value
-      ? '形态：讲解科普；VO on；文稿驱动（script-drive polish）。'
-      : '形态：讲解科普；VO on。'
-  }
-  if (formMode.value === 'logo') {
     return en
-      ? 'Form: Logo sting — geo tease → accent → assemble → overshoot → settle; no VO; prefer uploaded SVG/PNG.'
-      : '形态：Logo 片 — 几何起势→强调色运动→组装→过冲→定版；无旁白；优先上传 SVG/PNG。'
+      ? (hasDoc.value ? 'Form: explainer — docs may drive VO.' : 'Form: explainer.')
+      : (hasDoc.value ? '形态：解说 — 可文稿驱动口播。' : '形态：解说。')
+  }
+  if (formMode.value === 'tutorial') {
+    return en ? 'Form: tutorial.' : '形态：教程。'
+  }
+  if (formMode.value === 'story') {
+    return en ? 'Form: story.' : '形态：故事。'
+  }
+  if (formMode.value === 'logo' || formMode.value === 'brand') {
+    return en ? 'Form: logo / mark.' : '形态：标志。'
   }
   if (formMode.value === 'showreel') {
-    return en
-      ? 'Form: MG showreel — 6 technique chapters (squash / kinetic / systems / radial / shatter / lockup); no VO.'
-      : '形态：动效展片 — 六章技法（弹压/动能字/错峰/径向/碎裂/定版）；无旁白。'
-  }
-  if (formMode.value === 'short') {
-    return en ? 'Form lean: vertical short-form video (9:16).' : '形态倾向：竖屏短视频（9:16）。'
+    return en ? 'Form: types / motion showreel.' : '形态：类型展片。'
   }
   if (formMode.value === 'launch') {
-    return en
-      ? 'Form: source-driven story — article URL / topic / attachments into a narrated film.'
-      : '形态：素材叙事 — 文章链接 / 话题 / 附件驱动讲解片。'
+    return en ? 'Form: launch / promo.' : '形态：宣发。'
   }
   if (formMode.value === 'remix') {
     return en
-      ? 'Form: footage remix — VO script drives random cuts from the asset folder; burn captions.'
-      : '形态：混剪 — 口播文案驱动素材库随机切镜；烧录字幕成片。'
+      ? 'Form: footage remix — VO script drives cuts from the asset folder; burn captions.'
+      : '形态：混剪 — 口播文案驱动素材库切镜；烧录字幕成片。'
+  }
+  if (formMode.value !== 'prompt' && activeCatalogType.value) {
+    const label = en
+      ? (activeCatalogType.value.labelEn || activeCatalogType.value.id)
+      : (activeCatalogType.value.labelZh || activeCatalogType.value.id)
+    return en ? `Form: ${label}.` : `形态：${label}。`
   }
   return ''
 }
 
 function packPrompt(raw: string) {
   const lang = detectContentLang(raw)
-  const sendVo = formMode.value === 'narrate' ? 'on' : voMode.value
-  const sendDrive =
-    formMode.value === 'narrate'
-      ? hasDoc.value
-        ? 'polish'
-        : scriptDrive.value === 'off'
-          ? 'auto'
-          : scriptDrive.value
-      : scriptDrive.value
+  const logoFilm = formMode.value === 'logo' || formMode.value === 'brand' || formMode.value === 'showreel'
+  const sendVo = voiceOver.value
   const brandHint =
-    (formMode.value === 'logo' || formMode.value === 'showreel')
+    logoFilm
       && attachments.value.some((a) => a.kind === 'image')
       && !/logo|标志|svg|icon|wordmark/i.test(raw)
       ? lang === 'en'
@@ -1252,23 +1109,16 @@ function packPrompt(raw: string) {
         : '已附品牌标志素材 — 以上传标志为主角，勿另造 Logo。'
       : ''
   const portrait = aspect.value === '9:16' || aspect.value === '3:4'
+  // 与自由同路：只留构图底线；片型硬约束写在案例 fill，不在此注入
   const craftFloor = formMode.value === 'remix'
     ? ''
-    : formMode.value === 'logo'
+    : portrait
       ? (lang === 'en'
-        ? 'Craft: logo sting — geo tease, accent bounce/path, stroke-assemble, overshoot, settle. No explainer captions. Safe area (portrait: top 8% / bottom 18%).'
-        : '画面：Logo 片 — 几何起势、强调色弹跳/路径、描边组装、过冲、定版。不要讲解字幕。安全区（竖屏上 8% / 下 18%）。')
-      : formMode.value === 'showreel'
-        ? (lang === 'en'
-          ? 'Craft: MG showreel — 6 chapters squash/kinetic/systems/radial/shatter/lockup; no VO; tiny HUD OK; high-contrast full-bleed motion.'
-          : '画面：动效展片 — 六章弹压/动能字/错峰/径向/碎裂/定版；无旁白；可有小角标 HUD；高对比满幅动效。')
-      : portrait
-        ? (lang === 'en'
-          ? 'Craft (9:16): one short hero slam at 8–12% width; body type 4.5–6% — do NOT put 72–140px on every line. Safe area top 8% / bottom 18% / sides 8%. Spring translateY/scale, no heavy 3D tilt.'
-          : '画面（竖屏）：只做一次短钩子砸字（宽的 8–12%）；正文 4.5–6%——禁止每行都 ≥72。安全区上 8% / 下 18% / 左右 8%。弹簧位移缩放，不要大倾角透视。')
-        : (lang === 'en'
-          ? 'Craft (16:9): one hero slam ≥72–140px; spring; depth layers; ≥6% safe pad; full-bleed subject; palette from THIS topic — forbid tiny centered micro-UI.'
-          : '画面（宽屏）：一次主标题砸字 ≥72；弹簧与景深；四周至少 6% 安全区；满幅主体；配色跟主题走——禁止缩在画面中央的小控件。')
+        ? 'Craft (9:16): short hook type may be large; body type stays smaller. Headline and hero sit in different regions — do not stack type on the graphic. Safe area top 8% / bottom 18% / sides 8%.'
+        : '画面（竖屏）：短钩子可以大，正文小。标题和主图形各占一块，不要叠在一起。安全区上 8% / 下 18% / 左右 8%。')
+      : (lang === 'en'
+        ? 'Craft (16:9): each beat fills the frame with a concrete metaphor from that line (object + action + space) — layered material, hero graphic, accent detail. Skills move the metaphor; do not redraw every beat as a thin node graph. Keep the headline readable. ~6% safe pad.'
+        : '画面（宽屏）：每一镜用这句话的具体比喻铺满画面（物体+动作+空间），有层次：材质底、主图形、强调细节。技能动这个比喻，不要每镜都画成细线节点图。标题可读，不盖住主体。四周约 6% 安全区。')
   const stickmanAsk = /(?:用|做成|制作|请用|出片).{0,8}(?:火柴人|stickman|stick[\s-]?figure)|(?:火柴人|stickman).{0,6}(?:风格|出演|来演|来讲)|simply\s*animated|motivation\s*vs\s*discipline/i.test(raw)
   const stickmanLock = stickmanAsk
     ? (lang === 'en'
@@ -1281,7 +1131,12 @@ function packPrompt(raw: string) {
     brandHint,
     craftFloor,
     stickmanLock,
-    stylePick.value ? `Design reference: ${stylePick.value.name} (lock skin from image).` : '',
+    stylePreset.value
+      ? `Style preset: ${stylePreset.value.labelEn} / ${stylePreset.value.labelZh} (mainTechnique=${stylePreset.value.mainTechnique}).`
+      : '',
+    stylePick.value
+      ? `Design reference: ${stylePick.value.name} (lock palette/skin from image${stylePreset.value ? '; technique from style preset' : ''}).`
+      : '',
     attachments.value.some((a) => a.kind === 'image')
       ? `Screen assets attached: ${attachments.value
           .filter((a) => a.kind === 'image')
@@ -1305,15 +1160,9 @@ function packPrompt(raw: string) {
       : '',
     sendVo === 'off'
       ? 'No voice-over — music/SFX led only.'
-      : sendVo === 'on'
-        ? 'Voice-over required on every beat.'
-        : '',
-    sendDrive === 'polish' || (sendDrive === 'auto' && hasDoc.value)
-      ? 'Script-drive: polish uploaded narration into film-ready VO, then lock lines verbatim for TTS.'
-      : '',
-    sendDrive === 'verbatim'
-      ? 'Script-drive: split uploaded narration verbatim — do not rewrite VO lines.'
-      : '',
+      : sendVo === 'drive'
+        ? 'Voice-over drive: format uploaded narration to narration.txt style, then lock lines for TTS.'
+        : 'Voice-over auto: plan narration.txt-style VO from the brief; speak every beat.',
   ]
     .filter(Boolean)
     .join('\n')
@@ -1386,21 +1235,11 @@ async function submit() {
         return
       }
     }
-    const sendVo = formMode.value === 'narrate' || formMode.value === 'remix'
-      ? 'on'
-      : formMode.value === 'logo' || formMode.value === 'showreel'
-        ? 'off'
-        : voMode.value
-    const sendDrive =
-      formMode.value === 'logo' || formMode.value === 'showreel'
-        ? 'off'
-        : formMode.value === 'narrate' || formMode.value === 'remix'
-          ? hasDoc.value
-            ? 'polish'
-            : scriptDrive.value === 'off'
-              ? 'auto'
-              : scriptDrive.value
-          : scriptDrive.value
+    const sendVoiceOver: 'off' | 'auto' | 'drive' = voiceOver.value
+    if (sendVoiceOver === 'drive' && !hasDoc.value) {
+      error.value = t('studio.create.plus.driveNeedDoc')
+      return
+    }
 
     // 配乐功能已禁用：不上传、不提交 audio
     const userAssets: UserAsset[] = attachments.value
@@ -1413,30 +1252,25 @@ async function submit() {
       }))
 
     const contentLang = detectContentLang(raw)
-    const stillBound = !!(
-      activeTemplateId.value
-      && boundSeedPrompt.value
-      && isBoundToTemplate(raw, boundSeedPrompt.value)
-    )
-    const stylePack = formMode.value === 'remix'
-      ? 'footage-remix'
-      : stillBound
-        ? (boundStylePack.value || 'skill-directed')
-        : 'skill-directed'
+    const stylePack = formMode.value === 'remix' ? 'footage-remix' : 'skill-directed'
     const task = await studio.createAndMake({
       prompt: packPrompt(raw),
       formMode: formMode.value,
+      brandSubtype:
+        formMode.value === 'logo' || formMode.value === 'showreel'
+          ? formMode.value
+          : undefined,
       aspect: aspect.value,
       quality: quality.value,
       mediaKind: mediaKind.value,
-      templateId: stillBound ? activeTemplateId.value || undefined : undefined,
       stylePack,
-      engine: stillBound ? boundEngine.value : undefined,
       autoSfx: formMode.value === 'remix' ? false : autoSfx.value,
-      voMode: sendVo,
-      scriptDrive: sendDrive,
+      voiceOver: sendVoiceOver,
+      voMode: sendVoiceOver === 'off' ? 'off' : 'on',
+      scriptDrive: sendVoiceOver === 'drive' ? 'polish' : 'off',
       styleRefId: formMode.value === 'remix' ? undefined : stylePick.value?.id,
       styleRefDataUrl: formMode.value === 'remix' ? undefined : stylePick.value?.dataUrl,
+      stylePresetId: formMode.value === 'remix' ? undefined : stylePresetId.value || undefined,
       userAssets: userAssets.length ? userAssets : undefined,
       contentLang,
       webSearch: formMode.value === 'remix' ? false : webSearch.value,
@@ -1464,7 +1298,8 @@ async function submit() {
       error.value = ''
       licenseOpen.value = true
     } else {
-      error.value = t(`notice.${classifyTaskError(msg)}`)
+      const kind = classifyTaskError(msg)
+      error.value = t(kind === 'voice' ? voiceNoticeKey(msg) : `notice.${kind}`)
       pushNotice('attention', error.value)
     }
   } finally {
@@ -1480,10 +1315,6 @@ function onDocClick(ev: MouseEvent) {
       plusOpen.value = false
       plusView.value = 'main'
     }
-  }
-  if (templateCatOpen.value) {
-    const host = (ev.target as HTMLElement | null)?.closest?.('.wf-cat')
-    if (!host) templateCatOpen.value = false
   }
   if (aspectOpen.value) {
     const host = (ev.target as HTMLElement | null)?.closest?.('.aspect-wrap')
@@ -1509,11 +1340,13 @@ watch(
 )
 
 onMounted(() => {
+  // 先铺本地种子，引擎就绪后再换远程目录
+  applyCatalog(defaultCreateCatalog())
   void studio
     .ensureEngine()
     .then(() => {
       void refreshLicense()
-      void refreshTemplates()
+      void refreshCreateCatalog()
     })
     .catch(() => {})
   if (footageFolder.value) void refreshFootageCount()
@@ -1526,7 +1359,7 @@ watch(
   (ok) => {
     if (ok) {
       void refreshLicense()
-      void refreshTemplates()
+      void refreshCreateCatalog()
     }
   },
 )
@@ -1606,296 +1439,6 @@ watch(
       }
     }
   }
-}
-
-.workflows {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-}
-
-.wf-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  strong {
-    font-size: 13px;
-    font-weight: 650;
-    color: var(--ink);
-  }
-  > span {
-    font-size: 12px;
-    color: var(--muted);
-  }
-}
-
-.wf-tools {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-left: auto;
-}
-
-.wf-cat {
-  position: relative;
-  z-index: 20;
-}
-
-.wf-cat-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 96px;
-  max-width: 160px;
-}
-
-.wf-cat-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  left: auto;
-  min-width: 148px;
-  max-width: 220px;
-  max-height: min(280px, 50vh);
-  overflow-x: hidden;
-  overflow-y: auto;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  box-shadow: var(--shadow-pop);
-  button {
-    border: 0;
-    background: transparent;
-    text-align: left;
-    padding: 8px 10px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 13px;
-    line-height: 1.35;
-    color: var(--ink);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    &.on,
-    &:hover {
-      background: var(--accent-soft);
-    }
-  }
-}
-
-.wf-pager {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.wf-page-btn {
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--ink);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  &:disabled {
-    opacity: 0.35;
-    cursor: default;
-  }
-}
-
-.wf-track {
-  display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scroll-snap-type: x proximity;
-  /* room for selected ring + hover lift; overflow-y:hidden otherwise clips top/bottom */
-  padding: 4px 2px 6px;
-  margin: -4px -2px -6px;
-  min-width: 0;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  &::-webkit-scrollbar {
-    display: none;
-    width: 0;
-    height: 0;
-  }
-}
-
-.wf-card {
-  position: relative;
-  flex: 0 0 220px;
-  scroll-snap-align: start;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  min-height: 118px;
-  padding: 28px 14px 14px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background:
-    linear-gradient(160deg, rgb(212 240 122 / 18%), transparent 42%),
-    var(--surface);
-  color: var(--ink);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
-  strong {
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    padding-right: 28px;
-  }
-  .wf-sub {
-    font-size: 12px;
-    color: var(--muted);
-    line-height: 1.35;
-  }
-  i {
-    margin-top: auto;
-    font-style: normal;
-    font-size: 11px;
-    color: var(--ink);
-    opacity: 0.72;
-  }
-  &[data-cover='present'] {
-    background:
-      linear-gradient(160deg, rgb(120 180 255 / 16%), transparent 46%),
-      var(--surface);
-  }
-  &[data-cover='next-word'] {
-    background:
-      linear-gradient(160deg, rgb(255 170 90 / 18%), transparent 46%),
-      var(--surface);
-  }
-  &[data-cover='data'] {
-    background:
-      linear-gradient(160deg, rgb(160 140 255 / 14%), transparent 46%),
-      var(--surface);
-  }
-  &[data-aspect='9:16'] {
-    min-height: 132px;
-  }
-  &:hover,
-  &:focus-within {
-    border-color: rgb(0 0 0 / 22%);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow);
-    .wf-play {
-      opacity: 1;
-      pointer-events: auto;
-    }
-  }
-  &.on {
-    border-color: var(--ink);
-    box-shadow: 0 0 0 1px var(--ink), var(--shadow);
-  }
-}
-
-.wf-play {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 26px;
-  height: 26px;
-  border: 0;
-  border-radius: 99px;
-  background: rgb(255 255 255 / 92%);
-  color: var(--ink);
-  box-shadow: 0 1px 4px rgb(0 0 0 / 12%);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s, background 0.15s, color 0.15s;
-  z-index: 2;
-  &.disabled {
-    color: rgb(0 0 0 / 28%);
-    background: rgb(245 245 245 / 92%);
-    cursor: not-allowed;
-    box-shadow: none;
-  }
-}
-
-.wf-aspect {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: rgb(0 0 0 / 8%);
-  font-size: 10px;
-  font-style: normal;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.wf-preview-mask {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  background: rgb(0 0 0 / 45%);
-  display: grid;
-  place-items: center;
-  padding: 24px;
-}
-
-.wf-preview-dialog {
-  width: min(920px, 100%);
-  background: var(--surface);
-  border-radius: 16px;
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
-  overflow: hidden;
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 14px;
-    border-bottom: 1px solid var(--line);
-    strong {
-      font-size: 14px;
-    }
-  }
-}
-
-.wf-preview-close {
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--ink);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-}
-
-.wf-preview-video {
-  display: block;
-  width: 100%;
-  max-height: min(70vh, 560px);
-  background: #111;
-}
-
-.wf-preview-empty {
-  padding: 28px 16px;
-  text-align: center;
-  color: var(--muted);
-  font-size: 13px;
 }
 
 .composer {
@@ -2256,6 +1799,31 @@ watch(
   font-size: 11px;
   line-height: 1.45;
   color: var(--muted-2);
+}
+
+.preset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 4px 10px;
+}
+.preset-chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  line-height: 1.2;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  &:hover {
+    border-color: var(--ink-soft);
+  }
+  &.on {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+  }
 }
 
 .style-grid {

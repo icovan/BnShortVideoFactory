@@ -1,0 +1,22 @@
+{
+ "type": "click",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\click\\kenney-interface-switch-003.wav",
+ "verdict": "ok",
+ "build_db": -16.1,
+ "start_db": -0.0,
+ "end_db": -22.2,
+ "spikiness": 1.59,
+ "dur_s": 0.092,
+ "peak_offset_s": 0.0068,
+ "rise_ms": 4.2,
+ "centroid_hz": 1294,
+ "below150": 0.0,
+ "above6k": 0.0,
+ "flatness": 0.001,
+ "note": 56.9,
+ "start_floor_db": -7.7,
+ "source": {
+  "pack": "interface",
+  "file": "Audio/switch_003.ogg"
+ }
+}

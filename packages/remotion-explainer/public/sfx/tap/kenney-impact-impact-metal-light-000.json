@@ -1,0 +1,22 @@
+{
+ "type": "tap",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\tap\\kenney-impact-impact-metal-light-000.wav",
+ "verdict": "ok",
+ "build_db": -28.4,
+ "start_db": -0.0,
+ "end_db": -37.6,
+ "spikiness": 1.49,
+ "dur_s": 0.202,
+ "peak_offset_s": 0.0074,
+ "rise_ms": 5.6,
+ "centroid_hz": 2699,
+ "below150": 0.0,
+ "above6k": 0.0,
+ "flatness": 0.001,
+ "note": 100.0,
+ "start_floor_db": -6.2,
+ "source": {
+  "pack": "impact",
+  "file": "Audio/impactMetal_light_000.ogg"
+ }
+}

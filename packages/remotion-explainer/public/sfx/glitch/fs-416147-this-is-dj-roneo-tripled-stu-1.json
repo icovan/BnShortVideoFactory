@@ -1,0 +1,36 @@
+{
+ "type": "glitch",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\glitch\\fs-416147-this-is-dj-roneo-tripled-stu-1.wav",
+ "verdict": "ok",
+ "build_db": -5.7,
+ "start_db": -4.8,
+ "end_db": -9.0,
+ "spikiness": 1.7,
+ "dur_s": 0.146,
+ "peak_offset_s": 0.0336,
+ "rise_ms": 27.1,
+ "centroid_hz": 352,
+ "below150": 0.097,
+ "above6k": 0.001,
+ "flatness": 0.002,
+ "note": null,
+ "start_floor_db": -25.0,
+ "source": {
+  "id": "416147",
+  "type": "glitch",
+  "title": "This is DJ Roneo (tripled stutter wide stereo).wav",
+  "creator": "balloonhead",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/416/416147_2188-hq.mp3",
+  "landing": "https://freesound.org/people/balloonhead/sounds/416147",
+  "k": 3,
+  "keep": [
+   0,
+   1,
+   2
+  ],
+  "tags": [
+   "stutter"
+  ]
+ }
+}

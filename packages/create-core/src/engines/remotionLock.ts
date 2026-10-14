@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, openSync, closeSync, unlinkSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { REMOTION_PKG } from '../paths.ts';
+import { repairUnsafeGoogleFonts } from '../make/remotionCodegen.ts';
 
 const LOCK = join(REMOTION_PKG, '.codegen.lock');
 /** Drop lock only if holder stopped heartbeating (crash). Long encodes keep refreshing. */
@@ -148,7 +149,8 @@ export function installActiveComponent(kind: 'narrated' | 'launch' | 'nextword' 
         : 'ActiveNextWord.tsx';
   const dir = join(REMOTION_PKG, 'src', 'generated');
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, name), tsxSource, 'utf8');
+  // Last line of defense: never hand Remotion a CJK google-fonts subset (runtime crash).
+  writeFileSync(join(dir, name), repairUnsafeGoogleFonts(tsxSource), 'utf8');
 }
 
 export function restoreActiveFallback(kind: 'narrated' | 'launch' | 'nextword' | 'directed') {

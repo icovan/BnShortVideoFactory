@@ -1,0 +1,35 @@
+{
+ "type": "shimmer",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\shimmer\\fs-376745-fantasy-ui-button-3-wav-2.wav",
+ "verdict": "ok",
+ "build_db": -15.6,
+ "start_db": -0.6,
+ "end_db": -20.7,
+ "spikiness": 1.35,
+ "dur_s": 0.981,
+ "peak_offset_s": 0.1911,
+ "rise_ms": 53.7,
+ "centroid_hz": 4324,
+ "below150": 0.0,
+ "above6k": 0.178,
+ "flatness": 0.012,
+ "note": 98.5,
+ "start_floor_db": -9.0,
+ "source": {
+  "id": "376745",
+  "type": "shimmer",
+  "title": "Fantasy_ui_Button_3.wav",
+  "creator": "ZenithInfinitiveStudios",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/376/376745_5968849-hq.mp3",
+  "landing": "https://freesound.org/people/ZenithInfinitiveStudios/sounds/376745",
+  "k": 3,
+  "keep": [
+   1
+  ],
+  "tags": [
+   "magic",
+   "chime"
+  ]
+ }
+}

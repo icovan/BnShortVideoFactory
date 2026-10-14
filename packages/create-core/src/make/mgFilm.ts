@@ -119,7 +119,7 @@ export const SHOWREEL_CHAPTER_RECIPE: Array<{
     headline: 'SHATTER',
     visualIntent: 'Central burst of particles and geometric shards exploding outward — clean vector, not photo debris',
     keyMotion: 'shatter burst',
-    skill: 'color-motion',
+    skill: 'kinetic-typography',
     durationSec: 2.2,
   },
   {
@@ -144,7 +144,7 @@ export function mgFilmLockPrompt(kind: MgFilmKind): string {
 - Music/SFX film, NO voice-over. Exactly 6 chapters: squash → kinetic type → systems&stagger → radial orbit → shatter → end lockup.
 - Each beat.headline = short technique label (English OK as chrome). beat.vo always "".
 - Optional tiny corner HUD (SHOWREEL / index / label / timecode) — never large explainer captions.
-- primary = launch-video; support MUST include kinetic-typography + diagram-animation + color-motion + logo-animation.
+- primary = launch-video; support ≤3: kinetic-typography + diagram-animation + logo-animation (shatter stays kinetic craft).
 - Full-bleed geometric / kinetic motion every chapter; invent shapes from THIS brief's brand/theme colors.`;
 }
 
@@ -192,13 +192,15 @@ export function applyMgFilmRecipe<T extends MgPlan>(plan: T, kind: MgFilmKind): 
     };
   }
 
+  // 硬预算：1 primary + ≤3 leaf（与面板 showreel 池一致；不再塞 color-motion）
   const support = unique([
     'kinetic-typography',
     'diagram-animation',
-    'color-motion',
     'logo-animation',
-    ...plan.support,
-  ]).slice(0, 6);
+    ...plan.support.filter((s) =>
+      s === 'kinetic-typography' || s === 'diagram-animation' || s === 'logo-animation'
+    ),
+  ]).slice(0, 3);
   const zhChrome: Record<string, string> = {
     'ch-squash': '弹压拉伸',
     'ch-kinetic': '动能字体',
@@ -208,9 +210,11 @@ export function applyMgFilmRecipe<T extends MgPlan>(plan: T, kind: MgFilmKind): 
     'ch-lockup': '终章定版',
   };
   const useZh = plan.contentLang === 'zh';
+  const allowed = new Set<SkillName>(['launch-video', ...support]);
   const beats: MgBeat[] = SHOWREEL_CHAPTER_RECIPE.map((r, i) => {
     const prev = plan.beats[i];
     const chrome = useZh ? (zhChrome[r.job] || r.headline) : r.headline;
+    const skill = allowed.has(r.skill) ? r.skill : (support[0] || 'kinetic-typography');
     return {
       job: r.job,
       vo: '',
@@ -221,7 +225,7 @@ export function applyMgFilmRecipe<T extends MgPlan>(plan: T, kind: MgFilmKind): 
         : r.visualIntent
       ).slice(0, 160),
       keyMotion: r.keyMotion,
-      skill: r.skill,
+      skill,
       durationSec: r.durationSec,
     };
   });
@@ -229,7 +233,7 @@ export function applyMgFilmRecipe<T extends MgPlan>(plan: T, kind: MgFilmKind): 
     ...plan,
     primary: 'launch-video',
     support,
-    skills: unique(['launch-video', ...support, ...plan.skills]),
+    skills: unique(['launch-video', ...support, ...(plan.brandSkills || [])]),
     voMode: 'off',
     beats,
   };

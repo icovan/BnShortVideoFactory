@@ -1,0 +1,36 @@
+{
+ "type": "boom",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\boom\\fs-337695-transition-bass-1.wav",
+ "verdict": "ok",
+ "build_db": -15.9,
+ "start_db": -0.0,
+ "end_db": -26.9,
+ "spikiness": 1.68,
+ "dur_s": 1.691,
+ "peak_offset_s": 0.0082,
+ "rise_ms": 5.1,
+ "centroid_hz": 98,
+ "below150": 0.839,
+ "above6k": 0.0,
+ "flatness": 0.004,
+ "note": 46.0,
+ "start_floor_db": -16.3,
+ "source": {
+  "id": "337695",
+  "type": "boom",
+  "title": "Transition Bass",
+  "creator": "TheNikonProductions",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/337/337695_3019462-hq.mp3",
+  "landing": "https://freesound.org/people/TheNikonProductions/sounds/337695",
+  "k": 3,
+  "keep": [
+   0,
+   1
+  ],
+  "tags": [
+   "bass",
+   "drop"
+  ]
+ }
+}

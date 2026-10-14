@@ -5,7 +5,7 @@ import { writeFileSync, mkdirSync, copyFileSync, existsSync, readdirSync } from 
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { speak } from '../tts.ts';
-import { listFiles, newProjectDir } from '../paths.ts';
+import { listFiles, newProjectDir, OUTPUTS_DIR } from '../paths.ts';
 import { renderRemotionComposition } from '../engines/remotionBridge.ts';
 import {
   installActiveComponent,
@@ -32,7 +32,9 @@ import {
   beatsForStillVerify,
   stillIssuesNeedCodeRepair,
   verifyStillSkillBeats,
+  type StillSkillReport,
 } from '../skills/skillStillVerify.ts';
+import { emptyStillIssues } from './stillOccupancy.ts';
 import {
   lookLockLine,
   promptForcesMono,
@@ -40,16 +42,40 @@ import {
   type JobLook,
 } from './look.ts';
 import { contentLangLockLine } from './contentLang.ts';
+import { captionFragmentIssues, splitCaptionBlocks } from './captionBlocks.ts';
+import {
+  DRIVE_BEAT_MAX_SOFT_SEC,
+  assessDriveConsumption,
+  driveSceneDurationSec,
+} from './scriptDrive.ts';
 import { codegenSkillIds, craftSkillIds, type SkillPlan } from './skillPlan.ts';
 import {
+  assertSafeGoogleFonts,
   fixDirectedTsx,
   generateDirectedTsx,
   parseTsxSyntaxIssues,
+  sealDirectedSource,
   validateDirectedTsx,
 } from './remotionCodegen.ts';
+
+/** Seal before any disk write / soft-accept — fonts、位移、VO 路径、spring fps。 */
+function sealDirectedTsx(src: string): string {
+  return sealDirectedSource(src);
+}
 import type { Project, Settings } from '../../../shared/src/index.ts';
-import { buildSceneSfxTimeline, SfxPicker, type SfxCue } from '../sfx/catalog.ts';
-import { copySfxIntoProject, ensureSfxAssets, SFX_PUBLIC_DIR } from '../sfx/ensureAssets.ts';
+import {
+  buildSceneSfxTimeline,
+  reloadSfxKit,
+  sfxKitStats,
+  SfxPicker,
+  type SfxCue,
+} from '../sfx/catalog.ts';
+import {
+  copySfxIntoProject,
+  ensureSfxAssets,
+  resetSfxEnsure,
+  SFX_PUBLIC_DIR,
+} from '../sfx/ensureAssets.ts';
 import { styleLookLockLine } from './styleLook.ts';
 import {
   assetsLockLine,
@@ -57,8 +83,16 @@ import {
   type IncomingUserAsset,
   type ScreenAsset,
 } from './userAssets.ts';
+import {
+  bindNarrationScene,
+  composeNarrationDirectedSource,
+  narrationLayoutIssues,
+  usesNarrationLayouts,
+} from './narrationLayout.ts';
 
+/** @deprecated 禁止再回退 DirectedFilm stock（会出空镜）；保留常量仅防误引用 */
 const STOCK = `export { DirectedFilm as ActiveDirected } from '../DirectedFilm';\n`;
+void STOCK;
 
 /** 结构完整的叙事 TSX：宁可 soft-accept，也禁止用 DirectedFilm stock 冲掉 brief */
 function directedNarrativeContractOk(src: string): boolean {
@@ -220,14 +254,14 @@ export const ActiveDirected: React.FC<DirectedProps> = (props) => {
             : (scene.sfxCues?.length
               ? scene.sfxCues
               : scene.sfxFile
-                ? [{ file: scene.sfxFile, volume: scene.sfxVolume ?? 0.2, atSec: 0 }]
+                ? [{ file: scene.sfxFile, volume: scene.sfxVolume ?? 0.4, atSec: 0 }]
                 : []);
           return (
             <Series.Sequence key={i} durationInFrames={dur}>
               {scene.narrationFile ? <Audio src={staticFile(scene.narrationFile)} /> : null}
               {cues.map((cue, j) => (
-                <Sequence key={j} from={Math.max(0, Math.round((cue.atSec || 0) * fps))} layout="none">
-                  <Audio src={staticFile(cue.file)} volume={cue.volume ?? 0.18} />
+                <Sequence key={j} from={Math.max(0, Math.round((cue.atSec || 0) * fps))} durationInFrames={Math.max(6, Math.round(fps * 0.9))} layout="none">
+                  <Audio src={staticFile(cue.file)} volume={cue.volume ?? 0.4} />
                 </Sequence>
               ))}
               <Beat scene={scene} props={props} index={i} />
@@ -240,14 +274,12 @@ export const ActiveDirected: React.FC<DirectedProps> = (props) => {
 };
 `;
 
+/** @deprecated 仅 SRT 兜底；片内字幕用 splitCaptionBlocks */
 function wrapCaption(vo: string) {
-  const raw = vo.replace(/\s+/g, ' ').trim();
-  if (raw.length <= 16) return raw;
-  const punct = [...raw.matchAll(/[，。！？、；]/g)].map((m) => m.index ?? -1).filter((i) => i >= 8 && i < raw.length - 2);
-  const cut = punct[0];
-  if (cut != null) return `${raw.slice(0, cut + 1)}\n${raw.slice(cut + 1)}`;
-  const mid = Math.ceil(raw.length / 2);
-  return `${raw.slice(0, mid)}\n${raw.slice(mid)}`;
+  const blocks = splitCaptionBlocks(vo);
+  if (!blocks.length) return '';
+  if (blocks.length === 1) return blocks[0];
+  return `${blocks[0]}\n${blocks[1]}`;
 }
 
 function toSrt(cues: { from: number; to: number; text: string }[]) {
@@ -273,6 +305,10 @@ export type DirectedPrepareMeta = {
   styleSource?: string;
   userAssets?: IncomingUserAsset[];
   quality?: '1080p' | '720p';
+  /** UI 形态：写入 plan，决定是否可走旁白版式 */
+  formMode?: string;
+  /** 已有输出目录名（outputs 下）。配音中断后续跑时不另开文件夹。 */
+  reuseDir?: string;
 };
 
 /** prepare 阶段产物：可打包下发到 PC 壳只做 Remotion 渲染 */
@@ -294,7 +330,10 @@ export type DirectedPrepared = {
     visualIntent: string;
     keyMotion: string;
     skill: string;
+    layoutMode?: string;
     craftMust?: string[];
+    layout?: string;
+    glyphs?: string[];
     items?: string[];
     stat?: { label: string; value: number };
     narrationFile?: string;
@@ -331,6 +370,8 @@ export async function prepareDirectedHard(
   meta?: DirectedPrepareMeta,
 ): Promise<DirectedPrepared> {
   const autoSfx = meta?.autoSfx === true;
+  if (meta?.formMode) plan.formMode = meta.formMode.trim() || plan.formMode;
+  if (!plan.formMode) plan.formMode = 'prompt';
   if (meta?.styleLook || meta?.styleSource) {
     const family =
       plan.aspect === '9:16' || plan.aspect === '3:4' ? 'nextword' as const : 'launch' as const;
@@ -350,10 +391,24 @@ export async function prepareDirectedHard(
   const monoLook = promptForcesMono(
     [meta?.sourcePrompt, meta?.factoryPrompt, meta?.audiencePrompt, prompt].filter(Boolean).join('\n'),
   );
-  const { dir, dirName } = newProjectDir('directed', prompt);
+  const reuseName = meta?.reuseDir?.trim();
+  const { dir, dirName } = reuseName
+    ? { dir: join(OUTPUTS_DIR, reuseName), dirName: reuseName }
+    : newProjectDir('directed', prompt);
+  if (reuseName && !existsSync(dir)) throw new Error(`续跑目录不存在：${dir}`);
   const publicDir = join(dir, 'public');
   mkdirSync(publicDir, { recursive: true });
-  if (autoSfx) await ensureSfxAssets();
+  if (autoSfx) {
+    await ensureSfxAssets();
+    let st = reloadSfxKit();
+    if (st.clips === 0) {
+      console.error('[sfx] kit empty before timeline — retry ensureSfxAssets');
+      resetSfxEnsure();
+      await ensureSfxAssets();
+      st = reloadSfxKit();
+    }
+    console.info(`[sfx] timeline kit · ${sfxKitStats().roles} types · ${sfxKitStats().clips} clips`);
+  }
 
   const materialized = materializeUserAssets(publicDir, meta?.userAssets);
   const screenAssets: ScreenAsset[] = materialized.screen;
@@ -420,7 +475,10 @@ export async function prepareDirectedHard(
     visualIntent: string;
     keyMotion: string;
     skill: string;
+    layoutMode?: string;
     craftMust?: string[];
+    layout?: string;
+    glyphs?: string[];
     items?: string[];
     stat?: { label: string; value: number };
     narrationFile?: string;
@@ -435,6 +493,11 @@ export async function prepareDirectedHard(
   let sfxHitCount = 0;
   let voClipCount = 0;
   const voOff = plan.voMode === 'off';
+  const driveOn = plan.scriptDrive === 'verbatim' || plan.scriptDrive === 'polish';
+  const driveDurIssues: string[] = [];
+  const allCaptionBlocks: string[] = [];
+  // 有用户画面素材时强制自由 codegen（旁白版式不吃 props.assets）
+  const narrationOn = usesNarrationLayouts(plan) && screenAssets.length === 0;
   for (let i = 0; i < plan.beats.length; i++) {
     const beat = plan.beats[i];
     const voText = (beat.vo || '').trim();
@@ -450,9 +513,19 @@ export async function prepareDirectedHard(
       voClipCount += 1;
       setPipelineStep(projectId, 'voice', 'running', `TTS ${voClipCount}/${plan.beats.length}`);
     }
-    const durationSec = Number(
-      Math.max(beat.durationSec || 1.2, voText ? audioDur + VO_TAIL_SEC : beat.durationSec || 1.2).toFixed(3),
-    );
+    const timed = driveSceneDurationSec({
+      scriptDrive: plan.scriptDrive,
+      audioDur,
+      beatDurationSec: beat.durationSec,
+      hasVo: Boolean(voText),
+      voTailSec: VO_TAIL_SEC,
+    });
+    const durationSec = timed.durationSec;
+    if (timed.softLong) {
+      driveDurIssues.push(
+        `beat ${i}: VO ${audioDur.toFixed(1)}s > soft max ${DRIVE_BEAT_MAX_SOFT_SEC}s`,
+      );
+    }
     const rawCues = autoSfx
       ? buildSceneSfxTimeline({
         skill: beat.skill,
@@ -468,6 +541,10 @@ export async function prepareDirectedHard(
     const cues = rawCues.filter((c) => existsSync(join(SFX_PUBLIC_DIR, c.file.replace(/^sfx\//, ''))));
     sfxHitCount += cues.length;
     const head = cues[0];
+    const narrationBind = narrationOn ? bindNarrationScene(beat) : null;
+    const sceneItems = beat.items?.length
+      ? beat.items
+      : (narrationBind?.items?.length ? narrationBind.items : beat.items);
     scenes.push({
       job: beat.job,
       durationSec,
@@ -478,7 +555,10 @@ export async function prepareDirectedHard(
       keyMotion: beat.keyMotion,
       skill: beat.skill,
       craftMust: beat.craftMust,
-      items: beat.items,
+      ...(narrationBind
+        ? { layout: narrationBind.layout, glyphs: narrationBind.glyphs }
+        : {}),
+      items: sceneItems,
       stat: beat.stat,
       ...(narrationFile ? { narrationFile } : {}),
       ...(cues.length
@@ -491,7 +571,21 @@ export async function prepareDirectedHard(
         : {}),
     });
     if (voText) {
-      captions.push({ from: t + 0.05, to: t + Math.max(0.8, audioDur), text: wrapCaption(voText) });
+      const blocks = splitCaptionBlocks(voText);
+      allCaptionBlocks.push(...blocks);
+      const spanSec = Math.max(0.8, audioDur);
+      // 按块显示权重分配时间，避免等时切片把短英文碎块拉得过长
+      const weights = blocks.map((b) => Math.max(1, [...b.replace(/\s/g, '')].length));
+      const weightSum = weights.reduce((a, w) => a + w, 0) || 1;
+      let acc = 0;
+      blocks.forEach((text, bi) => {
+        const from = t + 0.05 + (acc / weightSum) * spanSec;
+        acc += weights[bi];
+        const to = bi === blocks.length - 1
+          ? t + spanSec
+          : Math.min(t + spanSec, t + 0.05 + (acc / weightSum) * spanSec);
+        captions.push({ from, to, text });
+      });
     }
     t += durationSec;
   }
@@ -501,32 +595,26 @@ export async function prepareDirectedHard(
   if (userMusic) {
     musicFile = userMusic;
   }
-  if (plan.primary === 'launch-video' && !userMusic) {
+  // launch-video 仅在有旁白或用户上传配乐时才合成/混 bed；无旁白展片只用 SFX，避免空白 bed.mp3
+  if (plan.primary === 'launch-video' && !userMusic && !voOff && concatList.length) {
     dropSec = Number(scenes.slice(0, 2).reduce((a, s) => a + s.durationSec, 0).toFixed(2));
     const bedAbs = join(publicDir, 'bed.mp3');
     synthesizeLaunchBed(bedAbs, t, 120, dropSec);
     musicFile = 'bed.mp3';
-    if (concatList.length) {
-      const padded: string[] = [];
-      for (let i = 0; i < scenes.length; i++) {
-        const nf = scenes[i].narrationFile;
-        if (!nf) continue;
-        const src = join(publicDir, nf);
-        if (!existsSync(src)) continue;
-        const padOut = join(publicDir, `vo-pad-${i}.mp3`);
-        padAudioToDuration(src, padOut, scenes[i].durationSec);
-        padded.push(padOut);
-      }
-      if (padded.length) {
-        const fullNarr = join(dir, 'narration-vo.mp3');
-        concatMp3List(padded, join(dir, 'concat-vo.txt'), fullNarr);
-        mixLaunchAudio({ bed: bedAbs, narration: fullNarr, out: join(dir, 'narration.mp3') });
-      } else {
-        copyFileSync(bedAbs, join(dir, 'narration.mp3'));
-      }
-    } else {
-      // 无旁白：成片音轨只用 bed，镜长仍由 durationSec 驱动画面
-      copyFileSync(bedAbs, join(dir, 'narration.mp3'));
+    const padded: string[] = [];
+    for (let i = 0; i < scenes.length; i++) {
+      const nf = scenes[i].narrationFile;
+      if (!nf) continue;
+      const src = join(publicDir, nf);
+      if (!existsSync(src)) continue;
+      const padOut = join(publicDir, `vo-pad-${i}.mp3`);
+      padAudioToDuration(src, padOut, scenes[i].durationSec);
+      padded.push(padOut);
+    }
+    if (padded.length) {
+      const fullNarr = join(dir, 'narration-vo.mp3');
+      concatMp3List(padded, join(dir, 'concat-vo.txt'), fullNarr);
+      mixLaunchAudio({ bed: bedAbs, narration: fullNarr, out: join(dir, 'narration.mp3') });
     }
   } else if (concatList.length) {
     const listFile = join(dir, 'concat.txt');
@@ -559,6 +647,7 @@ export async function prepareDirectedHard(
     accent: plan.look.accent,
     muted: plan.look.muted,
     brandBg: plan.look.brandBg,
+    ...(narrationOn ? { material: plan.look.motionNotes || '' } : {}),
     primary: plan.primary,
     skills: plan.skills,
     coreIdea: plan.coreIdea,
@@ -566,6 +655,11 @@ export async function prepareDirectedHard(
     dropSec,
     musicFile,
     autoSfx,
+    /** Agent 全幅默认；a2e Stage 壳仅实验 opt-in */
+    a2eCanvas: false,
+    a2eHud: false,
+    ...(plan.mainTechnique ? { mainTechnique: plan.mainTechnique } : {}),
+    ...(plan.motifLock?.continuousPage ? { motifLock: plan.motifLock } : {}),
     assets: screenAssets.length ? screenAssets : undefined,
     scenes,
     captions,
@@ -583,21 +677,86 @@ export async function prepareDirectedHard(
     'utf8',
   );
 
+  // 旁白驱动软门禁：结构 / 镜长 / skill 消耗 / 字幕；不阻断出片，不影响无旁白
+  if (driveOn) {
+    const consumeIssues = assessDriveConsumption({
+      beats: scenes.map((s) => ({
+        skill: s.skill,
+        durationSec: s.durationSec,
+        vo: s.vo,
+      })),
+    });
+    const issues = [
+      ...(plan.driveIssues || []),
+      ...driveDurIssues,
+      ...consumeIssues,
+      ...captionFragmentIssues(allCaptionBlocks),
+    ].slice(0, 48);
+    const skillSet = new Set(scenes.map((s) => s.skill).filter(Boolean));
+    writeSkillGateReport(dir, 'gate-drive.json', {
+      ok: issues.filter((x) => /consecutive same skill|dominates|overlong|thin one-liner/i.test(x)).length === 0,
+      scriptDrive: plan.scriptDrive,
+      voBeats: plan.beats.length,
+      shotCount: scenes.length,
+      skillVariety: skillSet.size,
+      skills: [...skillSet],
+      issues,
+    });
+  }
+
   const propsPath = join(dir, 'props.json');
   const stillsDir = join(dir, 'stills');
   const finalMp4 = join(dir, 'final.mp4');
   const propsStr = JSON.stringify(props, null, 2);
+
+  if (narrationOn) {
+    const tsx = composeNarrationDirectedSource();
+    const layoutIssues = [
+      ...narrationLayoutIssues(tsx, scenes),
+      ...parseTsxSyntaxIssues(tsx, 'ActiveDirected.tsx'),
+    ];
+    if (layoutIssues.length) {
+      throw new Error(`旁白版式未接上：${layoutIssues.slice(0, 4).join('; ')}`);
+    }
+    const skillGate = { ok: true, issues: [] as string[] };
+    writeFileSync(join(dir, 'ActiveDirected.tsx'), tsx, 'utf8');
+    writeSkillGateReport(dir, 'gate-skills.json', skillGate);
+    writeSkillGateReport(dir, 'skill-depth.json', {
+      ok: true,
+      score: scenes.length,
+      max: scenes.length,
+      issues: [],
+      narrationLayout: true,
+      layouts: scenes.map((s) => ({ job: s.job, layout: s.layout, glyphs: s.glyphs })),
+    });
+    setPipelineStep(projectId, 'build', 'done', `旁白版式 · ${scenes.length} 镜 · ${contentLang}`);
+    return {
+      dir,
+      dirName,
+      plan,
+      props: props as Record<string, unknown>,
+      propsPath,
+      publicDir,
+      stillsDir,
+      finalMp4,
+      scenes,
+      totalSec,
+      tsx,
+      usedCodegen: false,
+      usedStickmanPoseFloor: false,
+      skillGate,
+      contentLang,
+    };
+  }
 
   const craftIds = craftSkillIds(plan);
   const codegenIds = codegenSkillIds(plan);
   const sceneCount = Math.max(props.scenes?.length || 0, plan.beats?.length || 0, 1);
   const assetFiles = screenAssets.map((a) => a.file).filter((f) => Boolean(f));
   const validateTsx = (src: string) =>
-    validateDirectedTsx(src, craftIds, contentLang, plan.aspect, sceneCount, assetFiles);
-  const revealFamilyBlocked = (issues: string[]) =>
-    issues.some((i) => i.startsWith('reveal families'));
+    validateDirectedTsx(src, craftIds, contentLang, plan.aspect, sceneCount, assetFiles, plan.voMode === 'off' ? [] : scenes.map((s) => s.durationSec));
   setPipelineStep(projectId, 'build', 'running', `codegen · ${craftIds.join('+')} · ${contentLang}`);
-  let tsx = await generateDirectedTsx(settings, {
+  let tsx = sealDirectedTsx(await generateDirectedTsx(settings, {
     prompt,
     propsJson: propsStr,
     skillIds: codegenIds,
@@ -618,31 +777,17 @@ export async function prepareDirectedHard(
         ? 'MONO HARD LOCK: black ink on paper only — no red/purple/neon accent fills, no collage color wipes.'
         : '',
     ].filter(Boolean).join('\n'),
-  });
+  }));
+  // 导演松绑：硬失败仅工程底线（可编译 / export / remotion 接线）；skill 指纹与深度只记录警告
   let codeIssues = validateTsx(tsx);
   let skillGate = assertSkillsInTsx(codegenIds, tsx, { hardIds: craftIds });
   let depthGate = scoreSkillDepth(tsx, craftIds, plan.beats);
-  if (codeIssues.length || !skillGate.ok) {
-    tsx = await fixDirectedTsx(settings, {
+  if (codeIssues.length) {
+    tsx = sealDirectedTsx(await fixDirectedTsx(settings, {
       source: tsx,
-      error: [...codeIssues, ...skillGate.issues].join('; '),
+      error: codeIssues.join('; '),
       propsJson: propsStr,
-    });
-    codeIssues = validateTsx(tsx);
-    skillGate = assertSkillsInTsx(codegenIds, tsx, { hardIds: craftIds });
-    depthGate = scoreSkillDepth(tsx, craftIds, plan.beats);
-  }
-  // P1: depth below bar → one repair; still failing blocks soft-accept later
-  if (!codeIssues.length && skillGate.ok && !depthGate.ok && depthGate.issues.length) {
-    tsx = await fixDirectedTsx(settings, {
-      source: tsx,
-      error: [
-        'CRAFT DEPTH repair — implement assigned scene.skill techniques deeply:',
-        ...depthGate.issues,
-        'Rotate reveal families; honor each beat craftMust',
-      ].join('; '),
-      propsJson: propsStr,
-    });
+    }));
     codeIssues = validateTsx(tsx);
     skillGate = assertSkillsInTsx(codegenIds, tsx, { hardIds: craftIds });
     depthGate = scoreSkillDepth(tsx, craftIds, plan.beats);
@@ -654,46 +799,35 @@ export async function prepareDirectedHard(
     && /(Series|Sequence)/.test(src)
     && !/const\s+Stickman\s*[:=]|function\s+Stickman\b/.test(src);
 
-  // 质量地板：校验+门禁+深度都过才算 codegen（stickman 仍可 soft）
-  let usedCodegen = codeIssues.length === 0 && skillGate.ok
-    && (craftIds.includes('stickman-animation') || plan.primary === 'stickman-animation' || depthGate.ok);
+  let usedCodegen = codeIssues.length === 0;
   let usedStickmanPoseFloor = false;
   let softAccepted = false;
   if (!usedCodegen) {
     if (stickmanJob) {
-      // 再修一轮，尽量保住 slapstick / Chaplin / skill-demo 分镜
-      tsx = await fixDirectedTsx(settings, {
+      tsx = sealDirectedTsx(await fixDirectedTsx(settings, {
         source: tsx,
-        error: [...codeIssues, ...skillGate.issues, 'stickman: keep brief staging; use props.canvas/ink; optional titles only'].join('; '),
+        error: [...codeIssues, 'stickman: keep brief staging; use props.canvas/ink; optional titles only'].join('; '),
         propsJson: propsStr,
-      });
+      }));
       codeIssues = validateTsx(tsx);
       skillGate = assertSkillsInTsx(codegenIds, tsx, { hardIds: craftIds });
-      usedCodegen = codeIssues.length === 0 && skillGate.ok;
-      if (!usedCodegen && stickmanContractOk(tsx) && parseTsxSyntaxIssues(tsx).length === 0
-        && !revealFamilyBlocked(codeIssues)) {
-        // Soft-accept: figure contract met — do not wipe narrative into pose-floor
+      usedCodegen = codeIssues.length === 0;
+      if (!usedCodegen && stickmanContractOk(tsx) && parseTsxSyntaxIssues(tsx).length === 0) {
         usedCodegen = true;
         softAccepted = true;
       } else if (!usedCodegen) {
         const syn = parseTsxSyntaxIssues(tsx);
         if (syn.length && stickmanContractOk(tsx)) {
-          tsx = await fixDirectedTsx(settings, {
+          tsx = sealDirectedTsx(await fixDirectedTsx(settings, {
             source: tsx,
             error: `${syn.join('; ')}; FIX SYNTAX ONLY — keep stickman Series/poses`,
             propsJson: propsStr,
-          });
+          }));
           codeIssues = validateTsx(tsx);
-          if (stickmanContractOk(tsx) && parseTsxSyntaxIssues(tsx).length === 0
-            && !revealFamilyBlocked(codeIssues)) {
+          if (stickmanContractOk(tsx) && parseTsxSyntaxIssues(tsx).length === 0) {
             usedCodegen = true;
             softAccepted = true;
           }
-        }
-        if (!usedCodegen && revealFamilyBlocked(codeIssues)) {
-          throw new Error(
-            `ActiveDirected 揭示族不足（禁止 soft-accept / stock）：${codeIssues.filter((i) => i.startsWith('reveal families')).join('; ')}`,
-          );
         }
         if (!usedCodegen) {
           tsx = STICKMAN_STOCK;
@@ -704,54 +838,50 @@ export async function prepareDirectedHard(
         }
       }
     } else {
-      // P0: 非 stickman — 技法/深度失败禁止 soft-accept；只允许修语法后仍须过门禁
-      tsx = await fixDirectedTsx(settings, {
+      tsx = sealDirectedTsx(await fixDirectedTsx(settings, {
         source: tsx,
         error: [
           ...codeIssues,
-          ...skillGate.issues,
-          ...depthGate.issues,
-          'final repair: keep THIS brief narrative and selected skill techniques — do NOT re-export DirectedFilm',
-          'rotate reveal families mask/blur/clip/slam across beats — forbid spring+translateY-only',
+          'repair engineering only: keep THIS brief; respect props.canvas/aspect zone; do NOT re-export DirectedFilm',
         ].join('; '),
         propsJson: propsStr,
-      });
+      }));
       codeIssues = validateTsx(tsx);
       skillGate = assertSkillsInTsx(codegenIds, tsx, { hardIds: craftIds });
       depthGate = scoreSkillDepth(tsx, craftIds, plan.beats);
-      usedCodegen = codeIssues.length === 0 && skillGate.ok && depthGate.ok;
+      usedCodegen = codeIssues.length === 0;
       if (!usedCodegen) {
-        if (revealFamilyBlocked(codeIssues)) {
-          throw new Error(
-            `ActiveDirected 揭示族不足（禁止 soft-accept / stock）：${codeIssues.filter((i) => i.startsWith('reveal families')).join('; ')}`,
-          );
-        }
+        tsx = sealDirectedTsx(tsx);
         const syn = parseTsxSyntaxIssues(tsx);
+        const fontHard = assertSafeGoogleFonts(tsx);
+        writeFileSync(join(dir, 'ActiveDirected.tsx'), tsx, 'utf8');
+        writeFileSync(join(dir, 'ActiveDirected.syntax-fail.tsx'), tsx, 'utf8');
         if (syn.length) {
-          throw new Error(`ActiveDirected 语法错误（禁止 soft-accept）：${syn.slice(0, 3).join('; ')}`);
+          throw new Error(`ActiveDirected 语法错误：${syn.slice(0, 3).join('; ')}`);
         }
-        if (!skillGate.ok || !depthGate.ok) {
-          throw new Error(
-            `技能技法未落地（禁止 soft-accept）：${[...skillGate.issues, ...depthGate.issues].slice(0, 6).join('; ')}`,
-          );
+        if (fontHard.length) {
+          throw new Error(`ActiveDirected 字体不安全：${fontHard.slice(0, 3).join('; ')}`);
         }
-        if (!directedNarrativeContractOk(tsx)) {
-          tsx = STOCK;
+        // 一镜一组件缺失 / Math.min 钳位：禁止 soft-accept（否则后半段固定版式）
+        const beatHard = codeIssues.filter((x) => /beat (recycle|clamp|coverage)/i.test(x));
+        if (beatHard.length) {
+          throw new Error(`ActiveDirected 分镜组件不足：${beatHard.slice(0, 3).join('; ')}`);
+        }
+        // 禁止用 DirectedFilm stock 假成功（空镜主因）；语法过关 + 叙事合约过关才 soft-accept
+        if (directedNarrativeContractOk(tsx)) {
+          usedCodegen = true;
+          softAccepted = true;
         } else {
           throw new Error(
-            `ActiveDirected 校验未通过（禁止 soft-accept）：${codeIssues.slice(0, 4).join('; ') || 'validate failed'}`,
+            `ActiveDirected 工程校验未通过：${codeIssues.slice(0, 4).join('; ') || 'validate failed'}`,
           );
         }
       }
     }
   }
-  // P1: depth must pass for skill-directed (stickman soft path may still skip)
+  // skill / depth：只落盘报告，不再禁止出片
+  tsx = sealDirectedTsx(tsx);
   depthGate = scoreSkillDepth(tsx, craftIds, plan.beats);
-  if (!stickmanJob && usedCodegen && !usedStickmanPoseFloor && !depthGate.ok) {
-    throw new Error(
-      `技能深度不足（禁止出片）：${depthGate.score}/${depthGate.max} · ${depthGate.issues.slice(0, 4).join('; ')}`,
-    );
-  }
   writeFileSync(join(dir, 'ActiveDirected.tsx'), tsx, 'utf8');
   writeSkillGateReport(dir, 'gate-skills.json', skillGate);
   writeSkillGateReport(dir, 'skill-depth.json', {
@@ -792,6 +922,21 @@ export async function prepareDirectedHard(
   };
 }
 
+function withEmptyFrames(
+  report: StillSkillReport,
+  stillsDir: string,
+  opts?: { narration?: boolean },
+): StillSkillReport {
+  const extra = emptyStillIssues(stillsDir, opts);
+  if (!extra.length) return report;
+  return {
+    ...report,
+    ok: false,
+    hardIssues: [...report.hardIssues, ...extra],
+    issues: [...report.issues, ...extra],
+  };
+}
+
 /** 本机 Remotion 渲染（PC 壳）；不再读技能包 / 不再调 LLM */
 export async function renderPreparedDirected(
   projectId: string,
@@ -804,6 +949,7 @@ export async function renderPreparedDirected(
   } = prep;
   let { tsx, usedCodegen, usedStickmanPoseFloor } = prep;
   const stickmanJob = plan.skills.includes('stickman-animation') || plan.primary === 'stickman-animation';
+  const narrationFilm = /narration-layout/.test(tsx);
   const quality = prep.props.quality === '720p' ? '720p' as const : '1080p' as const;
   const propsStr = JSON.stringify(prep.props, null, 2);
   const settings = opts?.settings;
@@ -840,23 +986,20 @@ export async function renderPreparedDirected(
                 ? 'FIX: AbsoluteFill→Series→Series.Sequence per scene; Stickman pose must be POSES.*/lerpPose/idleBob/ensurePose (never undefined); keep props.canvas/ink and brief staging — do NOT swap to a generic pose demo.'
                 : '',
             ].filter(Boolean).join('\n');
-            tsx = await fixDirectedTsx(settings, { source: tsx, error: repairHint, propsJson: propsStr });
+            tsx = sealDirectedTsx(await fixDirectedTsx(settings, { source: tsx, error: repairHint, propsJson: propsStr }));
             writeFileSync(join(dir, 'ActiveDirected.tsx'), tsx, 'utf8');
             writeFileSync(join(dir, `ActiveDirected.repair-${attempt + 1}.tsx`), tsx, 'utf8');
             installActiveComponent('directed', tsx);
             continue;
           }
           usedCodegen = false;
-          if (stickmanJob) {
-            writeFileSync(join(dir, 'ActiveDirected.pre-floor.tsx'), tsx, 'utf8');
-            tsx = STICKMAN_STOCK;
-            usedStickmanPoseFloor = true;
-          } else if (directedNarrativeContractOk(tsx)) {
-            // 叙事 TSX 仍在：暴露真实渲染错误，禁止用 DirectedFilm stock 假成功
+          if (!stickmanJob) {
+            // 禁止回退 DirectedFilm stock（空镜主因：只有标题/字幕、中间无隐喻）
             throw err instanceof Error ? err : new Error(msg);
-          } else {
-            tsx = STOCK;
           }
+          writeFileSync(join(dir, 'ActiveDirected.pre-floor.tsx'), tsx, 'utf8');
+          tsx = STICKMAN_STOCK;
+          usedStickmanPoseFloor = true;
           writeFileSync(join(dir, 'ActiveDirected.tsx'), tsx, 'utf8');
           installActiveComponent('directed', tsx);
           await renderRemotionComposition({
@@ -881,13 +1024,13 @@ export async function renderPreparedDirected(
       const craftIds = craftSkillIds(plan);
       const softStill = stickmanJob || usedStickmanPoseFloor;
       const stillBeats = beatsForStillVerify(plan.beats, scenes);
-      let stillReport = verifyStillSkillBeats({
+      let stillReport = withEmptyFrames(verifyStillSkillBeats({
         stillsDir,
         tsx,
         beats: stillBeats,
         craftIds,
         soft: softStill,
-      });
+      }), stillsDir, { narration: narrationFilm });
       // Only fingerprint misses need LLM repair — coverage/sampling cannot be fixed by rewriting TSX
       if (
         !stillReport.ok
@@ -896,45 +1039,72 @@ export async function renderPreparedDirected(
         && settings
         && usedCodegen
         && !usedStickmanPoseFloor
+        && !narrationFilm
       ) {
         setPipelineStep(projectId, 'inspect', 'running', 'still skill repair');
-        tsx = await fixDirectedTsx(settings, {
-          source: tsx,
-          error: [
-            'STILL SKILL GATE — implement assigned beat skills so fingerprints appear in ActiveDirected:',
-            ...stillReport.hardIssues,
-            'Keep THIS brief narrative; rotate reveal families; do NOT re-export DirectedFilm',
-          ].join('; '),
-          propsJson: propsStr,
-        });
-        writeFileSync(join(dir, 'ActiveDirected.tsx'), tsx, 'utf8');
-        writeFileSync(join(dir, 'ActiveDirected.still-repair.tsx'), tsx, 'utf8');
-        installActiveComponent('directed', tsx);
-        await renderRemotionComposition({
-          compositionId: 'GeneratedDirected',
-          propsPath,
-          outMp4: finalMp4,
-          publicDir,
-          stillsDir,
-          scenes,
-          probeRes: probeResFor(plan.aspect, quality),
-          phases: ['stills'],
-          onPhase: (phase, detail) => setPipelineStep(projectId, phase === 'stills' ? 'stills' : 'encode', 'running', detail),
-        });
-        buildContactSheet(stillsDir, join(dir, 'contact-sheet.png'));
-        stillReport = verifyStillSkillBeats({
-          stillsDir,
-          tsx,
-          beats: stillBeats,
-          craftIds,
-          soft: softStill,
-        });
+        try {
+          tsx = sealDirectedTsx(await fixDirectedTsx(settings, {
+            source: tsx,
+            error: [
+              'STILL SKILL GATE — implement assigned beat skills so fingerprints appear in ActiveDirected:',
+              ...stillReport.hardIssues,
+              'Keep THIS brief narrative; rotate reveal families; do NOT re-export DirectedFilm',
+            ].join('; '),
+            propsJson: propsStr,
+          }));
+          writeFileSync(join(dir, 'ActiveDirected.tsx'), tsx, 'utf8');
+          writeFileSync(join(dir, 'ActiveDirected.still-repair.tsx'), tsx, 'utf8');
+          installActiveComponent('directed', tsx);
+          await renderRemotionComposition({
+            compositionId: 'GeneratedDirected',
+            propsPath,
+            outMp4: finalMp4,
+            publicDir,
+            stillsDir,
+            scenes,
+            probeRes: probeResFor(plan.aspect, quality),
+            phases: ['stills'],
+            onPhase: (phase, detail) => setPipelineStep(projectId, phase === 'stills' ? 'stills' : 'encode', 'running', detail),
+          });
+          buildContactSheet(stillsDir, join(dir, 'contact-sheet.png'));
+          stillReport = withEmptyFrames(verifyStillSkillBeats({
+            stillsDir,
+            tsx,
+            beats: stillBeats,
+            craftIds,
+            soft: softStill,
+          }), stillsDir, { narration: narrationFilm });
+        } catch (repairErr) {
+          // 402 / 欠费等：验收修补可跳过，默认继续 encode（空镜硬门禁仍拦）
+          const msg = repairErr instanceof Error ? repairErr.message : String(repairErr);
+          const billing = /402|insufficient balance|欠费|余额不足|quota|billing/i.test(msg);
+          setPipelineStep(
+            projectId,
+            'inspect',
+            'running',
+            billing
+              ? `still repair skipped (billing) · continue encode`
+              : `still repair skipped · ${msg.slice(0, 80)}`,
+          );
+          if (!billing) {
+            // 非账单类仍允许继续出片，但记入 soft issues
+            stillReport = {
+              ...stillReport,
+              issues: [...(stillReport.issues || []), `still repair skipped: ${msg.slice(0, 160)}`].slice(0, 24),
+            };
+          } else {
+            stillReport = {
+              ...stillReport,
+              issues: [...(stillReport.issues || []), 'still repair skipped: insufficient balance'].slice(0, 24),
+            };
+          }
+        }
       }
       writeSkillGateReport(dir, 'inspect-stills-skill.json', stillReport);
-      if (!stillReport.ok && !softStill) {
-        throw new Error(
-          `抽帧技能未落地（禁止出片）：${stillReport.hardIssues.slice(0, 5).join('; ') || stillReport.issues.slice(0, 5).join('; ')}`,
-        );
+      // 空镜硬拦（含 title/caption 中空）；技能指纹未命中只警告
+      const emptyFrameHard = stillReport.hardIssues.filter((i) => /empty|blank|occupancy|no still/i.test(i));
+      if (emptyFrameHard.length && !softStill) {
+        throw new Error(`抽帧空镜（禁止出片）：${emptyFrameHard.slice(0, 5).join('; ')}`);
       }
 
       const stillFiles = existsSync(stillsDir) ? readdirSync(stillsDir).filter((f) => f.endsWith('.png')) : [];

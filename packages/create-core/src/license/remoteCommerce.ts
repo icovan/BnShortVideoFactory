@@ -1,17 +1,63 @@
 /**
  * 对接管理后台商业化 API（激活核销 / 公开站点配置）
- * 基址：BN_COMMERCE_URL 或 BIUNOW_COMMERCE_URL
+ * 基址优先序：环境变量 → config/commerce.json
  */
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { LocalLicenseFile, PublicAppSite } from '../../../shared/src/index.ts';
 import { siteLocalePack, type SiteSettings } from '../../../shared/src/index.ts';
+import {
+  defaultCreateCatalog,
+  type CreateCatalog,
+  type CreateCase,
+  type CreateFormType,
+  type CreatePrompt,
+  isUnmanagedFormTypeId,
+} from '../../../shared/src/createCatalog.ts';
+
+/** packages/create-core/src/license → 仓库根 */
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
+
+let cachedCommerceFileUrl: string | undefined;
+
+function commerceJsonCandidates(): string[] {
+  const fromEnv = (process.env.BIUNOW_COMMERCE_CONFIG || '').trim();
+  const root = (process.env.BIUNOW_ROOT || '').trim() || REPO_ROOT;
+  return [
+    fromEnv,
+    join(root, 'config', 'commerce.json'),
+    join(REPO_ROOT, 'config', 'commerce.json'),
+  ].filter(Boolean);
+}
+
+/** 读正式包打入的管理端地址（可被环境变量覆盖） */
+function readCommerceJsonUrl(): string {
+  if (cachedCommerceFileUrl !== undefined) return cachedCommerceFileUrl;
+  try {
+    for (const p of commerceJsonCandidates()) {
+      if (!existsSync(p)) continue;
+      const j = JSON.parse(readFileSync(p, 'utf8')) as { url?: string };
+      cachedCommerceFileUrl = String(j?.url || '').trim().replace(/\/$/, '');
+      return cachedCommerceFileUrl;
+    }
+    cachedCommerceFileUrl = '';
+    return '';
+  } catch {
+    cachedCommerceFileUrl = '';
+    return '';
+  }
+}
 
 export function commerceBaseUrl(): string {
-  return (
+  const fromEnv = (
     process.env.BN_COMMERCE_URL
     || process.env.BIUNOW_COMMERCE_URL
     || process.env.FACTORY_COMMERCE_URL
     || ''
   ).trim().replace(/\/$/, '');
+  if (fromEnv) return fromEnv;
+  return readCommerceJsonUrl();
 }
 
 async function fetchJson<T>(
@@ -189,46 +235,90 @@ export async function remotePublicWorkflows(): Promise<unknown[]> {
   }
 }
 
-export type RemoteTemplateShelf = {
-  cases: unknown[];
-  categories: { id: string; label: string; sort?: number }[];
-  showTemplateShelf: boolean;
-};
+function normalizePrompt(raw: unknown, index: number): CreatePrompt | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const p = raw as Partial<CreatePrompt>;
+  const id = String(p.id || '').trim() || `p-${index}`;
+  const lang = p.lang === 'en' ? 'en' : 'zh';
+  const body = String(p.body || '').trim();
+  if (!body) return null;
+  if (p.enabled === false) return null;
+  return {
+    id,
+    lang,
+    body,
+    sort: typeof p.sort === 'number' ? p.sort : index,
+    enabled: true,
+  };
+}
 
-/** 拉取已发布模板货架（管理后台 cases + 分类 + 开关） */
-export async function remotePublicCases(): Promise<RemoteTemplateShelf> {
-  const empty: RemoteTemplateShelf = { cases: [], categories: [], showTemplateShelf: false };
+function normalizeCase(raw: unknown, index: number): CreateCase | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const c = raw as Partial<CreateCase>;
+  const id = String(c.id || '').trim();
+  if (!id || c.enabled === false) return null;
+  const prompts = (Array.isArray(c.prompts) ? c.prompts : [])
+    .map((p, i) => normalizePrompt(p, i))
+    .filter((p): p is CreatePrompt => !!p)
+    .sort((a, b) => a.sort - b.sort);
+  return {
+    id,
+    titleZh: String(c.titleZh || c.id || '').trim() || id,
+    titleEn: String(c.titleEn || c.titleZh || c.id || '').trim() || id,
+    sort: typeof c.sort === 'number' ? c.sort : index,
+    enabled: true,
+    prompts,
+  };
+}
+
+function normalizeType(raw: unknown, index: number): CreateFormType | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const t = raw as Partial<CreateFormType>;
+  const id = String(t.id || '').trim();
+  if (!id || isUnmanagedFormTypeId(id) || t.enabled === false) return null;
+  const cases = (Array.isArray(t.cases) ? t.cases : [])
+    .map((c, i) => normalizeCase(c, i))
+    .filter((c): c is CreateCase => !!c)
+    .sort((a, b) => a.sort - b.sort);
+  return {
+    id,
+    labelZh: String(t.labelZh || id).trim() || id,
+    labelEn: String(t.labelEn || t.labelZh || id).trim() || id,
+    tipZh: String(t.tipZh || '').trim(),
+    tipEn: String(t.tipEn || '').trim(),
+    sort: typeof t.sort === 'number' ? t.sort : index,
+    enabled: true,
+    cases,
+    updatedAt: String(t.updatedAt || '').trim() || new Date().toISOString(),
+  };
+}
+
+/** 拉取创作目录（类型 → 案例 → 提示词）；失败回落官方种子 */
+export async function remoteCreateCatalog(): Promise<CreateCatalog> {
+  const fallback = defaultCreateCatalog();
   const base = commerceBaseUrl();
-  if (!base) return empty;
+  if (!base) return fallback;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 12_000);
   try {
-    const res = await fetch(`${base}/api/public/cases`, {
+    const res = await fetch(`${base}/api/public/create-catalog`, {
       signal: ctrl.signal,
       headers: { Accept: 'application/json', 'User-Agent': 'BnShortVideoFactory' },
     });
-    if (!res.ok) return empty;
+    if (!res.ok) return fallback;
     const data = await res.json();
-    // 旧版返回纯数组：无开关/分类，默认不展示货架
-    if (Array.isArray(data)) {
-      return { cases: data, categories: [], showTemplateShelf: false };
-    }
-    if (data && typeof data === 'object') {
-      const cases = Array.isArray((data as { cases?: unknown[] }).cases)
-        ? (data as { cases: unknown[] }).cases
-        : [];
-      const categories = Array.isArray((data as { categories?: unknown[] }).categories)
-        ? ((data as { categories: { id: string; label: string; sort?: number }[] }).categories)
-        : [];
-      return {
-        cases,
-        categories,
-        showTemplateShelf: (data as { showTemplateShelf?: boolean }).showTemplateShelf === true,
-      };
-    }
-    return empty;
+    if (!data || typeof data !== 'object') return fallback;
+    const types = (Array.isArray((data as CreateCatalog).types) ? (data as CreateCatalog).types : [])
+      .map((t, i) => normalizeType(t, i))
+      .filter((t): t is CreateFormType => !!t)
+      .sort((a, b) => a.sort - b.sort);
+    if (!types.length) return fallback;
+    return {
+      types,
+      updatedAt: String((data as CreateCatalog).updatedAt || '').trim() || new Date().toISOString(),
+    };
   } catch {
-    return empty;
+    return fallback;
   } finally {
     clearTimeout(timer);
   }

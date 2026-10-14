@@ -1,0 +1,34 @@
+{
+ "type": "shimmer",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\shimmer\\fs-462095-sparkling-star-01-wav-2.wav",
+ "verdict": "ok",
+ "build_db": -27.4,
+ "start_db": -0.0,
+ "end_db": -34.7,
+ "spikiness": 1.2,
+ "dur_s": 1.962,
+ "peak_offset_s": 0.055,
+ "rise_ms": 36.7,
+ "centroid_hz": 5779,
+ "below150": 0.0,
+ "above6k": 0.476,
+ "flatness": 0.074,
+ "note": 99.1,
+ "start_floor_db": -8.0,
+ "source": {
+  "id": "462095",
+  "type": "shimmer",
+  "title": "Sparkling Star 01.wav",
+  "creator": "MATRIXXX_",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/462/462095_6142149-hq.mp3",
+  "landing": "https://freesound.org/people/MATRIXXX_/sounds/462095",
+  "k": 3,
+  "keep": [
+   1
+  ],
+  "tags": [
+   "sparkle"
+  ]
+ }
+}

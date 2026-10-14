@@ -99,6 +99,7 @@ Rules:
 - If the ask includes a URL EXTRACT RESULTS / USER PAGE block, treat that as the primary source document for VO and on-screen facts — do not invent conflicting page content.
 - Do NOT invent a competing brand palette if they already named one.
 - A name-drop of 火柴人 / stickman / Manim inside narration, source docs, or a feature list is subject matter. Do NOT ask for stickman actors or a Manim film unless the user's own instruction says to produce that way (用火柴人 / 用 Manim / 火柴人风格 / Manim 风格).
+- If the user numbered distinct shots (第1镜, 第2镜…), keep every shot. Do not merge them into one explainer, and do not cap the accent at 10% of the frame.
 - One core message. Tone = 3 adjectives + "but not".
 - Locked aspect is ${aspect}.
 - Name likely primary skill from: ${PRIMARY_SKILLS.filter((s) => s !== 'manim').join(', ')}.

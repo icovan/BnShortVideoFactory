@@ -94,7 +94,8 @@ export function lookLockLine(look: JobLook) {
   return `JOB LOOK LOCK: surface=${look.surface} energy=${look.energy} canvas=${look.canvas} ink=${look.ink} accent=${look.accent} muted=${look.muted} highlight=${look.highlight} brandBg=${look.brandBg}. ${look.motionNotes}
 Use these colors in every scene (AbsoluteFill background = canvas). Do NOT fall back to Linear / PageOn / sandwich chrome unless the brief names them.
 If stickman-animation is on: capsule body ink = ink (or contrast vs canvas) — white on dark, dark on light. Never hardcode #000 canvas when this look says otherwise.
-Craft floor (canvas/motion): spring kinetic, large hero type, perspective/layered depth, drawn reveals when needed — the SKIN is this look.`;
+MATERIAL: draw what motionNotes name (halftone dots, brush ink, paper grain, clay, glow, device chrome). Pick a typeface that matches that material. Inter is only the fallback when the notes ask for a plain grotesque.
+COMPOSITION: each beat invents a unique full-frame picture from its visualIntent — layered depth, one accent grammar. Skills decorate the metaphor; they do not erase it into a generic node card.`;
 }
 
 /** 提示词明确要求单色 / 木刻 / 禁止彩色时，设计参考不得注入高饱和 accent */
@@ -143,17 +144,34 @@ function greyBetween(a: string, b: string, t = 0.45): string {
 /**
  * 设计参考锁皮 × 提示词 brief look。
  * 单色/木刻等硬约束时：只借参考的纸色/墨色明度，丢掉高彩 accent 与 collage motionNotes。
+ * paletteOnly：风格预设已锁技法语气时，参考图只覆盖色板 hex / surface。
  */
 export function reconcileStyleLook(
   briefLook: JobLook,
   styleLook: JobLook | undefined,
   texts: string[],
   family: LookFamily,
+  opts?: { paletteOnly?: boolean },
 ): JobLook {
   const brief = normalizeLook(briefLook, family);
   if (!styleLook) return brief;
   const style = normalizeLook(styleLook, family);
   const blob = texts.filter(Boolean).join('\n');
+
+  if (opts?.paletteOnly) {
+    return normalizeLook({
+      ...brief,
+      canvas: style.canvas,
+      ink: style.ink,
+      accent: style.accent,
+      muted: style.muted,
+      highlight: style.highlight,
+      bar: style.bar,
+      brandBg: style.brandBg,
+      surface: style.surface,
+    }, family);
+  }
+
   if (!promptForcesMono(blob)) {
     // 参考图仍可锁皮；若 brief 已写清 motionNotes 且更贴题，保留 brief 的 motion 句
     const keepBriefMotion =

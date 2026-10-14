@@ -15,7 +15,7 @@ import {
 } from '../../packages/create-core/src/skills/skillCompanion'
 import { SOFT_CRAFT_SKILLS, assertSkillsInTsx } from '../../packages/create-core/src/skills/registry'
 import { scoreSkillDepth } from '../../packages/create-core/src/skills/skillDepth'
-import { assertFilmCraftDensity } from '../../packages/create-core/src/make/craftFloor'
+import { assertFilmCraftDensity, assertLabeledSteps, assertLayoutVariety } from '../../packages/create-core/src/make/craftFloor'
 import { validateDirectedTsx } from '../../packages/create-core/src/make/remotionCodegen'
 import {
   beatIndexForFrame,
@@ -52,12 +52,17 @@ describe('P0 companions + brand slots', () => {
     expect(technique).not.toContain('brand-motion-guidelines')
   })
 
-  it('explainer keeps kinetic+diagram+caption (caption cannot evict kinetic)', () => {
-    const { technique } = resolveCompanions('explainer-video', ['caption-animation'])
-    expect(technique).toContain('kinetic-typography')
-    expect(technique).toContain('diagram-animation')
-    expect(technique).toContain('caption-animation')
-    expect(technique.length).toBe(3)
+  it('explainer prefers LLM leaf techniques; caption is not forced', () => {
+    const { technique } = resolveCompanions('explainer-video', [
+      'chart-animation',
+      'whiteboard-animation',
+      'caption-animation',
+    ])
+    expect(technique).toContain('chart-animation')
+    expect(technique).toContain('whiteboard-animation')
+    expect(technique).not.toContain('caption-animation')
+    expect(technique.length).toBeGreaterThanOrEqual(2)
+    expect(technique.length).toBeLessThanOrEqual(4)
   })
 
   it('logo plan: svg in technique, brand in brandSkills', () => {
@@ -180,6 +185,32 @@ export const ActiveDirected: React.FC<DirectedProps> = (props) => {
       12,
     )
     expect(v.some((i) => /chrome spam|craft density|diagram|kinetic|reveal/i.test(i))).toBe(true)
+  })
+
+  it('rejects top-left title sandwich and empty 01–N shells', () => {
+    const beats = Array.from({ length: 12 }, (_, i) => `
+      <div style={{ left: 96, top: ${60 + (i % 3) * 4} }}>T${i}</div>
+      <div>0{i + 1}</div>
+    `).join('\n')
+    const sandwich = `
+import { AbsoluteFill, Series, spring } from 'remotion';
+import type { DirectedProps } from '../directedSchema';
+export const ActiveDirected: React.FC<DirectedProps> = () => {
+  const s = spring({ frame: 1, fps: 30, config: { damping: 12 } });
+  return <AbsoluteFill><Series>${beats}<div style={{ transform: \`scale(\${s})\` }} /></Series></AbsoluteFill>;
+};
+`
+    expect(assertLayoutVariety(sandwich, 12).join(' ')).toMatch(/layout sandwich/)
+    expect(assertLabeledSteps(`{Array.from({ length: 5 }).map((_, i) => <div>0{i + 1}<span>模块</span></div>)}`).join(' ')).toMatch(/numbered shells/)
+    expect(assertLabeledSteps(`const labels = ['分析','分镜','渲染','配音','封装']; Array.from({ length: 5 }).map((_, i) => <div>0{i + 1}{labels[i]}</div>)`)).toEqual([])
+    const split = `
+import { AbsoluteFill, Series, spring } from 'remotion';
+export const ActiveDirected = () => {
+  const s = spring({ frame: 1, fps: 30, config: { damping: 12 } });
+  return <AbsoluteFill style={{ left: 80 }}><div style={{ left: 980, top: 200 }}>right</div></AbsoluteFill>;
+};
+`
+    expect(assertLayoutVariety(split, 12)).toEqual([])
   })
 })
 

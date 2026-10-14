@@ -110,7 +110,16 @@ async function importSkills() {
   }
 }
 
-function onInstallLog(_e: unknown, payload: { chunk?: string }) {
+function onInstallLog(...args: unknown[]) {
+  // ipcRenderer.on → (event, payload)；兼容只传 payload 的封装
+  const a0 = args[0]
+  const a1 = args[1]
+  const payload =
+    a1 && typeof a1 === 'object' && a1 !== null && 'chunk' in (a1 as object)
+      ? (a1 as { chunk?: string })
+      : a0 && typeof a0 === 'object' && a0 !== null && 'chunk' in (a0 as object)
+        ? (a0 as { chunk?: string })
+        : undefined
   if (payload?.chunk) {
     log.value = (log.value + payload.chunk).slice(-4000)
   }

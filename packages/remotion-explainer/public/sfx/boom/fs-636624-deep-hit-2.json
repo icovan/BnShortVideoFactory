@@ -1,0 +1,35 @@
+{
+ "type": "boom",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\boom\\fs-636624-deep-hit-2.wav",
+ "verdict": "ok",
+ "build_db": -23.0,
+ "start_db": -0.0,
+ "end_db": -30.2,
+ "spikiness": 1.75,
+ "dur_s": 1.814,
+ "peak_offset_s": 0.0121,
+ "rise_ms": 10.0,
+ "centroid_hz": 114,
+ "below150": 0.813,
+ "above6k": 0.0,
+ "flatness": 0.003,
+ "note": 50.2,
+ "start_floor_db": -13.6,
+ "source": {
+  "id": "636624",
+  "type": "boom",
+  "title": "Deep hit",
+  "creator": "CogFireStudios",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/636/636624_7614679-hq.mp3",
+  "landing": "https://freesound.org/people/CogFireStudios/sounds/636624",
+  "k": 3,
+  "keep": [
+   1
+  ],
+  "tags": [
+   "sub",
+   "boom"
+  ]
+ }
+}

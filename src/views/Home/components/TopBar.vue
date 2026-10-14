@@ -44,18 +44,19 @@ const handleCheckUpdate = async () => {
   checking.value = true
   try {
     const result = await window.electron.checkForUpdates()
-    if (result.status === 'available') {
+    if (result.status === 'available' && result.info) {
       updateInfo.value = result.info
       showUpdateDialog.value = true
     } else if (result.status === 'up-to-date') {
       pushNotice('ok', t('update.upToDate'))
     } else {
-      const kind = classifyTaskError(result.message || '')
-      pushNotice('attention', t(kind === 'network' ? 'notice.network' : 'notice.other'))
+      const msg = ('message' in result && result.message) || ('error' in result && result.error) || ''
+      const kind = classifyTaskError(String(msg || ''))
+      pushNotice('attention', t(kind === 'network' ? 'notice.network' : 'update.updateError'))
     }
   } catch (e: any) {
     const kind = classifyTaskError(e?.message || '')
-    pushNotice('attention', t(kind === 'network' ? 'notice.network' : 'notice.other'))
+    pushNotice('attention', t(kind === 'network' ? 'notice.network' : 'update.updateError'))
   } finally {
     checking.value = false
   }

@@ -1,6 +1,7 @@
 import type { Aspect } from '../../../shared/src/index.ts';
 import { SKILL_NAMES } from '../llm.ts';
 import { extractConstArray } from './surgicalBeats.ts';
+import { canvasLawForAspect } from './canvas/index.ts';
 
 export type CraftKind = 'default' | 'logo' | 'showreel';
 
@@ -20,6 +21,11 @@ export function safeAreaSpec(aspect: Aspect): string {
     return '9:16/3:4 SAFE AREA (soft): ~5–6% pad on all sides; keep type/logo off the extreme edges. Full-bleed BG OK. Extra bottom clearance only if a platform CTA/chrome is in the brief.';
   }
   return '16:9/1:1 SAFE AREA (soft): ~5–6% pad on all sides. Titles/logos not flush to frame edge. Full-bleed BG OK.';
+}
+
+/** Agent 软画布 — 委托 canvas 包（~5–6% safe + 一镜一隐喻） */
+export function contentZoneLaw(aspect: Aspect): string {
+  return canvasLawForAspect(aspect);
 }
 
 /** Detect which reveal families appear in generated TSX (static scan). */
@@ -79,15 +85,14 @@ export function assertRevealFamilyRotation(
 export function revealFamilyHardRules(sceneCount?: number): string {
   const n = Math.max(1, sceneCount ?? 6);
   const min = n <= 2 ? 1 : n <= 4 ? 2 : 3;
-  return `=== REVEAL FAMILY ROTATION (HARD — statically validated) ===
-Four reveal families — assign ONE primary family per beat and ROTATE across the film:
-1. mask — overflow:hidden wipe, CSS mask-image, or RGB/chromatic channel-split that resolves
-2. blur — filter:blur(...) soft↔sharp on type or graphic
-3. clip — clipPath / clip-path inset or polygon wipe
-4. slam — spring scale overshoot (e.g. 1.18→1.0) and/or translateY drop + scale settle
-REQUIRE ≥${min} distinct families in this film (~${n} scenes). Adjacent beats SHOULD use different families.
-Skill-specific craft (strokeDash diagrams, count-up, stickman sampleClip, logo path trim) stacks ON TOP — it does not replace rotation.
-FORBIDDEN: every beat = the same spring() + translateY recipe.`;
+  return `=== REVEAL FAMILY ROTATION (SOFT — skill + brief driven; not a hard gate) ===
+Four reveal families — prefer ONE primary family per beat and rotate across the film:
+1. mask — overflow:hidden wipe, CSS mask-image, or RGB/chromatic channel-split
+2. blur — filter:blur(...) soft↔sharp
+3. clip — clipPath / clip-path wipe
+4. slam — spring scale overshoot and/or translateY drop + scale settle
+Aim for ≥${min} distinct families across ~${n} scenes when it serves the brief.
+Skill craft stacks on top. Avoid repeating the same spring()+translateY recipe on every beat.`;
 }
 
 /**
@@ -113,12 +118,12 @@ export function cinematicMotionFloor(aspect: Aspect, kind: CraftKind = 'default'
 - Frame: use the vertical canvas — type/graphics can own most of the middle; forbid tiny centered micro-UI.
 - Palette from THIS topic (no default Linear/PageOn purple).`;
   }
-  return `- Type (landscape, soft): one hero slam can be large (about 72–140px); captions smaller. Prefer KineticWords / KineticLines for short hooks only.
-- Motion: rotate reveal families (mask / blur / clip / slam); spring/depth welcome; no frozen empty AbsoluteFill.
+  return `- Layered Z: invent a UNIQUE full-frame composition per beat from scene.visualIntent — background material, mid graphic, accent detail. Never a tiny centered card in void.
+- Kinetic beats may use large expressive type. Other beats keep a short headline clear of the hero mass.
+- Motion: rotate reveal families (mask / blur / clip / slam). Skill craft (stroke, bars, cursor, ink) lands ON the metaphor.
 - ${safeAreaSpec(aspect)}
-- Frame: full-bleed subject OK; forbid timid centered micro-UI.
-- Draw: strokeDash / progressive reveal / count-up when diagrammatic.
-- Palette from THIS topic (no default Linear/PageOn purple unless named).`;
+- Frame: the subject owns the frame. A blank field or a hairline chart fails.
+- Material comes from the look notes (paper grain, ink, halftone, clay, glow). Palette from THIS topic (no default Linear/PageOn purple unless named).`;
 }
 
 export function cinematicFloorLine(aspect: Aspect, kind: CraftKind = 'default'): string {
@@ -131,14 +136,14 @@ export function cinematicFloorLine(aspect: Aspect, kind: CraftKind = 'default'):
   if (isPortraitAspect(aspect)) {
     return `CRAFT (9:16, soft): bold short heroes OK; body readable; ~5–6% edge pad — not a tiny center strip. Rotate mask/blur/clip/slam per beat.`;
   }
-  return `CRAFT (16:9, soft): one hero slam welcome; rotate mask/blur/clip/slam; ${safeAreaSpec(aspect)} forbid tiny centered micro-UI.`;
+  return `CRAFT (16:9, soft): unique full-frame metaphor per beat; layered depth; kinetic type may be large; ${safeAreaSpec(aspect)} the subject must own the frame — a blank or a hairline fails.`;
 }
 
 export function craftFloorForOptimize(aspect: Aspect): string {
   if (isPortraitAspect(aspect)) {
     return `CRAFT (portrait, soft): bold short hero type OK; multi-line body readable; ~5–6% edge pad. Rotate reveal families (mask/blur/clip/slam) — do not spring+translateY every beat.`;
   }
-  return `CRAFT (landscape, soft): one hero slam welcome; rotate mask/blur/clip/slam; modest safe pad; full-bleed subject OK — not tiny centered micro-UI.`;
+    return `CRAFT (landscape, soft): unique full-frame metaphor per beat; layered depth; modest safe pad; the subject must own the frame — not a blank field or a hairline.`;
 }
 
 /**
@@ -147,16 +152,24 @@ export function craftFloorForOptimize(aspect: Aspect): string {
  */
 export function filmCraftDensityLaw(sceneCount?: number): string {
   const n = Math.max(1, sceneCount ?? 6);
-  const minLen = Math.min(48000, Math.max(2000, 900 + n * 220));
-  return `=== FILM CRAFT DENSITY (HARD — statically validated) ===
-Goal: each beat has a DISTINCT graphic idea — not the same chrome skin with a new title.
-1. Anti-HUD spam: do NOT wrap every Sequence in the same REC / CAM / TC / LAB monitor chrome. At most 1–2 beats may use a surveillance frame as a STORY beat; others must change layout (diagram full-bleed, kinetic slam, caption bar, chart, archival card…).
-2. Per-beat craft: diagram beats → real SVG nodes/edges/strokeDash; kinetic beats → split/stagger words or lines; caption beats → active-word / karaoke highlight tied to VO.
-3. Density: ~${n} scenes need substantial ActiveDirected (≥~${minLen} chars of real components, not one shared HudShell). Prefer ≥3 interpolate() drivers on long films.
-4. Adjacent beats MUST change composition (layout / hero graphic / reveal family) — title-only swaps fail.
-5. ONE component per scene. Forbidden: BEATS[i % BEATS.length] or any shorter layout registry reused across the film. Registry length must be ≥${Math.ceil(n * 0.85)} for ~${n} scenes.
-6. If props.assets exist, every asset.file must be drawn with <Img src={staticFile('that file')} />. Passing a shots array without <Img> fails.
-7. Never put skill id strings (explainer-video, stickman-animation, …) in on-screen text or string arrays.`;
+  const minLen = Math.min(48000, Math.max(2800, 1200 + n * 280));
+  return `=== FREE DIRECTED PICTURE LAW (SOFT — follow skills + brief; not a hard gate) ===
+Goal: each beat is a UNIQUE full-frame metaphor from scene.visualIntent.
+1. Avoid wrapping every Sequence in the same REC/CAM/TC/LAB chrome.
+2. Put skill craft ON the metaphor (ink, bars, cursor, type) — do not erase the brief with a generic A→B→C card.
+3. Aim for substantial per-beat components (~${n} scenes, rough floor ~${minLen} chars). Prefer switch(index) or named beat components.
+4. Adjacent beats should change composition when the story allows.
+5. Prefer one composition per scene; avoid tiny layout registries.
+6. If props.assets exist, draw every asset.file with <Img src={staticFile(...)} />.
+7. Never put skill id strings on screen.
+8. Picture ≠ full VO transcript.
+9. Subject should own the frame — avoid near-blank fields.
+10. Spoken beats: keep the main reveal moving until ~durationInFrames * 0.8.
+11. Layered Z + at least one near-full-bleed accent when it fits the brief.
+12. Rotate layout families when useful; avoid the same TitleBlock sandwich on most beats.
+13. Numbered steps need distinct nouns from visualIntent — not empty 01–05 shells.
+14. Occupancy: hero well should not leave a void half-frame.
+15. Metaphor = object + parts + action when the brief calls for it.`;
 }
 
 /** Static density + anti-chrome-spam gates (成片向). */
@@ -185,23 +198,24 @@ export function assertFilmCraftDensity(
     );
   }
 
-  const minLen = Math.min(48000, Math.max(2000, 900 + n * 220));
+  const minLen = Math.min(48000, Math.max(2800, 1200 + n * 280));
   if (src.length < minLen) {
     issues.push(
-      `craft density: ActiveDirected too thin (${src.length} chars, need ≥${minLen} for ${n} beats) — deepen per-beat graphics`,
+      `craft density: ActiveDirected too thin (${src.length} chars, need ≥${minLen} for ${n} beats) — deepen per-beat metaphors`,
     );
   }
 
   if (skills.includes('diagram-animation')) {
-    const svgN = (src.match(/<svg\b|strokeDash|pathLength|\bnodes?\b|\bedges?\b/gi) || []).length;
-    const need = Math.min(10, 3 + Math.floor(n / 5));
-    if (svgN < need) {
-      issues.push(`diagram-animation: need richer SVG/nodes/strokeDash (hits ${svgN}, want ≥${need})`);
+    // Rich vector / reveal craft — do not force the thin nodes/edges cookie cutter.
+    const rich = (src.match(/<svg\b|strokeDash|pathLength|clipPath|filter:|maskImage|<path\b|<rect\b/gi) || []).length;
+    const need = Math.min(8, 2 + Math.floor(n / 6));
+    if (rich < need) {
+      issues.push(`diagram-animation: need richer vector/reveal craft (hits ${rich}, want ≥${need}) — draw the beat metaphors, not empty chrome`);
     }
   }
   if (skills.includes('kinetic-typography')) {
     if (!/split\(|stagger|Kinetic/i.test(src)) {
-      issues.push('kinetic-typography: need word/line split stagger — not only whole-title fade');
+      issues.push('kinetic-typography: need word/line split stagger — not only whole-title fade. Keep the main reveal moving until durationInFrames * 0.8');
     }
   }
   if (skills.includes('caption-animation')) {
@@ -215,6 +229,8 @@ export function assertFilmCraftDensity(
   }
   issues.push(...assertBeatLayouts(src, n));
   issues.push(...assertNoSkillIdCopy(src));
+  issues.push(...assertLayoutVariety(src, n));
+  issues.push(...assertLabeledSteps(src));
   return issues;
 }
 
@@ -232,6 +248,61 @@ function componentRegistryLength(src: string, name: string): number | null {
   const components = texts.filter((t) => /^[A-Z][A-Za-z0-9_]*$/.test(t)).length;
   if (components < Math.ceil(texts.length * 0.6)) return null;
   return texts.length;
+}
+
+/**
+ * Catch the 7fmc sandwich: TitleBlock (or equivalent) pinned at left:~96 top:~70 on most beats.
+ */
+export function assertLayoutVariety(src: string, sceneCount?: number): string[] {
+  const n = Math.max(0, sceneCount ?? 0);
+  if (n < 6) return [];
+  const code = stripTsComments(src);
+  const pinned: Array<{ left: number; top: number }> = [];
+  for (const m of code.matchAll(/left:\s*(\d+)\s*,\s*top:\s*(\d+)/g)) {
+    pinned.push({ left: Number(m[1]), top: Number(m[2]) });
+  }
+  for (const m of code.matchAll(/top:\s*(\d+)\s*,\s*left:\s*(\d+)/g)) {
+    pinned.push({ left: Number(m[2]), top: Number(m[1]) });
+  }
+  const sameChrome = pinned.filter((p) => p.left >= 72 && p.left <= 130 && p.top >= 48 && p.top <= 96);
+  if (sameChrome.length < Math.ceil(n * 0.65)) return [];
+  const families = detectLayoutFamilies(code);
+  return [
+    `layout sandwich: same top-left title chrome on most beats (families: ${families.join(',') || 'none'}) — rotate hook-bleed/split/process/stack/kinetic/lockup`,
+  ];
+}
+
+export function detectLayoutFamilies(src: string): string[] {
+  const found: string[] = [];
+  if (/left:\s*0\b|inset:\s*0\b|width:\s*(['"`]?100%|1920)|scale\(\s*1\.[2-9]/i.test(src)) found.push('bleed');
+  if (/gridTemplateColumns|width:\s*['"`]?48%|left:\s*(9[0-9]{2}|1[0-4]\d{2})\b/.test(src)
+    && /left:\s*([6-9]\d)\b/.test(src)) {
+    found.push('split');
+  }
+  if (/strokeDash|nodes?|edges?|x1=|length:\s*[4-9]/.test(src) && /left:\s*\d+\s*\+/.test(src)) {
+    found.push('process');
+  }
+  if (/flexDirection:\s*['"`]column|top:\s*\d+\s*\+\s*i\s*\*/.test(src)) found.push('stack');
+  if (/split\(|Array\.from\(\s*text|words\.map|stagger/i.test(src)) found.push('kinetic');
+  if (/署名|下期见|lockup|farewell|goodbye/i.test(src)) found.push('lockup');
+  return found;
+}
+
+/**
+ * Numbered 01–05 cards must carry distinct labels, not a repeated 模块.
+ */
+export function assertLabeledSteps(src: string): string[] {
+  const code = stripTsComments(src);
+  const numbered =
+    /0\{i\s*\+\s*1\}/.test(code)
+    || /0\$\{i\s*\+\s*1\}/.test(code)
+    || /`0\$\{\s*i\s*\+\s*1\s*\}`/.test(code);
+  if (!numbered) return [];
+  const labeled = /labels?\s*\[|items\s*\[|modules?\s*\[|steps\s*\[|names\s*\[|scene\.items/.test(code);
+  if (labeled) return [];
+  return [
+    'empty numbered shells: each 01–N card must show a distinct label from visualIntent/items — not 01–05 + a repeated 模块',
+  ];
 }
 
 /**

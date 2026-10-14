@@ -73,37 +73,84 @@ async function remotion(args: string[], cwd: string) {
 
 const MEDIA_FILE_RE = /\.(mp3|wav|ogg|json|png|jpe?g|webp|gif|svg)$/i;
 
+/** Recursively mirror media files under srcDir → destDir (keeps relative paths). */
+function copyMediaTree(srcDir: string, destDir: string) {
+  if (!existsSync(srcDir)) return;
+  mkdirSync(destDir, { recursive: true });
+  for (const name of readdirSync(srcDir)) {
+    const src = join(srcDir, name);
+    const dest = join(destDir, name);
+    let st: ReturnType<typeof statSync>;
+    try {
+      st = statSync(src);
+    } catch {
+      continue;
+    }
+    if (st.isDirectory()) {
+      copyMediaTree(src, dest);
+      continue;
+    }
+    if (MEDIA_FILE_RE.test(name)) {
+      mkdirSync(dirname(dest), { recursive: true });
+      copyFileSync(src, dest);
+    }
+  }
+}
+
 /** Mirror project public media into Remotion package public/ so staticFile resolves. */
 function syncPublicMedia(publicDir: string) {
   const pkgPublic = join(REMOTION_PKG, 'public');
   mkdirSync(pkgPublic, { recursive: true });
-  mkdirSync(join(pkgPublic, 'sfx'), { recursive: true });
   if (!existsSync(publicDir)) return;
   for (const name of readdirSync(publicDir)) {
     const src = join(publicDir, name);
-    if (name === 'sfx' && existsSync(src)) {
-      mkdirSync(join(pkgPublic, 'sfx'), { recursive: true });
-      for (const f of readdirSync(src)) {
-        if (/\.(mp3|wav|ogg)$/i.test(f)) {
-          copyFileSync(join(src, f), join(pkgPublic, 'sfx', f));
-        }
-      }
-      continue;
-    }
-    // User logo/product/shots live under public/assets/
-    if (name === 'assets' && existsSync(src)) {
-      const destAssets = join(pkgPublic, 'assets');
-      mkdirSync(destAssets, { recursive: true });
-      for (const f of readdirSync(src)) {
-        if (MEDIA_FILE_RE.test(f)) {
-          copyFileSync(join(src, f), join(destAssets, f));
-        }
-      }
+    // Nested trees: sfx/whoosh/*.wav · assets/*
+    if (name === 'sfx' || name === 'assets') {
+      copyMediaTree(src, join(pkgPublic, name));
       continue;
     }
     if (MEDIA_FILE_RE.test(name)) {
       copyFileSync(src, join(pkgPublic, name));
     }
+  }
+}
+
+/** Ensure scene VO / music / sfxCues paths exist under Remotion public after sync. */
+function assertPublicMedia(props: Record<string, unknown>) {
+  const pkgPublic = join(REMOTION_PKG, 'public');
+  const need = new Set<string>();
+  for (const key of ['narrationFile', 'musicFile'] as const) {
+    const v = props[key];
+    if (typeof v === 'string' && v) need.add(v);
+  }
+  const scenes = Array.isArray(props.scenes) ? props.scenes : [];
+  for (const s of scenes) {
+    if (!s || typeof s !== 'object') continue;
+    const row = s as {
+      narrationFile?: string;
+      sfxFile?: string;
+      sfx?: Array<{ file?: string }>;
+      sfxCues?: Array<{ file?: string }>;
+    };
+    if (row.narrationFile) need.add(row.narrationFile);
+    if (row.sfxFile) {
+      need.add(row.sfxFile.startsWith('sfx/') ? row.sfxFile : `sfx/${row.sfxFile}`);
+    }
+    for (const cue of [...(row.sfx || []), ...(row.sfxCues || [])]) {
+      if (!cue?.file) continue;
+      need.add(cue.file.startsWith('sfx/') ? cue.file : `sfx/${cue.file}`);
+    }
+  }
+  const missing = [...need].filter((f) => {
+    const abs = join(pkgPublic, f);
+    try {
+      return !existsSync(abs) || statSync(abs).size < 16;
+    } catch {
+      return true;
+    }
+  });
+  if (missing.length) {
+    throw new Error(`Remotion public 缺媒体：${missing.slice(0, 6).join(', ')}`);
   }
 }
 
@@ -145,6 +192,7 @@ export async function renderRemotionComposition(opts: {
   }
 
   syncPublicMedia(opts.publicDir);
+  assertPublicMedia(props);
 
   const propsForRender = join(opts.publicDir, 'props.render.json');
   writeFileSync(propsForRender, JSON.stringify(props), 'utf8');
@@ -195,20 +243,40 @@ export async function renderRemotionComposition(opts: {
 
   if (phases.includes('encode')) {
     opts.onPhase?.('encode', 'remotion render');
-    // 原子写出：先渲染到 .next.mp4，再替换 final.mp4。
-    // 避免「文件已存在 / 被占用」时 Remotion 看似成功但成片仍是旧的。
+    // Re-sync after stills: concurrent jobs / antivirus can drop VO mid-flight.
     const prevStat = existsSync(opts.outMp4) ? statSync(opts.outMp4) : null;
     const tmpOut = `${opts.outMp4}.next.mp4`;
-    try {
-      if (existsSync(tmpOut)) unlinkSync(tmpOut);
-    } catch {
-      /* ignore */
+    let encodeErr: unknown;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      syncPublicMedia(opts.publicDir);
+      assertPublicMedia(props);
+      copyFileSync(propsForRender, join(REMOTION_PKG, 'public', 'props.render.json'));
+      // 原子写出：先渲染到 .next.mp4，再替换 final.mp4。
+      try {
+        if (existsSync(tmpOut)) unlinkSync(tmpOut);
+      } catch {
+        /* ignore */
+      }
+      try {
+        await remotion([
+          'render', 'src/index.ts', opts.compositionId, tmpOut,
+          `--props=${propsForRender}`,
+          '--overwrite',
+        ], REMOTION_PKG);
+        encodeErr = undefined;
+        break;
+      } catch (e) {
+        encodeErr = e;
+        const msg = e instanceof Error ? e.message : String(e);
+        // 媒体 404：再同步一次后重试（杀毒/并发偶发）
+        if (attempt === 0 && /status code of 404|缺媒体|Error while downloading/i.test(msg)) {
+          opts.onPhase?.('encode', 'media 404 · re-sync retry');
+          continue;
+        }
+        throw e;
+      }
     }
-    await remotion([
-      'render', 'src/index.ts', opts.compositionId, tmpOut,
-      `--props=${propsForRender}`,
-      '--overwrite',
-    ], REMOTION_PKG);
+    if (encodeErr) throw encodeErr;
 
     if (!existsSync(tmpOut) || statSync(tmpOut).size < 1024) {
       throw new Error('Remotion 未产出有效临时成片');

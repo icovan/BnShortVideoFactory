@@ -1,0 +1,35 @@
+{
+ "type": "key",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\key\\fs-180997-enter-key-2.wav",
+ "verdict": "ok",
+ "build_db": -32.6,
+ "start_db": -0.2,
+ "end_db": -40.5,
+ "spikiness": 3.13,
+ "dur_s": 0.085,
+ "peak_offset_s": 0.0081,
+ "rise_ms": 1.8,
+ "centroid_hz": 2411,
+ "below150": 0.001,
+ "above6k": 0.066,
+ "flatness": 0.219,
+ "note": null,
+ "start_floor_db": -35.6,
+ "source": {
+  "id": "180997",
+  "type": "key",
+  "title": "enter key",
+  "creator": "uEffects",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/180/180997_2901073-hq.mp3",
+  "landing": "https://freesound.org/people/uEffects/sounds/180997",
+  "k": 3,
+  "keep": [
+   1
+  ],
+  "tags": [
+   "keyboard",
+   "key"
+  ]
+ }
+}

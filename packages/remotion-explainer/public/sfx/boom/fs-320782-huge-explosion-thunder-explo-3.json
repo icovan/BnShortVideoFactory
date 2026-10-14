@@ -1,0 +1,35 @@
+{
+ "type": "boom",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\boom\\fs-320782-huge-explosion-thunder-explo-3.wav",
+ "verdict": "ok",
+ "build_db": -14.7,
+ "start_db": -0.0,
+ "end_db": -23.1,
+ "spikiness": 2.05,
+ "dur_s": 4.0,
+ "peak_offset_s": 0.015,
+ "rise_ms": 12.1,
+ "centroid_hz": 73,
+ "below150": 0.908,
+ "above6k": 0.0,
+ "flatness": 0.002,
+ "note": 40.3,
+ "start_floor_db": -13.2,
+ "source": {
+  "id": "320782",
+  "type": "boom",
+  "title": "Huge Explosion - Thunder - Exploding",
+  "creator": "dmstudio",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/320/320782_4255471-hq.mp3",
+  "landing": "https://freesound.org/people/dmstudio/sounds/320782",
+  "k": 3,
+  "keep": [
+   2
+  ],
+  "tags": [
+   "sub",
+   "boom"
+  ]
+ }
+}

@@ -1,0 +1,35 @@
+{
+ "type": "reverse",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\reverse\\fs-198389-ani-cocktail-glass-hard-reve-1.wav",
+ "verdict": "ok",
+ "build_db": 10.2,
+ "start_db": -20.0,
+ "end_db": -0.0,
+ "spikiness": 1.27,
+ "dur_s": 0.564,
+ "peak_offset_s": 0.5509,
+ "rise_ms": 368.2,
+ "centroid_hz": 1998,
+ "below150": 0.006,
+ "above6k": 0.002,
+ "flatness": 0.004,
+ "note": 93.4,
+ "start_floor_db": -34.2,
+ "source": {
+  "id": "198389",
+  "type": "reverse",
+  "title": "ANI - Cocktail Glass - Hard Reversed 1a",
+  "creator": "ani_music",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/198/198389_3008343-hq.mp3",
+  "landing": "https://freesound.org/people/ani_music/sounds/198389",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "reversed",
+   "hit"
+  ]
+ }
+}

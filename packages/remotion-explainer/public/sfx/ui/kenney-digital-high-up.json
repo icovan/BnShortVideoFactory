@@ -1,0 +1,22 @@
+{
+ "type": "ui",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\ui\\kenney-digital-high-up.wav",
+ "verdict": "ok",
+ "build_db": -6.4,
+ "start_db": -2.0,
+ "end_db": -22.5,
+ "spikiness": 1.14,
+ "dur_s": 0.166,
+ "peak_offset_s": 0.0499,
+ "rise_ms": 39.4,
+ "centroid_hz": 812,
+ "below150": 0.0,
+ "above6k": 0.0,
+ "flatness": 0.0,
+ "note": null,
+ "start_floor_db": -60.3,
+ "source": {
+  "pack": "digital",
+  "file": "Audio/highUp.ogg"
+ }
+}

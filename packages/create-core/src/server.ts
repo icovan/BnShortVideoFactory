@@ -22,6 +22,8 @@ import {
 import {
   cancelQueued,
   enqueueJob,
+  pauseQueued,
+  resumePaused,
   queueSnapshot,
   recoverStaleJobs,
   withQueueMeta,
@@ -30,14 +32,15 @@ import { failPipeline, initialPipeline, remakePipeline } from './pipeline.ts';
 import { OUTPUTS_DIR } from './paths.ts';
 import { decorateProjects, withPoster } from './poster.ts';
 import { listStyleRefs, resolveStyleLook, resolveStyleRefFile } from './make/styleLook.ts';
+import { getStylePreset, listStylePresets } from './make/stylePresets.ts';
 import { entitlement } from './license/entitlement.ts';
 import {
   commerceBaseUrl,
   defaultPublicSite,
   remoteActivate,
+  remoteCreateCatalog,
   remotePublicSite,
   remotePublicWorkflows,
-  remotePublicCases,
 } from './license/remoteCommerce.ts';
 import { localOpenUser } from './shell/localOpen.ts';
 import { shellInfo } from './shell/role.ts';
@@ -94,7 +97,7 @@ app.get('/api/health', (c) => {
   const q = queueSnapshot();
   return c.json({
     ok: true,
-    name: 'BnShortVideoFactory create-core',
+    name: 'File2Video create-core',
     port: PORT,
     llmConfigured: Boolean(s.llmApiKey),
     speechProvider: s.speechProvider,
@@ -113,6 +116,70 @@ app.get('/api/runtime', (c) => c.json(shellInfo()));
 app.get('/api/skills/status', async (c) => {
   const { probeSkills } = await import('./skills/paths.ts');
   return c.json(probeSkills());
+});
+
+/** 瘦身包 / 本机运行环境探测 */
+app.get('/api/env/status', async (c) => {
+  const { probePortable } = await import('./env/portableInstall.ts');
+  const { probeSkills } = await import('./skills/paths.ts');
+  const deps = probePortable();
+  const skills = probeSkills();
+  return c.json({
+    ready: deps.ok && skills.ready,
+    deps,
+    skills,
+  });
+});
+
+/** 一键补齐 FFmpeg + 引擎 npm 依赖（走 ensure-runtime） */
+app.post('/api/env/install', async (c) => {
+  const { installPortableDeps, probePortable } = await import('./env/portableInstall.ts');
+  const out = await installPortableDeps();
+  return c.json({
+    ok: out.ok,
+    error: out.error,
+    status: out.status || probePortable(),
+  }, out.ok ? 200 : 500);
+});
+
+/** 导入 skills zip：JSON { zipPath } 或 multipart field "file" */
+app.post('/api/skills/import', async (c) => {
+  const { importSkillsZip } = await import('./env/portableInstall.ts');
+  const { writeFileSync, rmSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const { randomBytes } = await import('node:crypto');
+
+  const contentType = c.req.header('content-type') || '';
+  let zipPath = '';
+  let tmpFile = '';
+  try {
+    if (contentType.includes('multipart/form-data')) {
+      const body = await c.req.parseBody({ all: true });
+      const file = body.file;
+      if (!file || typeof file === 'string') {
+        return c.json({ ok: false, ready: false, error: '请选择 zip 文件' }, 400);
+      }
+      const buf = Buffer.from(await file.arrayBuffer());
+      tmpFile = join(tmpdir(), `bn-skills-${randomBytes(6).toString('hex')}.zip`);
+      writeFileSync(tmpFile, buf);
+      zipPath = tmpFile;
+    } else {
+      const body = (await c.req.json().catch(() => ({}))) as { zipPath?: string };
+      zipPath = String(body.zipPath || '').trim();
+      if (!zipPath) return c.json({ ok: false, ready: false, error: '缺少 zipPath' }, 400);
+    }
+    const out = await importSkillsZip(zipPath);
+    return c.json(out, out.ok ? 200 : 400);
+  } finally {
+    if (tmpFile) {
+      try {
+        rmSync(tmpFile, { force: true });
+      } catch {
+        /* ignore */
+      }
+    }
+  }
 });
 
 app.get('/api/queue', (c) => c.json(queueSnapshot()));
@@ -137,7 +204,7 @@ app.post('/api/license/activate', async (c) => {
   if (!code) return c.json({ error: '请输入激活码' }, 400);
   const machineId = (body.machineId || '').trim() || entitlement.machineId();
   if (!commerceBaseUrl()) {
-    return c.json({ error: '未配置商业化服务地址（环境变量 BN_COMMERCE_URL）' }, 503);
+    return c.json({ error: '未配置商业化服务地址（BN_COMMERCE_URL 或 config/commerce.json）' }, 503);
   }
   const out = await remoteActivate(code, machineId);
   if (!out.ok) return c.json({ error: out.error }, out.status >= 400 && out.status < 600 ? out.status as 400 : 400);
@@ -162,24 +229,10 @@ app.get('/api/workflows/public', async (c) => {
   return c.json(rows);
 });
 
-/** 管理后台已发布模板货架 */
-app.get('/api/templates/public', async (c) => {
-  const shelf = await remotePublicCases();
-  const base = commerceBaseUrl();
-  const abs = (u?: string) => {
-    const s = String(u || '').trim();
-    if (!s || !base) return s;
-    if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('blob:')) return s;
-    if (s.startsWith('/')) return `${base}${s}`;
-    return s;
-  };
-  return c.json({
-    ...shelf,
-    cases: (shelf.cases || []).map((raw) => {
-      const t = raw as { cover?: string; previewVideo?: string };
-      return { ...t, cover: abs(t.cover), previewVideo: abs(t.previewVideo) };
-    }),
-  });
+/** 创作目录：类型 → 案例 → 提示词（代理管理后台） */
+app.get('/api/create-catalog', async (c) => {
+  const catalog = await remoteCreateCatalog();
+  return c.json(catalog);
 });
 
 app.get('/api/projects', (c) => {
@@ -343,11 +396,38 @@ app.post('/api/projects/:id/cancel', (c) => {
   const id = c.req.param('id');
   const p = store.getProject(id);
   if (!p) return c.json({ error: 'not found' }, 404);
-  if (p.status !== 'queued' || !cancelQueued(id)) {
-    return c.json({ error: p.status === 'running' ? '任务已在出片，无法取消' : '仅排队中的任务可取消' }, 400);
+  if ((p.status !== 'queued' && p.status !== 'paused') || !cancelQueued(id)) {
+    return c.json({ error: p.status === 'running' ? '任务已在出片，无法取消' : '仅排队/暂停中的任务可取消' }, 400);
   }
   failPipeline(id, '已取消排队');
   return c.json(withQueueMeta(store.getProject(id)!));
+});
+
+/** 暂停排队（真暂停：摘队保留作业）。运行中不可暂停。 */
+app.post('/api/projects/:id/pause', (c) => {
+  const id = c.req.param('id');
+  const p = store.getProject(id);
+  if (!p) return c.json({ error: 'not found' }, 404);
+  if (p.status !== 'queued' || !pauseQueued(id)) {
+    return c.json(
+      { error: p.status === 'running' ? '出片中无法暂停，请等当前任务结束' : '仅排队中的任务可暂停' },
+      400,
+    );
+  }
+  return c.json(withQueueMeta(store.getProject(id)!));
+});
+
+/** 继续已暂停任务（真继续：原作业重新入队） */
+app.post('/api/projects/:id/resume', (c) => {
+  const id = c.req.param('id');
+  const p = store.getProject(id);
+  if (!p) return c.json({ error: 'not found' }, 404);
+  if (p.status !== 'paused') {
+    return c.json({ error: '仅已暂停的任务可继续' }, 400);
+  }
+  const out = resumePaused(id);
+  if (!out) return c.json({ error: '暂停作业已失效，请重新提交' }, 400);
+  return c.json(out);
 });
 
 function parseAspect(v: unknown, fallback: Aspect = '16:9'): Aspect {
@@ -375,6 +455,8 @@ app.post('/api/optimize-prompt', async (c) => {
 
 app.get('/api/style-refs', (c) => c.json(listStyleRefs()));
 
+app.get('/api/style-presets', (c) => c.json(listStylePresets()));
+
 app.post('/api/style-refs/extract', async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as {
     styleRefId?: string;
@@ -401,10 +483,13 @@ app.post('/api/make', async (c) => {
     stylePack?: StylePack;
     aspect?: Aspect;
     autoSfx?: boolean;
+    /** 口播三态：关 / 自动 / 驱动（优先） */
+    voiceOver?: 'off' | 'auto' | 'drive';
     voMode?: 'on' | 'off' | 'auto';
     scriptDrive?: 'off' | 'auto' | 'polish' | 'verbatim';
     styleRefId?: string;
     styleRefDataUrl?: string;
+    stylePresetId?: string;
     userAssets?: {
       name: string;
       dataUrl: string;
@@ -415,6 +500,7 @@ app.post('/api/make', async (c) => {
     webSearch?: boolean;
     quality?: '1080p' | '720p';
     formMode?: string;
+    brandSubtype?: string;
     templateId?: string;
     footageFolder?: string;
     footagePaths?: string[];
@@ -429,6 +515,10 @@ app.post('/api/make', async (c) => {
   if (!prompt) return c.json({ error: '请先填写需求' }, 400);
 
   const formMode = typeof body.formMode === 'string' ? body.formMode : undefined;
+  const brandSubtype =
+    body.brandSubtype === 'logo' || body.brandSubtype === 'showreel'
+      ? body.brandSubtype
+      : undefined;
   const templateId = typeof body.templateId === 'string' && body.templateId.trim()
     ? body.templateId.trim()
     : undefined;
@@ -451,6 +541,10 @@ app.post('/api/make', async (c) => {
   const quality = body.quality === '720p' ? '720p' as const : '1080p' as const;
   const autoSfx = body.autoSfx === true;
   const webSearch = body.webSearch === true;
+  const voiceOver =
+    body.voiceOver === 'off' || body.voiceOver === 'auto' || body.voiceOver === 'drive'
+      ? body.voiceOver
+      : undefined;
   const voMode =
     body.voMode === 'on' || body.voMode === 'off' || body.voMode === 'auto' ? body.voMode : 'auto';
   const scriptDrive =
@@ -463,6 +557,10 @@ app.post('/api/make', async (c) => {
   const styleRefId = (body.styleRefId || '').trim() || undefined;
   const styleRefDataUrl = body.styleRefDataUrl?.startsWith('data:image/')
     ? body.styleRefDataUrl
+    : undefined;
+  const stylePresetRaw = (body.stylePresetId || '').trim();
+  const stylePresetId = stylePresetRaw && getStylePreset(stylePresetRaw)
+    ? stylePresetRaw
     : undefined;
   const userAssets = Array.isArray(body.userAssets)
     ? body.userAssets
@@ -545,15 +643,18 @@ app.post('/api/make', async (c) => {
       const { makeFromPrompt } = await import('./make/fromPrompt.ts');
       await makeFromPrompt(prompt, settings, project.id, aspect, templateId, {
         autoSfx,
+        voiceOver: isRemix ? 'auto' : voiceOver,
         voMode: isRemix ? 'on' : voMode,
         scriptDrive: isRemix ? (scriptDrive === 'off' ? 'auto' : scriptDrive) : scriptDrive,
         styleRefId,
         styleRefDataUrl,
+        stylePresetId,
         userAssets,
         stylePack,
         webSearch: isRemix ? false : webSearch,
         quality,
         formMode,
+        brandSubtype,
         footageFolder,
         footagePaths,
         remixBrief,
@@ -568,23 +669,39 @@ app.post('/api/make', async (c) => {
   return c.json(enqueued || withQueueMeta(project));
 });
 
-app.get('/', (c) =>
-  c.json({
-    ok: true,
-    service: 'BnShortVideoFactory create-core',
-    health: '/api/health',
-  }),
-);
+const UI_DIR = (process.env.BIUNOW_UI_DIR || '').trim();
+if (UI_DIR && existsSync(UI_DIR)) {
+  app.use(
+    '/*',
+    serveStatic({
+      root: UI_DIR,
+      rewriteRequestPath: (p) => (p === '/' ? '/index.html' : p),
+    }),
+  );
+  app.get('*', (c) => {
+    const index = join(UI_DIR, 'index.html');
+    if (!existsSync(index)) return c.text('UI index.html missing', 404);
+    return c.html(readFileSync(index, 'utf8'));
+  });
+  console.info(`[create-core] UI_DIR=${UI_DIR}`);
+} else {
+  app.get('/', (c) =>
+    c.json({
+      ok: true,
+      service: 'File2Video create-core',
+      health: '/api/health',
+    }),
+  );
+}
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..');
+const ROOT = (process.env.BIUNOW_ROOT || '').trim()
+  || join(dirname(fileURLToPath(import.meta.url)), '../../..');
 recoverStaleJobs();
 const q0 = queueSnapshot();
-console.info(`[create-core] listening http://${HOST}:${PORT}`);
 console.info(`[create-core] root=${ROOT}`);
 console.info(`[create-core] outputs=${OUTPUTS_DIR}`);
 console.info(`[create-core] make-queue concurrency=${q0.concurrency}`);
 
-// 子进程内异常只记日志，不 process.exit —— 避免 Electron 壳表现为闪退
 process.on('uncaughtException', (err) => {
   console.error('[create-core] uncaughtException', err);
 });
@@ -592,4 +709,10 @@ process.on('unhandledRejection', (reason) => {
   console.error('[create-core] unhandledRejection', reason);
 });
 
-serve({ fetch: app.fetch, hostname: HOST, port: PORT });
+try {
+  serve({ fetch: app.fetch, hostname: HOST, port: PORT });
+  console.info(`[create-core] listening http://${HOST}:${PORT}`);
+} catch (err) {
+  console.error('[create-core] bind failed', err);
+  process.exit(1);
+}

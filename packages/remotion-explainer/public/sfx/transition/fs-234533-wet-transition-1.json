@@ -1,0 +1,35 @@
+{
+ "type": "transition",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\transition\\fs-234533-wet-transition-1.wav",
+ "verdict": "ok",
+ "build_db": -12.2,
+ "start_db": -13.6,
+ "end_db": -16.7,
+ "spikiness": 1.44,
+ "dur_s": 0.804,
+ "peak_offset_s": 0.2302,
+ "rise_ms": 138.6,
+ "centroid_hz": 1328,
+ "below150": 0.413,
+ "above6k": 0.055,
+ "flatness": 0.066,
+ "note": 48.1,
+ "start_floor_db": -34.7,
+ "source": {
+  "id": "234533",
+  "type": "transition",
+  "title": "Wet Transition",
+  "creator": "Electroviolence",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/234/234533_4238641-hq.mp3",
+  "landing": "https://freesound.org/people/Electroviolence/sounds/234533",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "transition",
+   "whoosh"
+  ]
+ }
+}

@@ -1,0 +1,35 @@
+{
+ "type": "paper",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\paper\\fs-140463-packaging-paper-rub-sliding-1.wav",
+ "verdict": "ok",
+ "build_db": -3.6,
+ "start_db": -13.5,
+ "end_db": -13.0,
+ "spikiness": 1.92,
+ "dur_s": 0.261,
+ "peak_offset_s": 0.1766,
+ "rise_ms": 127.3,
+ "centroid_hz": 3123,
+ "below150": 0.0,
+ "above6k": 0.196,
+ "flatness": 0.31,
+ "note": null,
+ "start_floor_db": -31.5,
+ "source": {
+  "id": "140463",
+  "type": "paper",
+  "title": "Packaging Paper Rub Sliding Between Hands.wav",
+  "creator": "afleetingspeck",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/140/140463_2522406-hq.mp3",
+  "landing": "https://freesound.org/people/afleetingspeck/sounds/140463",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "paper",
+   "slide"
+  ]
+ }
+}

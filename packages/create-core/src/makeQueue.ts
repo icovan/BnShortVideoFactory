@@ -17,6 +17,8 @@ type QueueJob = {
 const concurrency = Math.max(1, Math.min(4, Number(process.env.FACTORY_MAKE_CONCURRENCY || 1) || 1));
 
 const pending: QueueJob[] = [];
+/** 真暂停：从排队摘下但保留 run，可再入队继续 */
+const held = new Map<string, QueueJob>();
 const runningIds = new Set<string>();
 let active = 0;
 let pumping = false;
@@ -78,7 +80,7 @@ async function pump() {
 export function enqueueJob(job: QueueJob): Project | null {
   const cur = store.getProject(job.id);
   if (!cur) return null;
-  if (runningIds.has(job.id) || pending.some((j) => j.id === job.id)) {
+  if (runningIds.has(job.id) || pending.some((j) => j.id === job.id) || held.has(job.id)) {
     return withQueueMeta(cur);
   }
   pending.push(job);
@@ -100,11 +102,60 @@ export function enqueueJob(job: QueueJob): Project | null {
 
 /** 取消排队（尚未开始）。运行中的任务无法硬中断 Remotion。 */
 export function cancelQueued(id: string): boolean {
+  if (held.delete(id)) return true;
   const i = pending.findIndex((j) => j.id === id);
   if (i < 0) return false;
   pending.splice(i, 1);
   refreshQueuedDetails();
   return true;
+}
+
+/** 暂停排队中的任务（保留作业，可 resume）。运行中不可暂停。 */
+export function pauseQueued(id: string): boolean {
+  if (runningIds.has(id) || held.has(id)) return false;
+  const i = pending.findIndex((j) => j.id === id);
+  if (i < 0) return false;
+  const job = pending.splice(i, 1)[0]!;
+  held.set(id, job);
+  const cur = store.getProject(id);
+  if (cur) {
+    const pipeline = (cur.pipeline || []).map((s, idx) =>
+      idx === 0
+        ? { ...s, status: 'pending' as const, detail: '已暂停 · 点击继续后重新排队' }
+        : s,
+    );
+    store.patchProject(id, { status: 'paused', pipeline, error: undefined });
+  }
+  refreshQueuedDetails();
+  return true;
+}
+
+/** 继续已暂停任务：重新入队，保留原 run（真继续，非重提） */
+export function resumePaused(id: string): Project | null {
+  const job = held.get(id);
+  if (!job) return null;
+  held.delete(id);
+  if (runningIds.has(id) || pending.some((j) => j.id === id)) {
+    return withQueueMeta(store.getProject(id)!);
+  }
+  pending.push(job);
+  const cur = store.getProject(id);
+  if (cur) {
+    const pipeline = (cur.pipeline || []).map((s, idx) =>
+      idx === 0
+        ? { ...s, status: 'pending' as const, detail: '排队中 · 等待出片位' }
+        : s,
+    );
+    store.patchProject(id, { status: 'queued', pipeline, error: undefined });
+  }
+  refreshQueuedDetails();
+  void pump();
+  const fresh = store.getProject(id);
+  return fresh ? withQueueMeta(fresh) : null;
+}
+
+export function isJobPaused(id: string): boolean {
+  return held.has(id);
 }
 
 export function isJobRunning(id: string): boolean {
@@ -154,15 +205,16 @@ export function withQueueMeta<T extends Project>(p: T): T & {
   return { ...p, queueWaiting: snap.queued.length };
 }
 
-/** 进程启动：把上次残留的 queued/running 标失败，避免幽灵任务 */
+/** 进程启动：把上次残留的 queued/running/paused 标失败，避免幽灵任务 */
 export function recoverStaleJobs() {
   const list = store.projects();
   for (const p of list) {
-    if (p.status === 'queued' || p.status === 'running') {
+    if (p.status === 'queued' || p.status === 'running' || p.status === 'paused') {
       failPipeline(p.id, '引擎已重启，任务中断 — 请重新提交');
     }
   }
   pending.length = 0;
+  held.clear();
   runningIds.clear();
   active = 0;
 }

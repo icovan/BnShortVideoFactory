@@ -1,0 +1,34 @@
+{
+ "type": "whoosh",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\whoosh\\fs-451127-fx-swoosh-normal-for-swords-1.wav",
+ "verdict": "ok",
+ "build_db": 0.8,
+ "start_db": -16.2,
+ "end_db": -18.4,
+ "spikiness": 1.57,
+ "dur_s": 0.229,
+ "peak_offset_s": 0.1605,
+ "rise_ms": 150.7,
+ "centroid_hz": 1778,
+ "below150": 0.0,
+ "above6k": 0.096,
+ "flatness": 0.148,
+ "note": null,
+ "start_floor_db": -25.5,
+ "source": {
+  "id": "451127",
+  "type": "whoosh",
+  "title": "FX - Swoosh - normal (for swords, sticks, punches, etc)",
+  "creator": "bolkmar",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/451/451127_2927958-hq.mp3",
+  "landing": "https://freesound.org/people/bolkmar/sounds/451127",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "swoosh"
+  ]
+ }
+}

@@ -8,10 +8,12 @@ import { OUTPUTS_DIR } from '../paths.ts';
 import { failPipeline, setPipelineStep } from '../pipeline.ts';
 import { store } from '../store.ts';
 import {
+  makeDirectedHard,
   renderPreparedDirected,
   type DirectedPrepared,
 } from '../make/directedHard.ts';
 import { codegenSkillIds, craftSkillIds, type SkillPlan } from '../make/skillPlan.ts';
+import { dropUnaskedSceneSkills, mergeBeatSkills } from '../make/beatTechnique.ts';
 import {
   fixDirectedTsx,
   generateDirectedTsx,
@@ -25,9 +27,17 @@ import { lookLockLine } from '../make/look.ts';
 import { contentLangLockLine } from '../make/contentLang.ts';
 import { assetFilesFromProps } from '../make/craftFloor.ts';
 import { styleLookLockLine } from '../make/styleLook.ts';
+import {
+  bindNarrationScene,
+  composeNarrationDirectedSource,
+  narrationLayoutIssues,
+  usesNarrationLayouts,
+} from '../make/narrationLayout.ts';
 import type { Settings } from '../../../shared/src/index.ts';
 
 const key = process.argv[2] || '';
+/** --free: skip narration layouts; rebuild with free directed codegen (keep VO). */
+const forceFree = process.argv.includes('--free');
 
 function findProject() {
   const list = store.projects();
@@ -42,6 +52,64 @@ function readJson<T>(path: string): T {
   return JSON.parse(readFileSync(path, 'utf8')) as T;
 }
 
+/** 分镜已写好、配音还没落地：沿用原目录，从语音接到成片。 */
+async function continueFromPlan(
+  project: { id: string; dir: string; prompt?: string },
+  dir: string,
+  planPath: string,
+) {
+  const plan = readJson<SkillPlan>(planPath);
+  const prompt = existsSync(join(dir, 'prompt-factory.md'))
+    ? readFileSync(join(dir, 'prompt-factory.md'), 'utf8')
+    : (project.prompt || plan.coreIdea || '');
+  const source = existsSync(join(dir, 'prompt-original.md'))
+    ? readFileSync(join(dir, 'prompt-original.md'), 'utf8')
+    : prompt;
+  const audience = existsSync(join(dir, 'prompt-audience.md'))
+    ? readFileSync(join(dir, 'prompt-audience.md'), 'utf8')
+    : '';
+  const brief = existsSync(join(dir, 'brief-meta.json'))
+    ? readJson<{
+      lookLock?: string;
+      assumptions?: string[];
+      styleSource?: string;
+      styleLook?: SkillPlan['look'];
+    }>(join(dir, 'brief-meta.json'))
+    : {};
+  const settings = store.settings() as Settings;
+  store.patchProject(project.id, { status: 'running', error: undefined });
+  console.log(JSON.stringify({
+    id: project.id,
+    dir: project.dir,
+    resume: 'voice+build+encode',
+    beats: plan.beats.length,
+    scriptDrive: plan.scriptDrive || 'off',
+  }));
+  try {
+    const done = await makeDirectedHard(prompt, settings, project.id, plan, {
+      sourcePrompt: source,
+      factoryPrompt: prompt,
+      audiencePrompt: audience,
+      lookLock: brief.lookLock,
+      assumptions: brief.assumptions,
+      styleLook: brief.styleLook,
+      styleSource: brief.styleSource,
+      reuseDir: project.dir,
+    });
+    console.log(JSON.stringify({
+      ok: done.status === 'ready',
+      id: done.id,
+      status: done.status,
+      error: done.error,
+      mp4: join(dir, 'final.mp4'),
+    }, null, 2));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    failPipeline(project.id, msg);
+    throw e;
+  }
+}
+
 async function main() {
   if (!key) throw new Error('usage: resumeBuildEncodeProject.ts <projectId|dirName>');
   const project = findProject();
@@ -49,14 +117,31 @@ async function main() {
   const dir = join(OUTPUTS_DIR, project.dir);
   const planPath = join(dir, 'skill-plan.json');
   const propsPath = join(dir, 'props.json');
-  if (!existsSync(planPath) || !existsSync(propsPath)) {
-    throw new Error(`missing plan/props under ${dir}`);
+  if (!existsSync(planPath)) throw new Error(`missing plan under ${dir}`);
+  if (!existsSync(propsPath)) {
+    await continueFromPlan(project, dir, planPath);
+    return;
   }
 
-  const plan = readJson<SkillPlan>(planPath);
+  const rawPlan = readJson<SkillPlan>(planPath);
+  const plan = mergeBeatSkills({
+    ...rawPlan,
+    beats: dropUnaskedSceneSkills(rawPlan.beats, { keep: rawPlan.primary }),
+  });
   const props = readJson<Record<string, unknown>>(propsPath);
   const scenes = (props.scenes || []) as DirectedPrepared['scenes'];
   if (!scenes.length) throw new Error('props.scenes empty');
+  for (let i = 0; i < plan.beats.length && i < scenes.length; i++) {
+    const beat = plan.beats[i];
+    scenes[i].skill = beat.skill;
+    if (beat.craftMust?.length) scenes[i].craftMust = beat.craftMust;
+  }
+  const changed = plan.beats.filter((b, i) => b.skill !== rawPlan.beats[i]?.skill);
+  if (changed.length || plan.support.join() !== rawPlan.support.join()) {
+    writeFileSync(planPath, JSON.stringify(plan, null, 2), 'utf8');
+    writeFileSync(propsPath, JSON.stringify(props, null, 2), 'utf8');
+    console.log('[resume-build] retargeted unasked scene skills', changed.map((b) => `${b.job}:${b.skill}`));
+  }
 
   const settings = store.settings() as Settings;
   if (!settings?.llmApiKey && !settings?.llmBaseUrl) {
@@ -87,18 +172,100 @@ async function main() {
     scenes: scenes.length,
     totalSec: Math.round(totalSec),
     support: plan.support,
-    resume: 'build+encode',
+    resume: forceFree ? 'free-codegen+encode' : 'build+encode',
+    forceFree,
   }, null, 2));
 
   store.patchProject(project.id, { status: 'running', error: undefined });
   setPipelineStep(project.id, 'plan', 'done', `${plan.primary} · ${plan.support.join('+')}`);
   setPipelineStep(project.id, 'brief', 'done', briefMeta.styleSource || plan.look?.accent || 'brief');
   setPipelineStep(project.id, 'voice', 'done', `resume skip TTS · ${scenes.length} scenes`);
-  setPipelineStep(project.id, 'build', 'running', `codegen · ${craftIds.join('+')}`);
+  setPipelineStep(project.id, 'build', 'running', forceFree ? `free codegen · ${craftIds.join('+')}` : `codegen · ${craftIds.join('+')}`);
 
   const assetFiles = assetFilesFromProps(props.assets);
+
+  if (!forceFree && usesNarrationLayouts(plan)) {
+    for (let i = 0; i < scenes.length; i++) {
+      const beat = plan.beats[i];
+      const bound = bindNarrationScene({
+        skill: beat?.skill || scenes[i].skill,
+        visualIntent: beat?.visualIntent || scenes[i].visualIntent,
+        keyMotion: beat?.keyMotion || scenes[i].keyMotion,
+        headline: beat?.headline || scenes[i].headline,
+        vo: beat?.vo || scenes[i].vo,
+        items: beat?.items || scenes[i].items,
+      });
+      scenes[i].layout = bound.layout;
+      scenes[i].glyphs = bound.glyphs;
+      if (!scenes[i].items?.length && bound.items?.length) scenes[i].items = bound.items;
+    }
+    props.material = plan.look?.motionNotes || '';
+    props.scenes = scenes;
+    writeFileSync(propsPath, JSON.stringify(props, null, 2), 'utf8');
+    const tsx = composeNarrationDirectedSource();
+    const layoutIssues = [
+      ...narrationLayoutIssues(tsx, scenes),
+      ...parseTsxSyntaxIssues(tsx, 'ActiveDirected.tsx'),
+    ];
+    if (layoutIssues.length) {
+      const msg = `旁白版式未接上：${layoutIssues.slice(0, 4).join('; ')}`;
+      failPipeline(project.id, msg);
+      throw new Error(msg);
+    }
+    writeFileSync(join(dir, 'ActiveDirected.tsx'), tsx, 'utf8');
+    const skillGate = { ok: true, issues: [] as string[] };
+    writeSkillGateReport(dir, 'gate-skills.json', skillGate);
+    writeSkillGateReport(dir, 'skill-depth.json', {
+      ok: true,
+      score: scenes.length,
+      max: scenes.length,
+      issues: [],
+      narrationLayout: true,
+      layouts: scenes.map((s) => ({ job: s.job, layout: s.layout, glyphs: s.glyphs })),
+    });
+    setPipelineStep(project.id, 'build', 'done', `旁白版式 · ${scenes.length} 镜 · ${contentLang}`);
+    const prep: DirectedPrepared = {
+      dir,
+      dirName: project.dir,
+      plan,
+      props,
+      propsPath,
+      publicDir,
+      stillsDir,
+      finalMp4,
+      scenes,
+      totalSec,
+      tsx,
+      usedCodegen: false,
+      usedStickmanPoseFloor: false,
+      skillGate,
+      contentLang,
+    };
+    const done = await renderPreparedDirected(project.id, prep, {
+      settings,
+      allowLlmRepair: false,
+    });
+    console.log(JSON.stringify({
+      ok: true,
+      id: done.id,
+      status: done.status,
+      mp4: finalMp4,
+      error: done.error,
+      narrationLayout: true,
+    }, null, 2));
+    return;
+  }
+
   const validateTsx = (src: string) =>
-    validateDirectedTsx(src, craftIds, contentLang, plan.aspect, sceneCount, assetFiles);
+    validateDirectedTsx(
+      src,
+      craftIds,
+      contentLang,
+      plan.aspect,
+      sceneCount,
+      assetFiles,
+      plan.voMode === 'off' ? [] : scenes.map((s) => s.durationSec || 0),
+    );
 
   let tsx = await generateDirectedTsx(settings, {
     prompt,
@@ -124,24 +291,10 @@ async function main() {
   let depthGate = scoreSkillDepth(tsx, craftIds, plan.beats);
   console.log('[build] first pass', { codeIssues: codeIssues.slice(0, 4), skillOk: skillGate.ok, depthOk: depthGate.ok });
 
-  if (codeIssues.length || !skillGate.ok) {
+  if (codeIssues.length) {
     tsx = await fixDirectedTsx(settings, {
       source: tsx,
-      error: [...codeIssues, ...skillGate.issues].join('; '),
-      propsJson: propsStr,
-    });
-    codeIssues = validateTsx(tsx);
-    skillGate = assertSkillsInTsx(codegenIds, tsx, { hardIds: craftIds });
-    depthGate = scoreSkillDepth(tsx, craftIds, plan.beats);
-  }
-  if (!codeIssues.length && skillGate.ok && !depthGate.ok && depthGate.issues.length) {
-    tsx = await fixDirectedTsx(settings, {
-      source: tsx,
-      error: [
-        'CRAFT DEPTH repair — implement assigned scene.skill techniques deeply:',
-        ...depthGate.issues,
-        'Rotate reveal families; honor each beat craftMust; no shared Hud on every beat',
-      ].join('; '),
+      error: codeIssues.join('; '),
       propsJson: propsStr,
     });
     codeIssues = validateTsx(tsx);
@@ -149,33 +302,26 @@ async function main() {
     depthGate = scoreSkillDepth(tsx, craftIds, plan.beats);
   }
 
-  let usedCodegen = codeIssues.length === 0 && skillGate.ok && depthGate.ok;
+  let usedCodegen = codeIssues.length === 0;
   if (!usedCodegen) {
     tsx = await fixDirectedTsx(settings, {
       source: tsx,
       error: [
         ...codeIssues,
-        ...skillGate.issues,
-        ...depthGate.issues,
-        'final repair: keep THIS brief; deepen diagram/kinetic/caption; forbid REC/CAM HudShell every beat',
+        'repair engineering only: keep THIS brief; respect props.canvas/aspect zone',
       ].join('; '),
       propsJson: propsStr,
     });
     codeIssues = validateTsx(tsx);
     skillGate = assertSkillsInTsx(codegenIds, tsx, { hardIds: craftIds });
     depthGate = scoreSkillDepth(tsx, craftIds, plan.beats);
-    usedCodegen = codeIssues.length === 0 && skillGate.ok && depthGate.ok;
+    usedCodegen = codeIssues.length === 0;
   }
 
   if (!usedCodegen) {
     const syn = parseTsxSyntaxIssues(tsx);
-    const msg = [
-      ...codeIssues,
-      ...skillGate.issues,
-      ...depthGate.issues,
-      ...syn,
-    ].slice(0, 8).join('; ') || 'codegen failed';
-    failPipeline(project.id, `技能技法未落地（禁止出片）：${msg}`);
+    const msg = [...codeIssues, ...syn].slice(0, 8).join('; ') || 'codegen failed';
+    failPipeline(project.id, `ActiveDirected 工程校验未通过：${msg}`);
     throw new Error(msg);
   }
 

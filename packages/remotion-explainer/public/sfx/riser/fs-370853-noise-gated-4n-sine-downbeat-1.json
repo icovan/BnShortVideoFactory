@@ -1,0 +1,36 @@
+{
+ "type": "riser",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\riser\\fs-370853-noise-gated-4n-sine-downbeat-1.wav",
+ "verdict": "ok",
+ "build_db": 10.5,
+ "start_db": -18.3,
+ "end_db": -0.0,
+ "spikiness": 1.9,
+ "dur_s": 4.726,
+ "peak_offset_s": 4.1146,
+ "rise_ms": 3810.6,
+ "centroid_hz": 1067,
+ "below150": 0.008,
+ "above6k": 0.0,
+ "flatness": 0.002,
+ "note": 87.6,
+ "start_floor_db": -49.7,
+ "source": {
+  "id": "370853",
+  "type": "riser",
+  "title": "Noise Gated 4n Sine Downbeat.aif",
+  "creator": "deleted_user_5959249",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/370/370853_5959249-hq.mp3",
+  "landing": "https://freesound.org/people/deleted_user_5959249/sounds/370853",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "build",
+   "up",
+   "riser"
+  ]
+ }
+}

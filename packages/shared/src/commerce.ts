@@ -129,10 +129,13 @@ export type AppFormMode =
   | 'prompt'
   | 'narrate'
   | 'short'
-  | 'logo'
-  | 'showreel'
+  | 'tutorial'
+  | 'story'
   | 'launch'
-  | 'remix';
+  | 'brand'
+  | 'remix'
+  | 'logo'
+  | 'showreel';
 
 export type AppEngine = 'explainer-remotion' | 'manim' | 'footage-remix';
 export type AspectRatio = '9:16' | '16:9' | '1:1' | '3:4';
@@ -163,9 +166,11 @@ export function normalizeStylePack(raw?: string): CommerceStylePack {
   const id = String(raw || '').trim() as CommerceStylePack;
   if (STYLE_PACK_OPTIONS.some((o) => o.id === id)) return id;
   if (raw === 'remix' || raw === 'footage-remix') return 'footage-remix';
-  if (raw === 'narrate') return 'narrated-explainer';
+  if (raw === 'narrate' || raw === 'tutorial') return 'narrated-explainer';
   if (raw === 'short') return 'next-word-loop';
-  if (raw === 'launch' || raw === 'showreel' || raw === 'logo') return 'launch-showreel';
+  if (raw === 'launch' || raw === 'showreel' || raw === 'logo' || raw === 'brand' || raw === 'story') {
+    return raw === 'story' ? 'skill-directed' : 'launch-showreel';
+  }
   return 'skill-directed';
 }
 

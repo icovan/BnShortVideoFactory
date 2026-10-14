@@ -1,0 +1,34 @@
+{
+ "type": "riser",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\riser\\fs-396161-scary-hits-risers-001-1.wav",
+ "verdict": "ok",
+ "build_db": 15.0,
+ "start_db": -26.3,
+ "end_db": -1.9,
+ "spikiness": 1.88,
+ "dur_s": 1.843,
+ "peak_offset_s": 1.4831,
+ "rise_ms": 456.7,
+ "centroid_hz": 607,
+ "below150": 0.719,
+ "above6k": 0.029,
+ "flatness": 0.106,
+ "note": null,
+ "start_floor_db": -37.8,
+ "source": {
+  "id": "396161",
+  "type": "riser",
+  "title": "Scary Hits & Risers 001",
+  "creator": "Xinematix",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/396/396161_4882128-hq.mp3",
+  "landing": "https://freesound.org/people/Xinematix/sounds/396161",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "riser"
+  ]
+ }
+}

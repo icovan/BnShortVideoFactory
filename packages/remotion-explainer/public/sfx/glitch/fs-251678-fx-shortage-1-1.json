@@ -1,0 +1,35 @@
+{
+ "type": "glitch",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\glitch\\fs-251678-fx-shortage-1-1.wav",
+ "verdict": "ok",
+ "build_db": -5.5,
+ "start_db": -0.0,
+ "end_db": -11.8,
+ "spikiness": 1.68,
+ "dur_s": 0.489,
+ "peak_offset_s": 0.032,
+ "rise_ms": 12.3,
+ "centroid_hz": 1303,
+ "below150": 0.0,
+ "above6k": 0.008,
+ "flatness": 0.007,
+ "note": 80.9,
+ "start_floor_db": -35.4,
+ "source": {
+  "id": "251678",
+  "type": "glitch",
+  "title": "fx_shortage-1",
+  "creator": "_jack",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/251/251678_92082-hq.mp3",
+  "landing": "https://freesound.org/people/_jack/sounds/251678",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "digital",
+   "glitch"
+  ]
+ }
+}

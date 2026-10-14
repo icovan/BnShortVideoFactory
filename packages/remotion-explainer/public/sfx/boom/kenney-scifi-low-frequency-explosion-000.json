@@ -1,0 +1,22 @@
+{
+ "type": "boom",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\boom\\kenney-scifi-low-frequency-explosion-000.wav",
+ "verdict": "ok",
+ "build_db": -23.6,
+ "start_db": -0.0,
+ "end_db": -37.2,
+ "spikiness": 1.98,
+ "dur_s": 0.901,
+ "peak_offset_s": 0.0814,
+ "rise_ms": 23.2,
+ "centroid_hz": 85,
+ "below150": 0.968,
+ "above6k": 0.0,
+ "flatness": 0.001,
+ "note": null,
+ "start_floor_db": -19.9,
+ "source": {
+  "pack": "scifi",
+  "file": "Audio/lowFrequency_explosion_000.ogg"
+ }
+}

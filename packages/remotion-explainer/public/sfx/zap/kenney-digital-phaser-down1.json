@@ -1,0 +1,22 @@
+{
+ "type": "zap",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\zap\\kenney-digital-phaser-down1.wav",
+ "verdict": "ok",
+ "build_db": -16.1,
+ "start_db": -0.4,
+ "end_db": -21.1,
+ "spikiness": 1.13,
+ "dur_s": 0.355,
+ "peak_offset_s": 0.0077,
+ "rise_ms": 1.8,
+ "centroid_hz": 714,
+ "below150": 0.0,
+ "above6k": 0.0,
+ "flatness": 0.003,
+ "note": 74.0,
+ "start_floor_db": -38.1,
+ "source": {
+  "pack": "digital",
+  "file": "Audio/phaserDown1.ogg"
+ }
+}

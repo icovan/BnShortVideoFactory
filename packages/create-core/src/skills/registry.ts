@@ -553,6 +553,16 @@ export const SUPPORT_SKILLS: SkillName[] = [
   'particle-system',
   'shader-glsl',
   'threejs-animation',
+  // Picture-bearing techniques — also usable as explainer supports (free directed)
+  'whiteboard-animation',
+  'product-demo-video',
+  'map-animation',
+  'text-message-animation',
+  'isometric-animation',
+  'promo-video',
+  'countdown-video',
+  'animated-infographic',
+  'presentation-video',
 ];
 
 export const CHASSIS_SKILLS: SkillName[] = [

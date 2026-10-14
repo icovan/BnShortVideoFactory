@@ -1,0 +1,35 @@
+{
+ "type": "transition",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\transition\\fs-432294-swoosh-2-wav-2.wav",
+ "verdict": "ok",
+ "build_db": -5.6,
+ "start_db": -13.0,
+ "end_db": -14.3,
+ "spikiness": 1.33,
+ "dur_s": 0.697,
+ "peak_offset_s": 0.2153,
+ "rise_ms": 188.1,
+ "centroid_hz": 2699,
+ "below150": 0.011,
+ "above6k": 0.172,
+ "flatness": 0.222,
+ "note": null,
+ "start_floor_db": -24.2,
+ "source": {
+  "id": "432294",
+  "type": "transition",
+  "title": "Swoosh 2.wav",
+  "creator": "AudioPapkin",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/432/432294_8698658-hq.mp3",
+  "landing": "https://freesound.org/people/AudioPapkin/sounds/432294",
+  "k": 3,
+  "keep": [
+   1
+  ],
+  "tags": [
+   "swoosh",
+   "transition"
+  ]
+ }
+}

@@ -1,0 +1,34 @@
+{
+ "type": "thump",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\thump\\fs-454222-thud-pint-glass-beer-down-on-1.wav",
+ "verdict": "ok",
+ "build_db": -25.1,
+ "start_db": -0.0,
+ "end_db": -34.7,
+ "spikiness": 1.7,
+ "dur_s": 0.335,
+ "peak_offset_s": 0.0097,
+ "rise_ms": 8.7,
+ "centroid_hz": 283,
+ "below150": 0.244,
+ "above6k": 0.0,
+ "flatness": 0.001,
+ "note": null,
+ "start_floor_db": -4.5,
+ "source": {
+  "id": "454222",
+  "type": "thump",
+  "title": "thud pint glass beer down on table wood knock door Vows.flac",
+  "creator": "kyles",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/454/454222_612689-hq.mp3",
+  "landing": "https://freesound.org/people/kyles/sounds/454222",
+  "k": 3,
+  "keep": [
+   0
+  ],
+  "tags": [
+   "thud"
+  ]
+ }
+}

@@ -1,0 +1,36 @@
+{
+ "type": "whoosh",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\whoosh\\fs-60010-multi-swing-bamboo-staff-wea-2.wav",
+ "verdict": "ok",
+ "build_db": -5.2,
+ "start_db": -15.1,
+ "end_db": -13.7,
+ "spikiness": 1.55,
+ "dur_s": 0.302,
+ "peak_offset_s": 0.0956,
+ "rise_ms": 71.1,
+ "centroid_hz": 310,
+ "below150": 0.007,
+ "above6k": 0.0,
+ "flatness": 0.002,
+ "note": 62.6,
+ "start_floor_db": -34.7,
+ "source": {
+  "id": "60010",
+  "type": "whoosh",
+  "title": "Multi-Swing Bamboo Staff Weapon Attack",
+  "creator": "qubodup",
+  "license": "cc0",
+  "url": "https://cdn.freesound.org/previews/60/60010_71257-hq.mp3",
+  "landing": "https://freesound.org/people/qubodup/sounds/60010",
+  "k": 3,
+  "keep": [
+   0,
+   1
+  ],
+  "tags": [
+   "air",
+   "whoosh"
+  ]
+ }
+}

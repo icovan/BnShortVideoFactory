@@ -1,0 +1,22 @@
+{
+ "type": "zap",
+ "file": "E:\\SIM+\\creator\\BnFactory\\dsh-file-to-video-skills\\assets\\sfx-kit\\zap\\kenney-digital-phase-jump3.wav",
+ "verdict": "ok",
+ "build_db": -50.5,
+ "start_db": -0.2,
+ "end_db": -45.8,
+ "spikiness": 1.27,
+ "dur_s": 0.366,
+ "peak_offset_s": 0.0342,
+ "rise_ms": 1.8,
+ "centroid_hz": 868,
+ "below150": 0.0,
+ "above6k": 0.0,
+ "flatness": 0.002,
+ "note": 80.9,
+ "start_floor_db": -44.3,
+ "source": {
+  "pack": "digital",
+  "file": "Audio/phaseJump3.ogg"
+ }
+}

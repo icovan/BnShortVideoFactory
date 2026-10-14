@@ -25,16 +25,23 @@ export const CRAFT_MUST: Partial<Record<SkillName, string[]>> = {
   'kinetic-typography': [
     'Word/line stagger (split + translateY/spring) on that beat headline',
     'Do not only fade whole title once',
+    'Stage 2–4 phases: enter → accent → settle (or exit); mid-beat motion required',
+    'Vary reveal family (mask/blur/clip/slam) — not one spring recipe every beat',
   ],
   'diagram-animation': [
     'Progressive disclosure: nodes then edges/paths then labels (svg/path/strokeDash)',
     'Stagger or spring between node reveals',
+    'Hold the same diagram space across the beat; grow parts, do not reset the graph each frame',
+    'Labels arrive after structure — never a static finished poster at t=0',
   ],
   'caption-animation': [
     'Per-word or active-word caption highlight synced to VO timing',
   ],
   'chart-animation': [
     'Frame-driven count-up / bar grow via interpolate — not a static number',
+    'Keep one shared chart geometry; add points/bars over time — do not swap chart types every beat',
+    'Axes/baseline stay; data marks enter with overshoot or grow',
+    'Payoff: final value or steep segment holds ≥0.5s',
   ],
   'stickman-animation': [
     'Import shared Stickman from ../stickman; drive with sampleClip/walkPose/lerpPose',
@@ -42,6 +49,8 @@ export const CRAFT_MUST: Partial<Record<SkillName, string[]>> = {
   ],
   'whiteboard-animation': [
     'Stroke reveal (strokeDash / dashoffset) like ink drawing',
+    'Ink accumulates — previous strokes remain while new paths draw',
+    'Prefer pathLength/dashoffset over opacity fades for the hero line',
   ],
   'product-demo-video': [
     'Device/screenshot frame + cursor/pointer motion on UI beats',
@@ -65,7 +74,9 @@ export const CRAFT_MUST: Partial<Record<SkillName, string[]>> = {
     'Rebuild trim/opacity reveals with interpolate/spring; do not invent Lottie URLs',
   ],
   'generative-illustration': [
-    'Code-drawn geometric illustration language — shapes from brief, not stock icon dump',
+    'Code-drawn layered illustration from the brief material (paper cut / collage / ink / clay) — not stock icon dump',
+    'Build with 2–4 overlapping shape layers that slide/offset; keep the same material language across the beat',
+    'Typography is secondary caption — the layered picture is the hero, not kinetic word slam',
   ],
   'soundtrack': [
     'Music-led: respect musicFile/dropSec; duck bed under VO when both present',
@@ -108,6 +119,8 @@ export const CRAFT_MUST: Partial<Record<SkillName, string[]>> = {
   ],
   'animated-infographic': [
     'One fact cascade at a time (items.map stagger)',
+    'Icons/plates enter in sequence; prior facts stay visible when the story needs accumulation',
+    'Callouts pop after the fact mark settles — not all at once',
   ],
   'map-animation': [
     'Map/marker/route graphic intent on screen',
@@ -149,14 +162,31 @@ export type BeatSkillRef = {
   skill: SkillName | string;
   visualIntent?: string;
   keyMotion?: string;
+  /** a2e §4 layout mode id */
+  layoutMode?: string;
   craftMust?: string[];
 };
 
-/** Attach craftMust lines onto each beat from its skill. */
+/** Attach craftMust. A named picture outranks the skill's generic recipe. */
 export function attachCraftMust<T extends BeatSkillRef>(beats: T[]): T[] {
   return beats.map((b) => {
     const id = b.skill as SkillName;
     const must = CRAFT_MUST[id] || [];
+    const picture = (b.visualIntent || '').trim();
+    const named = picture.length >= 8 && !/^illustrate\s*:/i.test(picture);
+    if (named) {
+      const flow = /节点|连线|流程图|模块/.test(picture);
+      const skillLine = id === 'diagram-animation'
+        ? (flow ? must.slice(0, 1) : [])
+        : must.slice(0, 1);
+      return {
+        ...b,
+        craftMust: [
+          'Picture = visualIntent. Draw that full-frame metaphor (object + action + space). The skill only decides how it moves. Do not replace it with a words-only card, a generic A→B→C node graph, or another skill\'s object.',
+          ...skillLine,
+        ],
+      };
+    }
     return must.length ? { ...b, craftMust: must } : { ...b, craftMust: b.craftMust };
   });
 }
@@ -183,7 +213,6 @@ export function ensureBeatSkillCoverage<T extends BeatSkillRef>(
   for (const id of need) {
     const c = counts();
     if ((c.get(id) || 0) > 0) continue;
-    // Steal from the most duplicated skill (or last beat)
     let victim = next.length - 1;
     let best = -1;
     c.forEach((n, skill) => {
@@ -197,8 +226,8 @@ export function ensureBeatSkillCoverage<T extends BeatSkillRef>(
     next[victim] = { ...next[victim], skill: id };
   }
 
-  // Alternate: if support exists but ≥70% beats are primary-only, sprinkle support
-  if (support.length && next.length >= 4) {
+  const distinct = new Set(next.map((b) => b.skill)).size;
+  if (support.length && next.length >= 4 && distinct < 3) {
     const primaryShare = next.filter((b) => b.skill === primary).length / next.length;
     if (primaryShare >= 0.7) {
       next = next.map((b, i) => {
@@ -208,7 +237,6 @@ export function ensureBeatSkillCoverage<T extends BeatSkillRef>(
         }
         return b;
       });
-      // re-ensure primary still present
       if (!next.some((b) => b.skill === primary)) {
         next[0] = { ...next[0], skill: primary };
       }
@@ -237,13 +265,13 @@ export function craftDepthBrief(
     const must = (b.craftMust || CRAFT_MUST[b.skill as SkillName] || []).slice(0, 2);
     lines.push(
       `beat[${i}] job=${b.job || i} skill=${b.skill}`
+        + (b.layoutMode ? ` layoutMode=${b.layoutMode}` : '')
         + (must.length ? ` → ${must.join(' | ')}` : '')
         + (b.visualIntent ? ` | intent: ${b.visualIntent.slice(0, 80)}` : ''),
     );
   });
-  lines.push(
-    'FORBIDDEN: pass skill gates with a single token match while other beats ignore their assigned skill.',
-  );
+  lines.push('When a beat intent names a metaphor, that metaphor fills the frame. A MUST line says how it moves. It does not replace the metaphor with a generic node card, a title-only slide, or another skill\'s object.');
+  lines.push('If scene.layoutMode is present, treat it as an optional variety hint only — full-frame metaphors from visualIntent still win.');
   return lines.join('\n');
 }
 
@@ -288,8 +316,7 @@ export function scoreSkillDepth(
       || id === 'remotion-video'
       || (id === 'kinetic-typography' && /split\(|stagger|Kinetic/i.test(tsx))
       || (id === 'diagram-animation'
-        && /strokeDash|pathLength|<svg\b/i.test(tsx)
-        && /nodes?|edges?|path/i.test(tsx)
+        && /strokeDash|pathLength|<svg\b|<path\b|clipPath/i.test(tsx)
         && /spring\(|stagger|interpolate\(/.test(tsx))
       || (id === 'caption-animation' && /caption|karaoke|activeWord|words\.map/i.test(tsx))
       || (id === 'chart-animation' && /interpolate\(|CountUp|toLocaleString|Math\.(round|floor)/.test(tsx))
@@ -331,7 +358,7 @@ export function scoreSkillDepth(
     && /<\w*(Hud|Monitor|CamChrome|RecFrame|LabChrome)\w*\b/i.test(tsx);
   if (beatN < 6 || (!sharedHud && chromeHits < Math.ceil(beatN * 1.15))) score += 1;
   else issues.push('chrome spam: REC/CAM/TC/LAB wrapping too many beats — vary layouts');
-  const minLen = Math.min(48000, Math.max(2000, 900 + beatN * 220));
+  const minLen = Math.min(48000, Math.max(2800, 1200 + beatN * 280));
   if (tsx.length >= minLen) score += 1;
   else issues.push(`craft density: TSX too thin (${tsx.length} < ${minLen}) for ${beatN} beats`);
 
